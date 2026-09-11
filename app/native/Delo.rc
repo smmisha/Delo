@@ -1,0 +1,38 @@
+#include <windows.h>
+#include "resource.h"
+#include "DeloVersion.rcinc"
+
+IDI_DELO ICON "Delo.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION DELO_FILE_VERSION
+ PRODUCTVERSION DELO_FILE_VERSION
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Delo contributors\0"
+            VALUE "FileDescription", "Delo desktop planner\0"
+            VALUE "FileVersion", DELO_FILE_VERSION_STRING "\0"
+            VALUE "InternalName", "Delo\0"
+            VALUE "LegalCopyright", "Copyright (c) 2026 Delo contributors\0"
+            VALUE "OriginalFilename", "Delo.exe\0"
+            VALUE "ProductName", "Delo\0"
+            VALUE "ProductVersion", DELO_PRODUCT_VERSION_STRING "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

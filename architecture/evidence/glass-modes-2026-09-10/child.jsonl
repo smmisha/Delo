@@ -1,0 +1,13 @@
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"exclude_affinity","passed":true,"detail":"error=0,value=17"}
+{"check":"monitor_size","passed":true,"detail":"1920x1200"}
+{"check":"initial_topmost_grid_source","passed":true,"detail":""}
+{"check":"initial_topmost_hit","passed":true,"detail":""}
+{"check":"initial_topmost_exclusion","passed":true,"detail":"difference=0,magenta=0"}
+{"check":"initial_topmost_refraction","passed":true,"detail":"1788"}
+{"check":"initial_topmost_live","passed":true,"detail":""}
+{"check":"desktop_0_relationship","passed":true,"detail":""}
+{"check":"desktop_0_not_topmost","passed":true,"detail":""}
+{"check":"desktop_0_affinity","passed":false,"detail":"set=0,error=87,value=0"}
+{"check":"exception","passed":false,"detail":"HRESULT 0x80004005"}
+{"failed_checks":2}

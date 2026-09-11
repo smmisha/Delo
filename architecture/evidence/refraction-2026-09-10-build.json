@@ -1,0 +1,32 @@
+{
+  "recordedAt": "2026-09-10T11:28:57.0087038+03:00",
+  "exitCode": 1,
+  "opticalPassed": false,
+  "interactionExecuted": false,
+  "files": [
+    {
+      "path": "Delo/prototypes/windows-layer/RefractionProbe.cpp",
+      "sha256": "ABE696DBE024D59C38E652E1E7E0AE02063B1CFFAB41A01EB6937E857F618921"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/RefractionEffect.h",
+      "sha256": "AD86552236D27130D250C43989079587F46CF57C6DDAE97DEBEBB4631DD1F588"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/NativeWindowProbe.cpp",
+      "sha256": "62A1790EB847640EF41CDBE15AD2BF64FD0D1D7D9339E57C38C99BD7898A88E3"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/BackdropEffect.cpp",
+      "sha256": "AA90E6283CB19E97726FFF24AF20C27AD4B891F810470685C8C7A1925152F516"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/build-refraction.ps1",
+      "sha256": "DB5448419DFF8645B66BBCCD08AF8E9962C2FB8FDB231E30BAC1089F97B33892"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/bin/Delo.RefractionProbe.exe",
+      "sha256": "82583EA8F23F6A9BB1BE6F83A9EF95EBFCDDD2AB1699F675F3DAB1C454A14F86"
+    }
+  ]
+}

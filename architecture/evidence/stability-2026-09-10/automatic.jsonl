@@ -1,0 +1,201 @@
+{"check":"modern_standby_registered","passed":true,"detail":""}
+{"observation":"environment","value":{"monitor_count":1,"system_dpi":120,"pid":4192}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"initial_running","passed":true,"detail":""}
+{"check":"initial_known_source","passed":true,"detail":""}
+{"check":"initial_refraction","passed":true,"detail":""}
+{"check":"initial_center","passed":true,"detail":""}
+{"check":"initial_exclusion","passed":true,"detail":""}
+{"check":"initial_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2147483667,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"closed_session_running","passed":true,"detail":""}
+{"check":"closed_session_known_source","passed":true,"detail":""}
+{"check":"closed_session_refraction","passed":true,"detail":""}
+{"check":"closed_session_center","passed":true,"detail":""}
+{"check":"closed_session_exclusion","passed":true,"detail":""}
+{"check":"closed_session_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"capture_generation_changed","passed":true,"detail":""}
+{"observation":"handled_fault","value":{"hr":2289696773,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"injected_device_removed_running","passed":true,"detail":""}
+{"check":"injected_device_removed_known_source","passed":true,"detail":""}
+{"check":"injected_device_removed_refraction","passed":true,"detail":""}
+{"check":"injected_device_removed_center","passed":true,"detail":""}
+{"check":"injected_device_removed_exclusion","passed":true,"detail":""}
+{"check":"injected_device_removed_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"device_recreated","passed":true,"detail":""}
+{"observation":"handled_fault","value":{"hr":2147942405,"attempt":1}}
+{"observation":"handled_fault","value":{"hr":2147942405,"attempt":2}}
+{"observation":"handled_fault","value":{"hr":2147942405,"attempt":3}}
+{"observation":"handled_fault","value":{"hr":2147942405,"attempt":4}}
+{"check":"bounded_retry_hidden","passed":true,"detail":""}
+{"check":"no_retry_spin","passed":true,"detail":""}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"permission_restored_running","passed":true,"detail":""}
+{"check":"permission_restored_known_source","passed":true,"detail":""}
+{"check":"permission_restored_refraction","passed":true,"detail":""}
+{"check":"permission_restored_center","passed":true,"detail":""}
+{"check":"permission_restored_exclusion","passed":true,"detail":""}
+{"check":"permission_restored_visible_center_and_edges","passed":true,"detail":"0"}
+{"power_event":"suspend"}
+{"check":"synthetic_suspend_released","passed":true,"detail":""}
+{"check":"suspended_no_render","passed":true,"detail":""}
+{"power_event":"resume"}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"synthetic_resume_running","passed":true,"detail":""}
+{"check":"synthetic_resume_known_source","passed":true,"detail":""}
+{"check":"synthetic_resume_refraction","passed":true,"detail":""}
+{"check":"synthetic_resume_center","passed":true,"detail":""}
+{"check":"synthetic_resume_exclusion","passed":true,"detail":""}
+{"check":"synthetic_resume_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"synthetic_displaychange_running","passed":true,"detail":""}
+{"check":"synthetic_displaychange_known_source","passed":true,"detail":""}
+{"check":"synthetic_displaychange_refraction","passed":true,"detail":""}
+{"check":"synthetic_displaychange_center","passed":true,"detail":""}
+{"check":"synthetic_displaychange_exclusion","passed":true,"detail":""}
+{"check":"synthetic_displaychange_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"synthetic_dpi_actual_resize_running","passed":true,"detail":""}
+{"check":"synthetic_dpi_actual_resize_known_source","passed":true,"detail":""}
+{"check":"synthetic_dpi_actual_resize_refraction","passed":true,"detail":""}
+{"check":"synthetic_dpi_actual_resize_center","passed":true,"detail":""}
+{"check":"synthetic_dpi_actual_resize_exclusion","passed":true,"detail":""}
+{"check":"synthetic_dpi_actual_resize_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"resized_resources","passed":true,"detail":""}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"size_restored_running","passed":true,"detail":""}
+{"check":"size_restored_known_source","passed":true,"detail":""}
+{"check":"size_restored_refraction","passed":true,"detail":""}
+{"check":"size_restored_center","passed":true,"detail":""}
+{"check":"size_restored_exclusion","passed":true,"detail":""}
+{"check":"size_restored_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"hwnd_capture_running","passed":true,"detail":""}
+{"check":"hwnd_capture_known_source","passed":true,"detail":""}
+{"check":"hwnd_capture_refraction","passed":true,"detail":""}
+{"check":"hwnd_capture_center","passed":true,"detail":""}
+{"check":"hwnd_capture_exclusion","passed":true,"detail":""}
+{"check":"hwnd_capture_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"actual_capture_pool_resize","passed":true,"detail":""}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"observation":"handled_fault","value":{"hr":2147500037,"attempt":1}}
+{"check":"actual_item_closed_safe","passed":true,"detail":""}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"source_recreated_running","passed":true,"detail":""}
+{"check":"source_recreated_known_source","passed":true,"detail":""}
+{"check":"source_recreated_refraction","passed":true,"detail":""}
+{"check":"source_recreated_center","passed":true,"detail":""}
+{"check":"source_recreated_exclusion","passed":true,"detail":""}
+{"check":"source_recreated_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"surrogate_owner_destroyed_output","passed":true,"detail":""}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"owner_loss_window_recreated_running","passed":true,"detail":""}
+{"check":"owner_loss_window_recreated_known_source","passed":true,"detail":""}
+{"check":"owner_loss_window_recreated_refraction","passed":true,"detail":""}
+{"check":"owner_loss_window_recreated_center","passed":true,"detail":""}
+{"check":"owner_loss_window_recreated_exclusion","passed":true,"detail":""}
+{"check":"owner_loss_window_recreated_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"negative_monitor_coordinates","passed":true,"detail":""}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"physical_monitor_0_running","passed":true,"detail":""}
+{"check":"physical_monitor_0_known_source","passed":true,"detail":""}
+{"check":"physical_monitor_0_refraction","passed":true,"detail":""}
+{"check":"physical_monitor_0_center","passed":true,"detail":""}
+{"check":"physical_monitor_0_exclusion","passed":true,"detail":""}
+{"check":"physical_monitor_0_visible_center_and_edges","passed":true,"detail":"0"}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"offscreen_recovered_running","passed":true,"detail":""}
+{"check":"offscreen_recovered_known_source","passed":true,"detail":""}
+{"check":"offscreen_recovered_refraction","passed":true,"detail":""}
+{"check":"offscreen_recovered_center","passed":true,"detail":""}
+{"check":"offscreen_recovered_exclusion","passed":true,"detail":""}
+{"check":"offscreen_recovered_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_0_running","passed":true,"detail":""}
+{"check":"recovery_cycle_0_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_0_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_0_center","passed":true,"detail":""}
+{"check":"recovery_cycle_0_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_0_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_1_running","passed":true,"detail":""}
+{"check":"recovery_cycle_1_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_1_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_1_center","passed":true,"detail":""}
+{"check":"recovery_cycle_1_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_1_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_2_running","passed":true,"detail":""}
+{"check":"recovery_cycle_2_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_2_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_2_center","passed":true,"detail":""}
+{"check":"recovery_cycle_2_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_2_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_3_running","passed":true,"detail":""}
+{"check":"recovery_cycle_3_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_3_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_3_center","passed":true,"detail":""}
+{"check":"recovery_cycle_3_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_3_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_4_running","passed":true,"detail":""}
+{"check":"recovery_cycle_4_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_4_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_4_center","passed":true,"detail":""}
+{"check":"recovery_cycle_4_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_4_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_5_running","passed":true,"detail":""}
+{"check":"recovery_cycle_5_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_5_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_5_center","passed":true,"detail":""}
+{"check":"recovery_cycle_5_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_5_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_6_running","passed":true,"detail":""}
+{"check":"recovery_cycle_6_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_6_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_6_center","passed":true,"detail":""}
+{"check":"recovery_cycle_6_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_6_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"handled_fault","value":{"hr":2289696775,"attempt":1}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"recovery_cycle_7_running","passed":true,"detail":""}
+{"check":"recovery_cycle_7_known_source","passed":true,"detail":""}
+{"check":"recovery_cycle_7_refraction","passed":true,"detail":""}
+{"check":"recovery_cycle_7_center","passed":true,"detail":""}
+{"check":"recovery_cycle_7_exclusion","passed":true,"detail":""}
+{"check":"recovery_cycle_7_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"recovery_resource_delta","value":{"cycles":8,"private_mib":1.277344,"handles":12}}
+{"check":"recovery_handles_bounded","passed":true,"detail":""}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"before_load_running","passed":true,"detail":""}
+{"check":"before_load_known_source","passed":true,"detail":""}
+{"check":"before_load_refraction","passed":true,"detail":""}
+{"check":"before_load_center","passed":true,"detail":""}
+{"check":"before_load_exclusion","passed":true,"detail":""}
+{"check":"before_load_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"load","value":{"phase":"idle_monitor_capture","elapsed_ms":12047,"cpu_one_core_percent":0.389,"cpu_machine_percent":0.012,"renders":0,"copies":71,"working_set_mib":54.672,"private_mib":37.676,"private_delta_mib":0.031,"handle_delta":2}}
+{"check":"idle_monitor_capture_no_idle_redraw","passed":true,"detail":"0"}
+{"observation":"load","value":{"phase":"moving_background_30hz","elapsed_ms":12016,"cpu_one_core_percent":3.511,"cpu_machine_percent":0.110,"renders":233,"copies":250,"working_set_mib":54.715,"private_mib":37.676,"private_delta_mib":0.000,"handle_delta":0}}
+{"check":"moving_background_renders","passed":true,"detail":"233"}
+{"observation":"load","value":{"phase":"idle_after_motion","elapsed_ms":12000,"cpu_one_core_percent":0.391,"cpu_machine_percent":0.012,"renders":0,"copies":48,"working_set_mib":54.656,"private_mib":37.578,"private_delta_mib":-0.098,"handle_delta":0}}
+{"check":"idle_after_motion_no_idle_redraw","passed":true,"detail":"0"}
+{"observation":"timestamp_diagnostic","value":{"disjoint":0,"frequency":100000000,"start_hr":0,"end_hr":0}}
+{"check":"gpu_timestamp_samples","passed":true,"detail":""}
+{"observation":"shader_gpu_microseconds","value":{"samples":40,"median":132.760000,"p95":136.200000}}
+{"observation":"gpu_process_memory","value":{"local_bytes":32522240,"nonlocal_bytes":0}}
+{"power_event":"suspend"}
+{"observation":"load","value":{"phase":"suspended_released","elapsed_ms":6000,"cpu_one_core_percent":0.260,"cpu_machine_percent":0.008,"renders":0,"copies":0,"working_set_mib":30.238,"private_mib":7.961,"private_delta_mib":-11.215,"handle_delta":0}}
+{"check":"suspended_released_no_idle_redraw","passed":true,"detail":"0"}
+{"failed_checks":0}

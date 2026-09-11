@@ -1,0 +1,37 @@
+{
+  "files": [
+    {
+      "file": "StabilityProbe.cpp",
+      "sha256": "65413A0A79EFF2AD859D5FB85B4CB703D41C74F6974E64946C9D1C015BC7F820"
+    },
+    {
+      "file": "Probe.cpp",
+      "sha256": "3B56F5F501DCCA2ADD4014527C56B2BDF2F6D5CD8C87FBB52DF259D3235C3838"
+    },
+    {
+      "file": "MonitorProbe.cpp",
+      "sha256": "E35FE412AA9307E9DB93C0E645E14B47F586ADD28D2745A17A697C45B9895BFE"
+    },
+    {
+      "file": "Glass.hlsl",
+      "sha256": "1A79031B88883D5BC988E050C2410852B37EB9EF2249ADC253792F75F6773EFB"
+    },
+    {
+      "file": "modes.manifest",
+      "sha256": "F1D7A270FE1BFB037EDA1D6CBD8ED41C0E12274833E91448A787C7738953256E"
+    },
+    {
+      "file": "build-stability.ps1",
+      "sha256": "C50F8045AF3B665EAD1F0D6EF72061FA49EA3A9DC2EF994DE009F44825FFC305"
+    },
+    {
+      "file": "run-stability.ps1",
+      "sha256": "C55899772C43671DE4264F64ED85400CCA53A114DD0A6EF6C74AB5DAD67C6003"
+    },
+    {
+      "file": "bin/Delo.StabilityProbe.exe",
+      "sha256": "B4D5C848F786E67C955F5E9DE2D68D46005246A74DE401652C4A5863688F7DC7"
+    }
+  ],
+  "utc": "2026-09-10T18:23:08.3190900Z"
+}

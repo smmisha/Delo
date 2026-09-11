@@ -1,0 +1,24 @@
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"capture_size","passed":true,"detail":"400x300"}
+{"check":"external_light_edge_displacement","passed":true,"detail":"1788"}
+{"check":"external_light_center_preserved","passed":true,"detail":"0"}
+{"check":"external_light_identity_source","passed":true,"detail":""}
+{"check":"external_light_alpha","passed":true,"detail":""}
+{"check":"external_light_live_source","passed":true,"detail":""}
+{"check":"external_light_live_lens","passed":true,"detail":""}
+{"check":"external_light_presented_center_and_edges","passed":true,"detail":"0"}
+{"check":"external_light_source_occluded_by_output","passed":true,"detail":""}
+{"check":"external_light_capture_excludes_output","passed":true,"detail":"0"}
+{"check":"external_light_occluded_source_updated","passed":true,"detail":""}
+{"check":"external_dark_edge_displacement","passed":true,"detail":"1788"}
+{"check":"external_dark_center_preserved","passed":true,"detail":"0"}
+{"check":"external_dark_identity_source","passed":true,"detail":""}
+{"check":"external_dark_alpha","passed":true,"detail":""}
+{"check":"external_dark_live_source","passed":true,"detail":""}
+{"check":"external_dark_live_lens","passed":true,"detail":""}
+{"check":"external_dark_presented_center_and_edges","passed":true,"detail":"0"}
+{"check":"external_dark_source_occluded_by_output","passed":true,"detail":""}
+{"check":"external_dark_capture_excludes_output","passed":true,"detail":"0"}
+{"check":"external_dark_occluded_source_updated","passed":true,"detail":""}
+{"check":"device_not_removed","passed":true,"detail":""}
+{"failed_checks":0}

@@ -1,0 +1,40 @@
+#pragma once
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <cstdint>
+
+namespace delo {
+class GlassRenderer {
+public:
+    struct Counters { std::uint64_t copied{}, rendered{}, recoveries{}, errors{}; };
+    GlassRenderer(HWND host, std::filesystem::path shaderPath);
+    ~GlassRenderer();
+    GlassRenderer(GlassRenderer const&) = delete;
+    GlassRenderer& operator=(GlassRenderer const&) = delete;
+    void Tick();
+    // Geometry changed: the next tick resizes the textures in place and redraws.
+    void Resize();
+    // Tears the renderer down so the capture session and GPU resources are rebuilt.
+    void Rebuild();
+    // Keeps a frozen frame covering the window while a resize gesture is in flight.
+    void Stretch();
+    void SetDark(bool dark);
+    // Holds the last presented frame for the duration of a move/resize gesture.
+    // Unlike Suspend this keeps the GPU resources and the capture session alive,
+    // so releasing the window resumes live refraction without a rebuild.
+    void Freeze(bool frozen);
+    void Suspend(bool suspended);
+    bool Healthy() const;
+    std::string LastError() const;
+    Counters GetCounters() const;
+    HANDLE EventHandle() const;
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+}

@@ -1,0 +1,45 @@
+{
+  "ownerExit": 0,
+  "hashes": [
+    {
+      "file": "WindowModesProbe.cpp",
+      "sha256": "2AB75CD7347847D5B9A4E12B70D5D49EF551A00F5F2956EBFC38243005E9CE8C"
+    },
+    {
+      "file": "MonitorProbe.cpp",
+      "sha256": "E35FE412AA9307E9DB93C0E645E14B47F586ADD28D2745A17A697C45B9895BFE"
+    },
+    {
+      "file": "Probe.cpp",
+      "sha256": "F62AB66F39056E039FF92E8E44641CAFA6909E5FE69E86C8B203EAEB528DF836"
+    },
+    {
+      "file": "Glass.hlsl",
+      "sha256": "1A79031B88883D5BC988E050C2410852B37EB9EF2249ADC253792F75F6773EFB"
+    },
+    {
+      "file": "modes.manifest",
+      "sha256": "F1D7A270FE1BFB037EDA1D6CBD8ED41C0E12274833E91448A787C7738953256E"
+    },
+    {
+      "file": "build-modes.ps1",
+      "sha256": "A5E7F9E2BB443BCCD7A56C0154EDCD0F929C90AADB6A7505F8D90F07E78103B9"
+    },
+    {
+      "file": "run-modes.ps1",
+      "sha256": "CC521D9FFC2B6993EE322D072DBB85F9DC405B38F580077C8BA01D6AE8F7747C"
+    },
+    {
+      "file": "bin/Delo.WindowModesProbe.exe",
+      "sha256": "D75945880AB2B4268BC9601D75C9D031338842D7012C77B0F704E022A64F528A"
+    }
+  ],
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "dpi": 120,
+  "observations": 4,
+  "monitor": "1920x1200",
+  "utc": "2026-09-10T13:47:59.9204959Z",
+  "gpu": "AMD Radeon(TM) 610M",
+  "assertions": 49,
+  "childExit": 1
+}

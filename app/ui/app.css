@@ -1,0 +1,51 @@
+/* The native D3D layer supplies desktop optics. WebView contains sharp controls only. */
+:root{background:transparent;color-scheme:light}html,body{width:100%;height:100%;overflow:hidden;background:transparent}body.dark{color-scheme:dark}.widget,body.dark .widget{position:relative;inset:auto;transform:none;margin:0;width:100%;height:100%;max-width:none;border:0;border-radius:36px;background:transparent;box-shadow:none;padding:24px 20px 22px;overflow:hidden}.widget-head{touch-action:none;user-select:none}.widget-head h1{margin:0;font-size:25px;display:flex;align-items:center;min-height:44px}.reputation{background:none;min-height:32px;border-radius:16px;padding:4px 6px}.subhead{margin-bottom:14px}.task-title{font-size:15px}.task-group h2{font-size:12px;margin:10px 5px 4px;font-weight:650;color:var(--muted)}.task-group h2.late-label{color:var(--danger)}.task-group h2.done-label{color:var(--success)}.task-group h2 span{font-weight:400;margin-left:6px}.task-group:not(:has(.task)){display:none}.task-title:focus-visible,.deadline:focus-visible{outline-offset:0}.late .task-title{color:var(--ink)}.in-work .task-title{color:var(--work)}.done .task-title{color:var(--success)}.empty{font-size:14px;line-height:1.6;color:var(--muted);padding:36px 16px;text-align:center}.deadline{min-height:28px}.task-scroll{overscroll-behavior:contain}.error{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px;border-radius:16px;background:var(--popover);color:var(--danger);font-size:13px;line-height:1.45;flex-shrink:0;max-height:32vh;overflow:auto}.error>span{flex:1;min-width:120px}.error button:not(.round){min-height:36px;padding:4px 12px;border-radius:18px;background:var(--small-surface)}.error .round{width:32px;height:32px}.inline-entry textarea{font-size:14px}.status{pointer-events:none}dialog{width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;border-radius:28px;overscroll-behavior:contain}dialog::backdrop{background:#172c4340;backdrop-filter:none}.capture-surface,.trash-surface{padding:14px 18px 18px;border-radius:28px;background:var(--menu-surface);backdrop-filter:none}.capture-head{gap:8px}.capture-head h2{font-size:18px;margin:0;color:var(--ink)}#editor-input{display:block;width:100%;min-height:90px;max-height:28vh;margin:10px 0;padding:10px 2px;font-size:19px;line-height:1.45;border:0;border-bottom:1px solid var(--line);background:transparent;resize:none;overflow:auto}textarea:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);outline-offset:2px}#time-input{width:100%;min-width:0;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:13px;background:var(--small-surface)}#due-input{color-scheme:inherit;border-color:var(--line)}.date-editor{gap:8px}.date-presets{flex-wrap:wrap}.date-presets button{flex:1;padding:0 10px}.capture-foot{gap:8px;align-items:center}.capture-foot>span{max-width:65%;font-size:11px;line-height:1.5}.capture-foot button:not(.save){min-height:44px;padding:0 14px;border-radius:22px;background:var(--small-surface)}#zone-hint{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0;overflow-wrap:anywhere}.settings-fields{display:grid;gap:14px;padding-top:14px}.settings-fields label{display:grid;gap:6px;font-size:13px;line-height:1.4}.settings-fields .check{display:flex;align-items:center;gap:10px;min-height:32px}.check input{width:18px;height:18px;accent-color:var(--focus)}.settings-fields select,.settings-fields input:not([type=checkbox]){min-width:0;width:100%;height:44px;border:1px solid var(--line);border-radius:12px;padding:0 10px;background:var(--popover);color:var(--ink)}.settings-links{display:flex;gap:8px;margin-top:18px}.settings-links button{flex:1;min-height:44px;border-radius:18px;background:var(--small-surface)}#task-menu{max-height:calc(100vh - 16px);overflow:auto;z-index:10}#task-menu:popover-open{display:block}#collection-list,#history-list{max-height:none}.collection-row{padding:12px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.collection-copy{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.collection-copy small{display:block;color:var(--muted);font-size:12px;margin-top:5px}.collection-row button{min-height:44px;border-radius:18px;padding:0 12px;background:var(--small-surface);color:var(--focus)}.history-row{font-size:13px;line-height:1.5;padding:10px 0;border-top:1px solid var(--line)}.history-row strong{float:right}.quick .widget{padding:14px 18px;border-radius:28px;justify-content:center}.quick .widget-head,.quick .subhead,.quick .task-scroll,.quick .undo-bar,.quick #new-with-date{display:none!important}.quick .inline-entry{margin:0}.quick .inline-entry textarea{font-size:20px;max-height:64px}.quick .inline-entry:focus-within{outline:0}.quick .error{margin-bottom:8px}.undo-bar{min-height:56px}.undo-countdown{align-self:center}.save{flex-shrink:0}.task.entering{animation:row-in 220ms ease-out}@keyframes row-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@media(max-width:330px){.widget{padding:16px 10px}.task{grid-template-columns:36px minmax(0,1fr) 72px}.task-actions .timer,.task-more{width:36px}.complete{width:36px}.task-title{font-size:14px}.lockup b{font-size:23px}.date-presets button{font-size:11px}.capture-surface,.trash-surface{padding:12px}.capture-foot>span{max-width:56%}}@media(max-height:380px){.widget{padding-top:12px;padding-bottom:12px}.subhead{margin-bottom:4px}.inline-entry{margin-top:6px}.task-group h2{margin-top:4px}.undo-bar{margin-top:4px}}@media(prefers-reduced-motion:reduce){.task.entering{animation:none}}.reduced .task.entering{animation:none}
+
+
+/* Editor: keep the primary action on screen. The dialog scrolled as a whole, which
+   pushed "Сохранить" past the bottom of a 408px widget window — measured 397..441
+   against a 408px viewport, reachable only by scrolling. Now the dialog itself does
+   not scroll; head and foot are pinned and only the date block scrolls. */
+#editor[open]{display:flex;overflow:hidden}
+#editor-form{display:flex;flex-direction:column;width:100%;max-height:100%;min-height:0}
+#editor-form>.capture-head,#editor-form>.capture-foot,#editor-form>.error{flex:0 0 auto}
+#editor-form>.date-editor{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}/* Preferred 90px, but the field yields before the date block does, so the preset
+   pills stay whole instead of being sliced by the scroll edge. */
+#editor-form>#editor-input{flex:0 1 auto;flex-basis:90px;min-height:56px}
+/* Settings had the same defect, worse: 510px of overflow put "Сохранить" at 887
+   against a 408px window, so it was off screen entirely until you scrolled. */
+#settings[open]{display:flex;overflow:hidden}
+#settings-form{display:flex;flex-direction:column;width:100%;max-height:100%;min-height:0}
+#settings-form>.capture-head,#settings-form>.capture-foot,#settings-form>.error{flex:0 0 auto}
+#settings-form>.settings-fields{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+/* Collapsible groups. The heading becomes a 44px toggle; the chevron points down when
+   open and left when closed, so state reads without relying on colour. */
+.task-group h2{margin:6px 0 2px;padding:0}
+.group-toggle{display:flex;align-items:center;gap:7px;width:100%;min-height:44px;padding:0 5px;background:none;border:0;border-radius:12px;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.group-toggle:hover{background:var(--small-surface)}
+.group-toggle .group-name{margin-right:auto}
+.group-toggle>svg{width:13px;height:13px;flex-shrink:0;opacity:.75;transition:transform 160ms ease}
+.task-group.collapsed .group-toggle>svg{transform:rotate(-90deg)}
+.task-group.collapsed .task,.task-group.collapsed .work-strip{display:none}
+@media(prefers-reduced-motion:reduce){.group-toggle>svg{transition:none}}
+.reduced .group-toggle>svg{transition:none}
+
+/* Date and time pickers ship different default indicator sizes; pin both to one box so
+   the two rows read as a pair. */
+#due-input::-webkit-calendar-picker-indicator,
+#time-input::-webkit-calendar-picker-indicator{
+  width:18px;height:18px;padding:0;margin:0 0 0 8px;flex-shrink:0;
+  opacity:.65;cursor:pointer;background-size:18px 18px;
+}
+#due-input::-webkit-calendar-picker-indicator:hover,
+#time-input::-webkit-calendar-picker-indicator:hover{opacity:1}
+body.dark #due-input::-webkit-calendar-picker-indicator,
+body.dark #time-input::-webkit-calendar-picker-indicator{filter:invert(1)}
+
+/* Voice input sits between the date and send buttons and follows the same 44px box.
+   Disabled until an engine is wired, so it reads as not-yet rather than broken. */
+#voice-input:disabled{opacity:.45;cursor:default}
+/* Quick capture is a single autofocused field, like Spotlight: a hard 3px ring on the
+   bare textarea read as a stray wide frame. The caret and the window itself carry the
+   focus, matching the capsule ring already suppressed above. */
+.quick #task-input:focus-visible{outline:0}

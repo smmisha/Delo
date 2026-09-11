@@ -1,0 +1,7 @@
+/bin/
+/vendor/
+/test-output/
+/dist/
+*.obj
+*.pdb
+*.ilk

@@ -1,0 +1,30 @@
+(async()=>{
+ const {HostBridge}=await import('./bridge.mjs');const host=new HostBridge(),checks=[];
+ const check=(name,pass)=>{checks.push({name,pass});if(!pass)throw Error(name);};
+ const wait=ms=>new Promise(r=>setTimeout(r,ms));
+ await host.window('quickDone');await host.window('show');await wait(150);
+ await host.window('quick');await wait(150);
+ const first=await host.window('diagnostics');
+ const input=document.querySelector('#task-input');
+ check('quick input receives focus',document.activeElement===input&&first.visible);
+ const title=`Harness quick ${Date.now()}`;input.value=title;input.dispatchEvent(new Event('input',{bubbles:true}));
+ await host.window('quick');await wait(100);const repeated=await host.window('diagnostics');
+ check('repeated call keeps original return window',first.previous!==0&&repeated.previous===first.previous);
+ check('repeated call keeps draft',input.value===title);
+ input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+ const end=Date.now()+5000;let final;
+ do{await wait(50);final=await host.window('diagnostics');}while(final.visible&&Date.now()<end);
+ check('Enter closes quick view after save',!final.visible&&input.value==='');
+ check('focus returns to original window',final.foreground===first.previous);
+ const saved=await host.request('load');check('quick task saved exactly once',saved.state.tasks.filter(t=>t.title===title).length===1);
+ await host.window('quick');await wait(100);
+ const cancelTitle=`Cancelled ${Date.now()}`;input.value=cancelTitle;input.dispatchEvent(new Event('input',{bubbles:true}));
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await wait(150);
+ const cancelled=await host.window('diagnostics'),after=await host.request('load');
+ check('Escape closes without saving',!cancelled.visible&&!after.state.tasks.some(t=>t.title===cancelTitle));
+ check('Escape returns focus',cancelled.foreground===first.previous);
+ await host.window('quick');await wait(100);
+ check('Escape discards cancelled draft',input.value==='');
+ await host.window('quickDone');
+ return {checks};
+})()

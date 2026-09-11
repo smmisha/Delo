@@ -1,0 +1,25 @@
+{"check":"modern_standby_registered","passed":true,"detail":""}
+{"observation":"environment","value":{"monitor_count":1,"system_dpi":120,"pid":24284}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"initial_running","passed":true,"detail":""}
+{"check":"initial_known_source","passed":true,"detail":""}
+{"check":"initial_refraction","passed":true,"detail":""}
+{"check":"initial_center","passed":true,"detail":""}
+{"check":"initial_exclusion","passed":true,"detail":""}
+{"check":"initial_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"manual_ready","value":true}
+{"session_event":7}
+{"power_event":"suspend"}
+{"power_event":"resume"}
+{"session_event":8}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"observation":"manual_events","value":{"suspend":1,"resume":1,"display":2}}
+{"check":"real_suspend_received","passed":true,"detail":""}
+{"check":"real_resume_received","passed":true,"detail":""}
+{"check":"after_real_sleep_running","passed":true,"detail":""}
+{"check":"after_real_sleep_known_source","passed":true,"detail":""}
+{"check":"after_real_sleep_refraction","passed":true,"detail":""}
+{"check":"after_real_sleep_center","passed":true,"detail":""}
+{"check":"after_real_sleep_exclusion","passed":true,"detail":""}
+{"check":"after_real_sleep_visible_center_and_edges","passed":true,"detail":"0"}
+{"failed_checks":0}

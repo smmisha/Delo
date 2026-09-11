@@ -1,0 +1,26 @@
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"monitor_size","passed":true,"detail":"1920x1200"}
+{"check":"include_affinity","passed":true,"detail":"error=0,value=0"}
+{"check":"positive_self_capture","passed":true,"detail":"120000"}
+{"check":"exclude_affinity","passed":true,"detail":"error=0,value=17"}
+{"check":"exclusion_reveals_background","passed":true,"detail":"0"}
+{"check":"excluded_marker_absent","passed":true,"detail":"0"}
+{"check":"desktop_center_preserved","passed":true,"detail":""}
+{"check":"desktop_optical_change","passed":true,"detail":"12559"}
+{"check":"desktop_feedback_stable_8_updates","passed":true,"detail":"0"}
+{"check":"monitor_light_edge_displacement","passed":true,"detail":"1788"}
+{"check":"monitor_light_center_preserved","passed":true,"detail":""}
+{"check":"monitor_light_live_background","passed":true,"detail":""}
+{"check":"monitor_light_live_lens","passed":true,"detail":""}
+{"check":"monitor_light_window_movement","passed":true,"detail":""}
+{"check":"monitor_light_restored_coordinates","passed":true,"detail":""}
+{"check":"monitor_dark_edge_displacement","passed":true,"detail":"1788"}
+{"check":"monitor_dark_center_preserved","passed":true,"detail":""}
+{"check":"monitor_dark_live_background","passed":true,"detail":""}
+{"check":"monitor_dark_live_lens","passed":true,"detail":""}
+{"check":"monitor_dark_window_movement","passed":true,"detail":""}
+{"check":"monitor_dark_restored_coordinates","passed":true,"detail":""}
+{"check":"desktop_restored_after_window","passed":true,"detail":"0"}
+{"check":"monitor_frames_received","passed":true,"detail":"30"}
+{"check":"device_not_removed","passed":true,"detail":""}
+{"failed_checks":0}

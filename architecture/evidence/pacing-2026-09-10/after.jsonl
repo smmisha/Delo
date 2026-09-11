@@ -1,0 +1,27 @@
+{"check":"modern_standby_registered","passed":true,"detail":""}
+{"observation":"environment","value":{"monitor_count":1,"system_dpi":120,"pid":37772}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"initial_running","passed":true,"detail":""}
+{"check":"initial_known_source","passed":true,"detail":""}
+{"check":"initial_refraction","passed":true,"detail":""}
+{"check":"initial_center","passed":true,"detail":""}
+{"check":"initial_exclusion","passed":true,"detail":""}
+{"check":"initial_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"load","value":{"phase":"profile_idle","elapsed_ms":12000,"cpu_one_core_percent":0.260,"cpu_machine_percent":0.008,"renders":0,"copies":32,"working_set_mib":49.172,"private_mib":30.047,"private_delta_mib":0.031,"handle_delta":1}}
+{"observation":"pipeline","value":{"phase":"profile_idle","source_updates":0,"copy_ms":8.815500,"detect_ms":89.396000,"draw_present_ms":0.000000}}
+{"check":"profile_idle_no_idle_redraw","passed":true,"detail":"0"}
+{"observation":"load","value":{"phase":"profile_motion","elapsed_ms":12000,"cpu_one_core_percent":4.688,"cpu_machine_percent":0.146,"renders":351,"copies":370,"working_set_mib":49.258,"private_mib":30.047,"private_delta_mib":0.000,"handle_delta":0}}
+{"observation":"pipeline","value":{"phase":"profile_motion","source_updates":360,"copy_ms":102.135600,"detect_ms":1074.296500,"draw_present_ms":134.991200}}
+{"check":"moving_background_renders","passed":true,"detail":"351"}
+{"check":"profile_source_30hz","passed":true,"detail":"30.000000"}
+{"check":"profile_render_at_least_28fps","passed":true,"detail":"29.250000"}
+{"observation":"load","value":{"phase":"profile_idle_after","elapsed_ms":12031,"cpu_one_core_percent":0.519,"cpu_machine_percent":0.016,"renders":0,"copies":25,"working_set_mib":49.254,"private_mib":30.047,"private_delta_mib":0.000,"handle_delta":1}}
+{"observation":"pipeline","value":{"phase":"profile_idle_after","source_updates":0,"copy_ms":7.239700,"detect_ms":70.416600,"draw_present_ms":0.000000}}
+{"check":"profile_idle_after_no_idle_redraw","passed":true,"detail":"0"}
+{"check":"after_profile_running","passed":true,"detail":""}
+{"check":"after_profile_known_source","passed":true,"detail":""}
+{"check":"after_profile_refraction","passed":true,"detail":""}
+{"check":"after_profile_center","passed":true,"detail":""}
+{"check":"after_profile_exclusion","passed":true,"detail":""}
+{"check":"after_profile_visible_center_and_edges","passed":true,"detail":"0"}
+{"failed_checks":0}

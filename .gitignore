@@ -1,0 +1,25 @@
+# Local builds and test sessions
+**/bin/
+**/obj/
+app/dist/
+app/test-output/
+
+# The project-specific Codex skill is published as a separate repository.
+skills/
+
+# Restored SDKs, package caches, and third-party source snapshots
+**/vendor/
+*.nupkg
+
+# IDE and machine-local files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Windows and editor metadata
+Thumbs.db
+Desktop.ini
+*.swp
+*.tmp

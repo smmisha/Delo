@@ -1,0 +1,24 @@
+{
+  "recordedAt": "2026-09-10T11:15:39.2799170+03:00",
+  "exitCode": 1,
+  "checks": 25,
+  "passed": 20,
+  "files": [
+    {
+      "path": "Delo/prototypes/windows-layer/NativeWindowProbe.cpp",
+      "sha256": "88DBCE8C37C9B93AAFDB5AFA4B9CC0A5BE4E62F0AFF2F6DC6C59C0D6A87476F5"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/BackdropEffect.cpp",
+      "sha256": "AA90E6283CB19E97726FFF24AF20C27AD4B891F810470685C8C7A1925152F516"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/build-native-window.ps1",
+      "sha256": "BFCBF5746CEC6B36E9550DA33EE7F67FA04029B3128D317752C20028CC8E70AC"
+    },
+    {
+      "path": "Delo/prototypes/windows-layer/bin/Delo.NativeWindowProbe.exe",
+      "sha256": "1BC1C68261C50C642DE056637D170D5B299956A90897FFC0D6D5A866187E026E"
+    }
+  ]
+}

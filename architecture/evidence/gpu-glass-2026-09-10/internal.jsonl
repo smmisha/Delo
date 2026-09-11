@@ -1,0 +1,17 @@
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"internal_light_edge_displacement","passed":true,"detail":"2831"}
+{"check":"internal_light_center_preserved","passed":true,"detail":"0"}
+{"check":"internal_light_identity_source","passed":true,"detail":""}
+{"check":"internal_light_alpha","passed":true,"detail":""}
+{"check":"internal_light_live_source","passed":true,"detail":""}
+{"check":"internal_light_live_lens","passed":true,"detail":""}
+{"check":"internal_light_presented_center_and_edges","passed":true,"detail":"0"}
+{"check":"internal_dark_edge_displacement","passed":true,"detail":"2831"}
+{"check":"internal_dark_center_preserved","passed":true,"detail":"0"}
+{"check":"internal_dark_identity_source","passed":true,"detail":""}
+{"check":"internal_dark_alpha","passed":true,"detail":""}
+{"check":"internal_dark_live_source","passed":true,"detail":""}
+{"check":"internal_dark_live_lens","passed":true,"detail":""}
+{"check":"internal_dark_presented_center_and_edges","passed":true,"detail":"0"}
+{"check":"device_not_removed","passed":true,"detail":""}
+{"failed_checks":0}

@@ -1,0 +1,25 @@
+{"check":"modern_standby_registered","passed":true,"detail":""}
+{"observation":"environment","value":{"monitor_count":1,"system_dpi":120,"pid":24460}}
+{"check":"hardware_device","passed":true,"detail":"AMD Radeon(TM) 610M"}
+{"check":"initial_running","passed":true,"detail":""}
+{"check":"initial_known_source","passed":true,"detail":""}
+{"check":"initial_refraction","passed":true,"detail":""}
+{"check":"initial_center","passed":true,"detail":""}
+{"check":"initial_exclusion","passed":true,"detail":""}
+{"check":"initial_visible_center_and_edges","passed":true,"detail":"0"}
+{"observation":"load","value":{"phase":"profile_idle","elapsed_ms":12000,"cpu_one_core_percent":0.521,"cpu_machine_percent":0.016,"renders":0,"copies":48,"working_set_mib":49.180,"private_mib":30.512,"private_delta_mib":0.031,"handle_delta":1}}
+{"observation":"pipeline","value":{"phase":"profile_idle","source_updates":0,"copy_ms":14.212200,"detect_ms":1163.945800,"draw_present_ms":0.000000}}
+{"check":"profile_idle_no_idle_redraw","passed":true,"detail":"0"}
+{"observation":"load","value":{"phase":"profile_motion","elapsed_ms":12016,"cpu_one_core_percent":2.081,"cpu_machine_percent":0.065,"renders":252,"copies":252,"working_set_mib":49.273,"private_mib":30.512,"private_delta_mib":0.000,"handle_delta":0}}
+{"observation":"pipeline","value":{"phase":"profile_motion","source_updates":252,"copy_ms":77.354200,"detect_ms":7464.012600,"draw_present_ms":135.973900}}
+{"check":"moving_background_renders","passed":true,"detail":"252"}
+{"observation":"load","value":{"phase":"profile_idle_after","elapsed_ms":12031,"cpu_one_core_percent":0.260,"cpu_machine_percent":0.008,"renders":0,"copies":36,"working_set_mib":49.273,"private_mib":30.512,"private_delta_mib":0.000,"handle_delta":1}}
+{"observation":"pipeline","value":{"phase":"profile_idle_after","source_updates":0,"copy_ms":9.878600,"detect_ms":863.764600,"draw_present_ms":0.000000}}
+{"check":"profile_idle_after_no_idle_redraw","passed":true,"detail":"0"}
+{"check":"after_profile_running","passed":true,"detail":""}
+{"check":"after_profile_known_source","passed":true,"detail":""}
+{"check":"after_profile_refraction","passed":true,"detail":""}
+{"check":"after_profile_center","passed":true,"detail":""}
+{"check":"after_profile_exclusion","passed":true,"detail":""}
+{"check":"after_profile_visible_center_and_edges","passed":true,"detail":"0"}
+{"failed_checks":0}

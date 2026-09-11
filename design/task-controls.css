@@ -1,0 +1,72 @@
+/* Task controls share the established glass geometry and semantic theme tokens. */
+:root{--work:#785007;--work-surface:#d7971720;--menu-surface:#edf4fbeb}
+body.dark{--work:#ffdb80;--work-surface:#ffc34d16;--menu-surface:#203348ed}
+[hidden]{display:none!important}
+/* Lockup: vector mark + wordmark in the interface face. Mark is optically 14% over
+   cap height and 8% under the baseline; gap is 0.32 of cap height. */
+.lockup{display:inline-flex;align-items:center;gap:10px;color:inherit}
+.lockup b{font-weight:650;letter-spacing:-.022em;line-height:1;font-size:25px}
+.mark{width:32px;height:32px;fill:currentColor;stroke:none}
+.brand .lockup b{font-size:20px}.brand .mark{width:26px;height:26px}
+.brand .lockup{gap:8px;color:#182b3a}
+.brand{display:flex;align-items:center;gap:20px}.brand>span:not(.lockup){margin:0}
+.widget-head h2{display:flex;align-items:center;margin:0;min-height:44px}
+.inline-entry{padding-left:18px}
+/* Send arrow carries the enabled/disabled state: flat and muted with an empty field,
+   filled with the action colour as soon as there is something to add. */
+.add.send{transition:background 160ms,color 160ms,opacity 160ms}
+.add.send:disabled{opacity:.55;color:var(--muted);background:transparent}
+.add.send:enabled{background:var(--focus);color:#fff;box-shadow:0 2px 8px #12345424}
+.add.send:enabled:hover{background:var(--focus);color:#fff;filter:brightness(1.12)}
+body.dark .add.send:enabled{color:#112e4f}
+.widget{padding-bottom:22px}.task{grid-template-columns:44px minmax(0,1fr) 88px;column-gap:2px;row-gap:0;padding-bottom:3px}
+.task-actions{display:flex;align-items:center}.task-actions .timer,.task-more{width:44px;height:44px;border-radius:22px;background:transparent;display:grid;place-items:center;color:var(--muted);padding:0}
+.task-more svg{width:18px;height:18px}.task-more:hover,.task-more[aria-expanded=true]{background:var(--small-surface);color:var(--ink)}
+/* Padding moved off .task-copy onto the two buttons: both grow past the 24px
+   minimum without changing row height. 44px for these two lives in the … menu. */
+.task-title{width:100%;text-align:left;border:0;background:none;padding:7px 0 3px;color:inherit;line-height:1.4;font-size:15px;font-weight:500;cursor:pointer}
+.task-title:hover{text-decoration:underline;text-decoration-color:#8d9dae88;text-underline-offset:3px}
+.deadline{display:block;width:100%;text-align:left;border:0;background:none;padding:3px 0 7px;font-size:12px;line-height:1.45;color:var(--muted);min-height:32px;cursor:pointer}
+.deadline:hover{color:var(--focus)}.late .deadline{color:var(--danger)}.done .deadline{color:var(--success)}
+.in-work .task-title{color:var(--work)}.in-work .circle{border-color:var(--work);box-shadow:0 0 0 3px var(--work-surface)}
+.work-strip{grid-column:2/-1;display:flex;align-items:center;gap:8px;min-height:32px;padding:3px 6px 3px 10px;margin:0 2px 8px 0;border-radius:14px;color:var(--muted);background:#6c88a00b}
+.in-work .work-strip{background:var(--work-surface);color:var(--work)}
+.work-status{font-size:12px;line-height:1.4;margin-right:auto}.elapsed{font-size:12px;letter-spacing:.1px;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Visual stays 36px so the work strip keeps its height; the tap area is 44. */
+.stop-work{position:relative;display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;padding:0;background:transparent;color:inherit;border-radius:12px}
+.stop-work::after{content:'';position:absolute;inset:-4px}
+.stop-work svg{width:16px;height:16px;fill:currentColor;stroke-width:0}.stop-work:hover{background:#a9771824}
+.task-group h3.upcoming-label{color:var(--muted)}.task-group h3.done-label{color:var(--success)}
+#task-menu{position:fixed;inset:auto;margin:0;width:256px;max-width:calc(100vw - 16px);padding:6px;border:1px solid #ffffff8a;border-radius:22px;background:var(--menu-surface);color:var(--ink);backdrop-filter:blur(20px) saturate(1.3);box-shadow:0 12px 35px #14264038,inset 0 1px 1px #fff7}
+#task-menu:popover-open{animation:menu-in 180ms cubic-bezier(.2,.8,.2,1)}
+#task-menu button{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border-radius:16px;background:none;min-height:44px;padding:10px 12px;font-size:13px;color:inherit}
+#task-menu button svg{width:18px;height:18px}#task-menu button:hover,#task-menu button:focus-visible{background:var(--small-surface)}#task-menu .delete-action{color:var(--danger)}
+.date-editor{padding:8px 0 4px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center}
+.date-editor label{font-size:13px;font-weight:600}.date-editor label span{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:3px}
+#due-input{width:100%;min-width:0;min-height:44px;padding:8px 10px;border:1px solid #ffffff75;border-radius:13px;background:var(--small-surface);color:var(--ink);font-size:13px;outline:none;color-scheme:light}
+body.dark #due-input{color-scheme:dark}#due-input:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.date-presets{grid-column:1/-1;display:flex;gap:8px}.date-presets button{min-height:44px;padding:0 14px;border-radius:22px;border:1px solid #ffffff60;background:var(--small-surface);font-size:12px;color:var(--ink);transition:background 160ms,box-shadow 160ms,border-color 160ms,color 160ms}
+.date-presets button:hover{box-shadow:inset 0 1px 2px #fff8}
+/* Selected preset is a raised glass pebble over the track, the way a segmented control
+   reads — not a solid accent fill, which would compete with the primary Save button.
+   Weight and material carry the state alongside colour. */
+.date-presets button[aria-pressed=true]{background:#ffffffe0;border-color:#ffffffc4;color:var(--ink);font-weight:600;box-shadow:inset 0 1px 1px #fff,0 2px 8px #1630501f}
+body.dark .date-presets button[aria-pressed=true]{background:#98caff29;border-color:#98caff5c;box-shadow:inset 0 1px 1px #ffffff3d,0 2px 8px #08121e38}
+#capture-input{padding-bottom:16px}.capture-foot{border-top:1px solid #8d9dae22;padding-top:16px;margin-top:16px}
+/* In the widget flow above the entry field, not floating over it: showing the bar
+   shrinks the scroll area instead of covering the input. */
+.undo-bar{flex-shrink:0;margin-top:10px;padding:6px 6px 6px 16px;border-radius:22px;background:var(--menu-surface);color:var(--ink);border:1px solid #ffffff80;box-shadow:0 4px 16px #18345021;display:flex;gap:12px;align-items:center;font-size:12px}
+.undo-copy{flex:1;min-width:0;display:grid;gap:3px}#undo-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#undo-hint{font-size:11px;color:var(--muted)}.undo-bar button{flex-shrink:0;min-height:44px;border-radius:22px;padding:0 14px;background:var(--small-surface);color:var(--focus);font-weight:600}
+.undo-bar{padding-left:10px;gap:9px;overflow:hidden}.undo-countdown{position:relative;display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;color:var(--focus);font-variant-numeric:tabular-nums;font-weight:650;font-size:12px}
+.undo-countdown svg{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2;transform:rotate(-90deg)}.undo-track{opacity:.15}#undo-arc{stroke-dasharray:100;stroke-dashoffset:0;stroke-linecap:round}
+.task-scroll{position:relative}.task-exit{position:absolute;pointer-events:none;z-index:1;margin:0}
+/* Press feedback changes the visual without shifting the surrounding layout. */
+.round,.add,.launch,.save,.task-more,.timer,.stop-work,.date-presets button,.theme-switch button,.background-switch,.undo-bar button,.trash-row button,.trash-open{transition:scale 140ms cubic-bezier(.2,.8,.2,1),background 180ms,color 180ms,box-shadow 180ms}
+button:active:not(:disabled){scale:.96}.round:active,.task-more:active,.timer:active,.stop-work:active{scale:.9}
+.task,.circle{transition:background-color 180ms,color 180ms,border-color 180ms,box-shadow 180ms}.settings:not([hidden]){animation:menu-in 200ms cubic-bezier(.2,.8,.2,1)}
+.trash-open{display:flex;align-items:center;gap:10px;min-height:44px;width:100%;margin-top:18px;padding:8px 12px;border-radius:16px;background:var(--small-surface);font-size:13px}.trash-open svg{width:18px;height:18px}.trash-open span{margin-left:auto}
+.trash-surface{padding:20px 24px 24px;border:1px solid #ffffff80;border-radius:28px;background:var(--menu-surface);backdrop-filter:blur(20px);box-shadow:0 24px 70px #081d4444}.trash-surface h2{font-size:20px;margin:0;color:var(--ink)}.trash-note,#trash-empty{font-size:13px;line-height:1.5;color:var(--muted)}#trash-list{max-height:50vh;overflow:auto}.trash-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}.trash-row>span{flex:1;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.trash-row button{min-height:44px;padding:0 12px;border-radius:18px;background:var(--small-surface);color:var(--focus);font-size:12px}
+body.reduced button:active{scale:1}
+@keyframes menu-in{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+@media(max-width:760px){.task-title{font-size:14px}.work-strip{gap:4px}.date-presets{gap:6px}.date-presets button{padding:0 12px}}
+@media(prefers-reduced-motion:reduce){#task-menu:popover-open{animation:none}button:active:not(:disabled){scale:1}}

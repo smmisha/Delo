@@ -1,0 +1,56 @@
+{
+  "cases": {
+    "internal-light": "20260910-125923-886",
+    "external-light": "20260910-125939-267",
+    "internal-dark": "20260910-125931-650",
+    "external-dark": "20260910-125947-012"
+  },
+  "hashes": [
+    {
+      "file": "Probe.cs",
+      "sha256": "408DA3B5C0D6DE3FEB0D38810F8E1F789BAAEB4C9520F6AB60AD7B1AC9BDC856"
+    },
+    {
+      "file": "Delo.WinUIGlassProbe.csproj",
+      "sha256": "A0F30FAD2C9A100B29FB6C7682007F02E64301C31C59BCD84067021965F72FF1"
+    },
+    {
+      "file": "app.manifest",
+      "sha256": "C6F86C62A81219DCF2468D7C0A6CB961B118B0E62E8FB0FF8239E3EA82BAB425"
+    },
+    {
+      "file": "packages.lock.json",
+      "sha256": "683422C7292A38521ACC0F4EC879CEAEDEDDB1815C669EB53EBEED63C11347ED"
+    },
+    {
+      "file": "build.ps1",
+      "sha256": "C8353D59B5DA8B491E38716EEA2CF98136D39A2F947FD4C7F02A4AAD83461BD8"
+    },
+    {
+      "file": "setup-sdk.ps1",
+      "sha256": "5AEA95F9C158F86C753A372FD71A0585CF491E71E3DD1C4E55093AD6801345BF"
+    },
+    {
+      "file": "Delo.WinUIGlassProbe.exe",
+      "sha256": "BE3A2282E561C0D52387DDE1E775C41E3073EE863805DB4E1C1B69D7DC48742D"
+    },
+    {
+      "file": "Delo.WinUIGlassProbe.dll",
+      "sha256": "F6F8ED4983D962318BA16DB85ED3E58A3819E0E9C5B7114DAF01F6BB1D9A225C"
+    },
+    {
+      "file": "CustomEffectRuntimeNative.dll",
+      "sha256": "B415D4D2FCD05C44E900C63CEF503081C2D28A2FA62E207B17F4CDF44148DFB1"
+    },
+    {
+      "file": "LiquidGlassWinUI.dll",
+      "sha256": "905C0CC58C1F85193153912F30C9D19F7AFCA5F8B0469FE07E3485ADA144383F"
+    }
+  ],
+  "liquidGlassWinUI": "1.0.3",
+  "dpi": 120,
+  "windowsAppSdk": "2.2.0",
+  "dateUtc": "2026-09-10T13:01:58.6442611Z",
+  "sdk": "8.0.425",
+  "os": "Microsoft Windows NT 10.0.26200.0"
+}

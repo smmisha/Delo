@@ -1,0 +1,29 @@
+{
+  "windowsSdk": "10.0.26100.0",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "msvc": "14.50.35717",
+  "hashes": [
+    {
+      "file": "Probe.cpp",
+      "sha256": "75188EC6C34A72F47AD93C110D4864E22DED35DC88B57DD1453E73D9901E52A3"
+    },
+    {
+      "file": "Glass.hlsl",
+      "sha256": "1A79031B88883D5BC988E050C2410852B37EB9EF2249ADC253792F75F6773EFB"
+    },
+    {
+      "file": "build.ps1",
+      "sha256": "9AC0D78B1EC45345261502244690B90415CD24964D3B40D18A66AD2132F4F317"
+    },
+    {
+      "file": "run.ps1",
+      "sha256": "E5F7CAB53BF7FC9EC0238296C8EBB1DBDF71220937CD6CADC590E82E42EF4339"
+    },
+    {
+      "file": "bin/Delo.GPUProbe.exe",
+      "sha256": "27C2A21A518075E0A0D7D5D02392356798680C09FB6B002119030699DACC9EF4"
+    }
+  ],
+  "gpu": "AMD Radeon(TM) 610M",
+  "utc": "2026-09-10T13:15:22.5085629Z"
+}

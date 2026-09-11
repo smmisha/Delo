@@ -1,0 +1,34 @@
+{
+  "hashes": [
+    {
+      "sha256": "6E68B074654B0A6DB25FF6CF10DA31033A032D2B4D34B70825E9B274505A7927",
+      "file": "MonitorProbe.cpp"
+    },
+    {
+      "sha256": "F62AB66F39056E039FF92E8E44641CAFA6909E5FE69E86C8B203EAEB528DF836",
+      "file": "Probe.cpp"
+    },
+    {
+      "sha256": "1A79031B88883D5BC988E050C2410852B37EB9EF2249ADC253792F75F6773EFB",
+      "file": "Glass.hlsl"
+    },
+    {
+      "sha256": "947B5F94A04BC70145DD09D7A3A5F91D215B20A5180EC313A02D4D366554B486",
+      "file": "build-monitor.ps1"
+    },
+    {
+      "sha256": "21325BA85324FBEAA4416C4CEE48C4A9854D2B7C82B50417B9F04A719D3287FB",
+      "file": "run-monitor.ps1"
+    },
+    {
+      "sha256": "EFC6D3AE4F2AE5A689954E056F43099E42913C2A3493C410612BEB30D608B366",
+      "file": "bin/Delo.MonitorProbe.exe"
+    }
+  ],
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "utc": "2026-09-10T13:27:18.5301899Z",
+  "monitor": "1920x1200",
+  "checksPassed": 25,
+  "gpu": "AMD Radeon(TM) 610M",
+  "crop": "40,120,400,300"
+}

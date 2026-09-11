@@ -1,0 +1,15 @@
+{"check":"window_setup","passed":true,"detail":"host=0,frame=0"}
+{"check":"visible_windows","passed":true,"detail":""}
+{"check":"layout","passed":true,"detail":"scene=315,20001220703125x235,1999969482422; glass=320x240; scale=1,25; thread=1"}
+{"check":"xaml_color_control","passed":true,"detail":""}
+{"check":"window_dpi","passed":true,"detail":"dpi=120"}
+{"check":"configuration","passed":true,"detail":"standardHost=False; directGlass=False; dark=True; external=True; package=1.0.3"}
+{"check":"external_dark_uncovered_live_control","passed":true,"detail":""}
+{"check":"external_dark_shader_initialization","passed":true,"detail":""}
+{"check":"external_dark_edge_refraction","passed":false,"detail":"changed=0"}
+{"check":"external_dark_center_preserved","passed":true,"detail":"changed=0"}
+{"check":"external_dark_render_state","passed":true,"detail":"frames=643; thread=1; inside=320x240; lineX=7"}
+{"check":"external_dark_live_source","passed":true,"detail":"changed=15567"}
+{"check":"external_dark_source_detail","passed":true,"detail":"colors=15,uncoveredColors=15"}
+{"check":"native_runtime_loaded","passed":true,"detail":""}
+{"failed_checks":1}

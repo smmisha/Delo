@@ -1,0 +1,1 @@
+(()=>Object.fromEntries(['body','.inline-entry','#task-input','.work-strip'].map(selector=>{const e=document.querySelector(selector),s=getComputedStyle(e);return [selector,{background:s.backgroundColor,color:s.color,filter:s.backdropFilter,shadow:s.boxShadow,class:e.className}]})))()
