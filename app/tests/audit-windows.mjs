@@ -15,7 +15,7 @@ try{
  }
  q=await quick.host('diagnostics');native(q.window,'outside');await wait(200);q=await quick.host('diagnostics');check('outside click hides quick without reopening main',!q.visible&&!q.mainVisible,q);
  d=await main.host('diagnostics');const singleBefore=d.traySingleClicks;native(d.controlWindow,'traySingle');await wait(35);q=await quick.host('diagnostics');check('native tray single-click opens quick without double-click timeout',q.visible&&!q.mainVisible&&q.traySingleClicks===singleBefore+1,q);
- const doubleBefore=q.trayDoubleClicks;native(d.controlWindow,'trayDouble');await wait(35);q=await quick.host('diagnostics');check('native tray double-click finishes with only the full planner visible',!q.visible&&q.mainVisible&&q.trayDoubleClicks===doubleBefore+1,q);
+ const doubleBefore=q.trayDoubleClicks,singleDoubleBefore=q.traySingleClicks;native(d.controlWindow,'trayDouble');await wait(35);q=await quick.host('diagnostics');check('native tray double-click remains one quick-capsule action',q.visible&&!q.mainVisible&&q.traySingleClicks===singleDoubleBefore+1&&q.trayDoubleClicks===doubleBefore+1,q);
  await main.host('pin',{pinned:false});await main.host('hide');await main.host('show');await main.click('#today');d=await main.host('diagnostics');
  check('temporary unpinned list opens above other windows and activates',d.visible&&d.windowVisible&&d.owner===0&&d.foreground===d.window,d);
  native(d.window,'outside');await wait(100);d=await main.host('diagnostics');

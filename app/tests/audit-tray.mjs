@@ -24,11 +24,11 @@ try{
  assert(quickState.visible&&!quickState.mainVisible&&quickState.previous===previous&&quickState.traySingleClicks===singleRepeated+1&&aligned(quickState));
  record('repeated tray click keeps the same quick session and focus return target',quickState);
 
- const doubleBefore=quickState.trayDoubleClicks;
+ const doubleBefore=quickState.trayDoubleClicks,singleDoubleBefore=quickState.traySingleClicks;
  native(mainState.controlWindow,'trayDouble');await wait(35);
  quickState=await quick.host('diagnostics');mainState=await main.host('diagnostics');
- assert(!quickState.visible&&mainState.visible&&mainState.windowVisible&&quickState.trayDoubleClicks===doubleBefore+1&&aligned(mainState));
- record('double-click sequence ends with only an aligned main window',mainState);
+ assert(quickState.visible&&!mainState.visible&&!mainState.windowVisible&&quickState.traySingleClicks===singleDoubleBefore+1&&quickState.trayDoubleClicks===doubleBefore+1&&aligned(quickState));
+ record('double-click sequence remains one immediate aligned quick-capsule action',quickState);
 }finally{
  await fs.mkdir(path.dirname(output),{recursive:true});await fs.writeFile(output,JSON.stringify(results,null,2));
  main.close();quick.close();
