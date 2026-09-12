@@ -258,8 +258,12 @@ body.dark [data-tooltip]::after{border-color:#ffffff35;background:#20364bec;colo
    the header into a flicker of labels. One second of dwell means it only answers a
    question that was actually asked. Hiding stays immediate, and keyboard focus keeps the
    label instant: someone tabbing through has already asked. */
-.capture-head [data-tooltip]::after{bottom:auto;top:calc(100% + 9px);translate:-50% -4px}
-.capture-head [data-tooltip].tip-open::after,.capture-head [data-tooltip]:focus-visible::after{translate:-50% 0}
+/* A sheet scrolls, so a label above its header is clipped; below, it landed on the first
+   row of the sheet's own content — over the "+5" of the reputation table. Beside the
+   button it stays inside the header band, where the only thing it can cover is empty
+   space next to the title. */
+.capture-head [data-tooltip]::after{bottom:auto;top:50%;left:auto;right:calc(100% + 9px);translate:4px -50%}
+.capture-head [data-tooltip].tip-open::after,.capture-head [data-tooltip]:focus-visible::after{translate:0 -50%}
 
 /* The quick capsule is 84px tall and the field takes 66 of them: a tooltip fits neither
    above (it would start at -1.4px, clipped by the widget's overflow) nor below. The two
