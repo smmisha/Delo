@@ -31,7 +31,7 @@ node --test tests/*.test.mjs
 
 ```powershell
 ./setup-distribution.ps1
-./package.ps1 -Version 0.1.4
+./package.ps1 -Version 0.1.5
 ```
 
 Если Inno Setup установлен в другом месте, передайте путь через `-Compiler`. Результат и его SHA-256 создаются в `dist/`. Установка выполняется для текущего пользователя в `%LOCALAPPDATA%\Programs\Delo`; права администратора для самого Delo не требуются. Обычный пакет включает подписанный WebView2 bootstrapper, который запускается только при отсутствии подходящего runtime; `-Offline` включает полный установщик WebView2.

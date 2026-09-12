@@ -2,7 +2,7 @@
 # network during install; -Offline tests the embedded-runtime build with the
 # network switched off, which is the case that build exists for.
 param(
-  [ValidatePattern('^\d+\.\d+\.\d+(?:\.\d+)?$')][string]$Version='0.1.4',
+  [ValidatePattern('^\d+\.\d+\.\d+(?:\.\d+)?$')][string]$Version='0.1.5',
   [switch]$Offline,
   [ValidateRange(1,3600)][int]$StartupTimeoutSeconds=120,
   [ValidateRange(1,7200)][int]$TestTimeoutSeconds=900

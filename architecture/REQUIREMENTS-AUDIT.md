@@ -39,7 +39,7 @@
 | U07 | PASS | Completion/overdue policy покрыта 4 unit тестами: только новые live ledger events, без звука startup/re-render/deadline edit. Настройки независимы. |
 | N01–N02 | PASS | 20 native store/hotkey assertions, transactional settings tests и live backup recovery 4 PASS подтверждают CAS, atomic write, backup, corruption block и явное restore. |
 | N03 | PARTIAL | Основной ноутбук 1920×1200: idle около 0,13% одного ядра, Working Set 54,69 МиБ; Win+D и sleep PASS. DPI 100/125/150/200, внешний monitor и интегрированная GPU физически не проверены. |
-| N04 | PARTIAL | Inno Setup x64 0.1.4, per-user install, полный UI harness, uninstall и сохранение данных PASS. В пакет включены локальный Whisper и модель. Ветка отсутствующего WebView2 на чистой Windows остаётся UNVERIFIED. |
+| N04 | PARTIAL | Inno Setup x64 0.1.5: per-user install, совпадение EXE, оконный harness 12/12 и uninstall PASS. Полный UI harness и сохранение данных ранее подтверждены на 0.1.4; код установки не менялся. Ветка отсутствующего WebView2 на чистой Windows остаётся UNVERIFIED. |
 | N05 | PASS | MIT, README, THIRD_PARTY, build/package scripts, публичный GitHub repository и release v0.1.4 опубликованы. Повторный secret/path audit: 0 совпадений; `app/dist` не отслеживается Git. Подпись издателя не является требованием N05. |
 
 ## Приёмочные сценарии
@@ -57,7 +57,7 @@
 | V09 | PASS | Undo/trash 12 live PASS плюс restart/retention unit boundaries. |
 | V10 | PARTIAL | Themes, Liquid Glass settings, dropdown contrast, icon alignment, custom tooltip/confirmation, hotkey recording, 2 × 2 settings grid, stable send arrow, languages, keyboard, reduced motion, idle, rapid actions и responsive размеры 320 × 360 / 296 × 71 проверены; физические DPI/monitor scenarios остаются. |
 | V11 | PASS | Write failures, restart, update and explicit backup recovery проверены. Первый sleep-run нашёл crash; fix прошёл реальный сон и relaunch. |
-| V12 | PARTIAL | Пакет 0.1.4 SHA-256 `56BC4EBABA87359B7269781CEB7878EC9401B67083376E1578E7F6663483825B`: отдельная установка, 43 совпавших allowlist-файла, полный UI harness и uninstall PASS; тестовые данные сохранены. Windows Sandbox не дошла до LogonCommand, поэтому clean Windows/missing-runtime остаётся UNVERIFIED. |
+| V12 | PARTIAL | Пакет 0.1.5 SHA-256 `054CD96FC15A1343C715BC8A1E1A50F50F97B2CFCF5D507EF94F163126F99C80`: отдельная установка, совпадение EXE, оконный harness 12/12 и uninstall PASS. Полный цикл данных подтверждён на неизменившемся installer 0.1.4. Windows Sandbox не дошла до LogonCommand, поэтому clean Windows/missing-runtime остаётся UNVERIFIED. |
 
 ## Внешние действия для закрытия
 
