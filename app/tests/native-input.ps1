@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','traySingle','trayDouble')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag)
+param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','traySingle','trayDouble')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -80,10 +80,32 @@ try {
   foreach($code in $codes){[DeloInput]::keybd_event($code,[byte][DeloInput]::MapVirtualKey($code,0),2,[UIntPtr]::Zero)}
  }
  if($Action -eq 'resize'){[void][DeloInput]::SetWindowPos($target,[IntPtr]::Zero,0,0,$Width,$Height,6)}
- if($Action -eq 'outside'){
-  $outside=[DeloInput]::CreateWindowEx(0x88,'STATIC','Delo harness outside target',[uint32]2415919104,900,180,240,120,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
+ $outsideResult=$null
+ if($Action -in 'outside','outsideOverlap'){
+  if($Action -eq 'outsideOverlap'){
+   $targetRect=New-Object DeloInput+RECT
+   if(-not[DeloInput]::GetWindowRect($target,[ref]$targetRect)){throw 'Cannot read harness bounds for overlap test'}
+   $outsideX=$targetRect.Left;$outsideY=$targetRect.Top;$outsideWidth=($targetRect.Right-$targetRect.Left)+120;$outsideHeight=$targetRect.Bottom-$targetRect.Top
+   $outsideEx=0;$outsideStyle=[uint32]282001408 # WS_OVERLAPPEDWINDOW | WS_VISIBLE
+  }else{$outsideX=900;$outsideY=180;$outsideWidth=240;$outsideHeight=120;$outsideEx=0x88;$outsideStyle=[uint32]2415919104}
+  $outside=[DeloInput]::CreateWindowEx($outsideEx,'STATIC','Delo harness outside target',$outsideStyle,$outsideX,$outsideY,$outsideWidth,$outsideHeight,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
   if($outside -eq [IntPtr]::Zero){throw 'Cannot create harness outside-click target'}
-  try{[void][DeloInput]::SetForegroundWindow($outside);[void][DeloInput]::SetCursorPos(1000,230);[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 200}finally{[void][DeloInput]::DestroyWindow($outside)}
+  try{
+   [void][DeloInput]::SetForegroundWindow($outside)
+   if($Action -eq 'outside'){
+    [void][DeloInput]::SetCursorPos(1000,230);[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+   }elseif($Action -eq 'outsideOverlap'){
+    # Activate the ordinary window through the strip protruding past Delo. The
+    # overlapping centre then reveals which window really won the normal z-order.
+    [void][DeloInput]::SetCursorPos(($targetRect.Right+60),($targetRect.Top+40));[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+   }
+   Start-Sleep -Milliseconds 250
+   if($Action -eq 'outsideOverlap'){
+    $probe=New-Object DeloInput+POINT;$probe.X=$targetRect.Left+[int](($targetRect.Right-$targetRect.Left)/2);$probe.Y=$targetRect.Top+[int](($targetRect.Bottom-$targetRect.Top)/2)
+    $hitRoot=[DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)
+    $outsideResult=@{foreignActivated=([DeloInput]::GetForegroundWindow()-ne$target);coversTarget=($hitRoot-ne$target)}
+   }
+  }finally{[void][DeloInput]::DestroyWindow($outside)}
  }
  if($Action -in 'traySingle','trayDouble'){
   [void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x202)
@@ -116,5 +138,7 @@ try {
    if($index -lt $Frames-1){Start-Sleep -Milliseconds 120}
   }
  }
- @{action=$Action;pid=$targetId;foreground=[DeloInput]::GetForegroundWindow().ToInt64()} | ConvertTo-Json -Compress
+ $result=@{action=$Action;pid=$targetId;foreground=[DeloInput]::GetForegroundWindow().ToInt64()}
+ if($outsideResult){$result.overlap=$outsideResult}
+ $result | ConvertTo-Json -Depth 4 -Compress
 } finally {[void][DeloInput]::SetThreadDpiAwarenessContext($previousDpi)}

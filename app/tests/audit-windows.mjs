@@ -18,8 +18,8 @@ try{
  const doubleBefore=q.trayDoubleClicks,singleDoubleBefore=q.traySingleClicks;native(d.controlWindow,'trayDouble');await wait(35);q=await quick.host('diagnostics');check('native tray double-click remains one quick-capsule action',q.visible&&!q.mainVisible&&q.traySingleClicks===singleDoubleBefore+1&&q.trayDoubleClicks===doubleBefore+1,q);
  await main.host('pin',{pinned:false});await main.host('hide');await main.host('show');await main.click('#today');d=await main.host('diagnostics');
  check('temporary unpinned list opens above other windows and activates',d.visible&&d.windowVisible&&d.owner===0&&d.foreground===d.window,d);
- native(d.window,'outside');await wait(100);d=await main.host('diagnostics');
- check('temporary unpinned list returns to the desktop layer after deactivation',d.visible&&d.windowVisible&&d.owner!==0,d);
+ const overlap=native(d.window,'outsideOverlap');await wait(100);d=await main.host('diagnostics');
+ check('temporary unpinned list returns behind the active ordinary window',d.visible&&d.windowVisible&&d.owner!==0&&overlap.overlap?.foreignActivated&&overlap.overlap?.coversTarget,{diagnostics:d,overlap});
  await main.host('show');await main.click('#today');d=await main.host('diagnostics');check('reopening the unpinned list raises it temporarily again',d.owner===0&&d.foreground===d.window,d);
  await main.host('pin',{pinned:true});await main.click('#today');native(d.window,'outside');await wait(100);d=await main.host('diagnostics');
  check('pinned list stays above other windows after deactivation',d.visible&&d.windowVisible&&d.owner===0,d);
