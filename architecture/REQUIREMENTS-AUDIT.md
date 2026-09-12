@@ -40,7 +40,7 @@
 | N01–N02 | PASS | 20 native store/hotkey assertions, transactional settings tests и live backup recovery 4 PASS подтверждают CAS, atomic write, backup, corruption block и явное restore. |
 | N03 | PARTIAL | Основной ноутбук 1920×1200: idle около 0,13% одного ядра, Working Set 54,69 МиБ; Win+D и sleep PASS. DPI 100/125/150/200, внешний monitor и интегрированная GPU физически не проверены. |
 | N04 | PARTIAL | Inno Setup x64 0.1.5: per-user install, совпадение EXE, оконный harness 12/12 и uninstall PASS. Полный UI harness и сохранение данных ранее подтверждены на 0.1.4; код установки не менялся. Ветка отсутствующего WebView2 на чистой Windows остаётся UNVERIFIED. |
-| N05 | PASS | MIT, README, THIRD_PARTY, build/package scripts, публичный GitHub repository и release v0.1.4 опубликованы. Повторный secret/path audit: 0 совпадений; `app/dist` не отслеживается Git. Подпись издателя не является требованием N05. |
+| N05 | PASS | MIT, README, THIRD_PARTY, build/package scripts, публичный GitHub repository и release v0.1.5 опубликованы. Повторный secret/path audit: 0 совпадений; `app/dist` не отслеживается Git. Подпись издателя не является требованием N05. |
 
 ## Приёмочные сценарии
 
