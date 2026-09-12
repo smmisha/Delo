@@ -227,7 +227,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
             return 0;
         }
         if(message==WM_DPICHANGED){auto r=reinterpret_cast<RECT*>(l);SetWindowPos(hwnd,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);Layout(*v);return 0;}
-        if(message==WM_ACTIVATE&&LOWORD(w)==WA_INACTIVE){if(!v->quick)RecordShortcuts(false);else if(v->visible&&!v->gesture&&!v->captureFrozen){DismissQuick();return 0;}}
+        if(message==WM_ACTIVATE&&LOWORD(w)==WA_INACTIVE){
+            if(!v->quick){RecordShortcuts(false);if(!pinned&&v->temporary&&v->visible&&!v->gesture&&!v->captureFrozen){v->temporary=false;ApplyMode();}}
+            else if(v->visible&&!v->gesture&&!v->captureFrozen){DismissQuick();return 0;}
+        }
         if(message==WM_GETMINMAXINFO){auto info=reinterpret_cast<MINMAXINFO*>(l);auto dpi=GetDpiForWindow(hwnd);if(v->quick){auto height=MulDiv(QuickHeightDip,dpi,96);info->ptMinTrackSize={MulDiv(296,dpi,96),height};info->ptMaxTrackSize.y=height;}else info->ptMinTrackSize={MulDiv(320,dpi,96),MulDiv(360,dpi,96)};return 0;}
         if(message==WM_EXITSIZEMOVE){KillTimer(hwnd,1);v->gesture=false;ClampWindow(*v);RECT r{};GetWindowRect(hwnd,&r);JsonObject bounds;bounds.Insert(L"x",Number(r.left));bounds.Insert(L"y",Number(r.top));bounds.Insert(L"width",Number(r.right-r.left));bounds.Insert(L"height",Number(r.bottom-r.top));nativeSettings.Insert(v->quick?L"quickPosition":L"bounds",bounds);try{SaveNative();}catch(std::exception const& e){Log("window_save_error",e.what());}Reposition(*v);return 0;}
         if(message==WM_CLOSE){if(v->quick)FinishQuick();else Hide(*v);return 0;}
