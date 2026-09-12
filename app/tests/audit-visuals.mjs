@@ -3,6 +3,7 @@ import {connect,native,wait,screenshot,frames} from './audit-harness.mjs';
 const output=path.resolve(process.argv[2]||'app/test-output/sessions/audit-20260911/visuals');await fs.mkdir(output,{recursive:true});
 const main=await connect(),quick=await connect(true),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
+async function quickFrames(page,directory,count){for(let index=0;index<count;index++){if(!(await page.host('diagnostics')).windowVisible){await main.host('quick');await page.click('#task-input');await wait(150);}await screenshot(page,path.join(directory,`frame-${String(index).padStart(2,'0')}.png`));if(index<count-1)await wait(120);}}
 try{
  await main.host('pin',{pinned:true});
  for(const theme of ['light','dark']){
@@ -24,7 +25,7 @@ try{
     const boxes=await page.evaluate(`(()=>{const a=document.querySelector('#add-task').getBoundingClientRect(),i=document.querySelector('#task-input').getBoundingClientRect();return {width:innerWidth,height:innerHeight,arrow:{x:a.x+3,y:a.y+3,width:a.width-6,height:a.height-6},input:{x:i.x+2,y:i.y+2,width:i.width-4,height:i.height-4}};})()`);
     d=await page.host('diagnostics');const sx=d.width/boxes.width,sy=d.height/boxes.height,regions=Object.fromEntries(['arrow','input'].map(k=>[k,{x:Math.ceil(boxes[k].x*sx),y:Math.ceil(boxes[k].y*sy),width:Math.floor(boxes[k].width*sx),height:Math.floor(boxes[k].height*sy)}]));
     const regionsFile=path.join(directory,'regions.json');await fs.writeFile(regionsFile,JSON.stringify(regions));
-    await frames(page,directory,20);
+    if(mode==='quick')await quickFrames(page,directory,20);else await frames(page,directory,20);
     const stats=JSON.parse(execFileSync('powershell.exe',['-NoProfile','-File',path.join(import.meta.dirname,'compare-frames.ps1'),'-Directory',directory,'-RegionsFile',regionsFile],{encoding:'utf8',windowsHide:true,timeout:30000}));
     check(`${name}: arrow stable during observed caret changes`,stats.arrow.maxChangedPixels===0&&stats.input.maxChangedPixels>0,stats);
    }

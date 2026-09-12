@@ -16,7 +16,7 @@
  const capsuleRect=capsule.getBoundingClientRect();
  check('microphone mirrors send action at the left edge',Math.abs((micRect.left-capsuleRect.left)-(capsuleRect.right-sendRect.right))<2);
  check('placeholder is visually distinct from typed text',Number(getComputedStyle(input,'::placeholder').opacity)<1);
- check('microphone is a separate visible control',getComputedStyle(mic).display==='grid'&&!dragZones.includes(mic)&&mic.getAttribute('aria-disabled')==='true');
+ check('microphone is a separate visible control',getComputedStyle(mic).display==='grid'&&!dragZones.includes(mic)&&mic.getAttribute('aria-disabled')!=='true'&&!mic.disabled);
  check('quick frame exposes drag zones on every side',dragZones.length===4&&dragZones.every(zone=>getComputedStyle(zone).cursor==='grab'&&zone.getBoundingClientRect().width>0&&zone.getBoundingClientRect().height>0));
  check('drag zones do not draw an extra frame',dragZones.every(zone=>getComputedStyle(zone).backgroundImage==='none'&&getComputedStyle(zone).backgroundColor==='rgba(0, 0, 0, 0)'));
  const dragBefore=(await host.window('diagnostics')).dragRequests;
