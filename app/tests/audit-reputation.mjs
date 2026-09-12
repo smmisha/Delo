@@ -40,6 +40,9 @@ try{
  check('pointer deletion removes +5 from both UI and persisted ledger',pointerResult.score===beforePointer-5&&pointerResult.persistedScore===pointerResult.score,pointerResult);
 
  await page.click('#history [data-close]');
+ const removedAwardResult=await page.evaluate(`(async()=>{const row=[...document.querySelectorAll('.task')].find(row=>row.querySelector('.task-title')?.textContent.startsWith('R04 pointer '));row.querySelector('.complete').click();await new Promise(resolve=>setTimeout(resolve,250));const {HostBridge}=await import('./bridge.mjs');const loaded=await new HostBridge().request('load');return {score:Number(document.querySelector('#score').textContent),persistedScore:loaded.state.reputation,persistedEvents:loaded.state.events.length,completed:loaded.state.tasks.find(task=>task.id===row.dataset.task).completedAt!==null};})()`);
+ check('uncomplete does not subtract a manually removed current award',removedAwardResult.score===pointerResult.score&&removedAwardResult.persistedScore===pointerResult.score&&removedAwardResult.persistedEvents===pointerResult.persistedEvents&&!removedAwardResult.completed,removedAwardResult);
+
  await createCompleted(`R04 keyboard ${Date.now()}`);
  await page.click('#reputation');
  const beforeResize=await page.host('diagnostics'),size=await page.evaluate(`({width:innerWidth,height:innerHeight})`);

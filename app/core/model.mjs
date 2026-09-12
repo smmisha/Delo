@@ -67,7 +67,12 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     case 'stop': unfinished();freeze(t,monotonic);t.workState='idle';break;
     case 'work': unfinished();freeze(t,monotonic);t.workState='working';break;
     case 'complete': active();if(t.completedAt!==null)break;freeze(t,monotonic);t.workState='idle';t.completedAt=now;t.completedDayEnd=dayEnd(now,timeZone);t.award=t.due&&now>=t.due.at?2:5;event(s,t,'complete',now,t.award);break;
-    case 'uncomplete': active();if(t.completedAt===null)break;event(s,t,'uncomplete',now,-t.award);t.award=0;t.completedAt=null;t.completedDayEnd=null;break;
+    case 'uncomplete': {
+      active();if(t.completedAt===null)break;
+      const last=s.events.findLast(e=>e.taskId===t.id&&(e.kind==='complete'||e.kind==='uncomplete'));
+      if(last?.kind==='complete') event(s,t,'uncomplete',now,-t.award);
+      t.award=0;t.completedAt=null;t.completedDayEnd=null;break;
+    }
     case 'archive': active();freeze(t,monotonic);t.lifecycle='archive';break;
     case 'delete': active();freeze(t,monotonic);t.lifecycle='pending';t.deletedAt=now;t.undoRemaining=5000;break;
     case 'undo': {const pending=command.id?t:s.tasks.filter(t=>t.lifecycle==='pending').sort((a,b)=>a.deletedAt-b.deletedAt).at(-1);if(!pending||pending.lifecycle!=='pending')fail('No pending deletion');pending.lifecycle='active';pending.deletedAt=null;pending.undoRemaining=null;break;}
