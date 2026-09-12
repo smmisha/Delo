@@ -287,11 +287,10 @@ struct GlassRenderer::Impl {
         if(FAILED(gpu->visual->SetTransform(m)))return;
         gpu->composition->Commit();
     }
-    // While frozen the held frame keeps its old pixel size, so a resize gesture would
-    // expose bare desktop along the new edges. Scaling the composition visual stretches
-    // the material to the window instead; the next live frame replaces it exactly.
+    // A held frame keeps its old pixel size, so a resize would expose bare desktop along
+    // the new edges. Scale the composition visual until live capture resumes.
     void Stretch() {
-        if(!frozen||!gpu)return;
+        if((!frozen&&!capturePaused)||!gpu)return;
         RECT rect{};if(!GetClientRect(host,&rect))return;
         if(!gpu->renderWidth||!gpu->renderHeight||rect.right<=0||rect.bottom<=0)return;
         Scale(float(rect.right)/float(gpu->renderWidth),float(rect.bottom)/float(gpu->renderHeight));
@@ -413,10 +412,9 @@ GlassRenderer::GlassRenderer(HWND host,std::filesystem::path shaderPath)
 GlassRenderer::~GlassRenderer()=default;
 void GlassRenderer::Tick(){impl_->Tick();}
 void GlassRenderer::SaveMaterial(std::filesystem::path const& destination){impl_->SaveMaterial(destination);}
-// Tick picks the new client size up by itself and resizes the textures in place, so this
-// only has to ask for a redraw. A full teardown is Rebuild, for when the capture session
-// itself is no longer valid.
-void GlassRenderer::Resize(){impl_->dirty=true;}
+// Keep the DirectComposition surface synchronous with WebView bounds. Deferring this to
+// the next capture event left the old material width visible after window/tray changes.
+void GlassRenderer::Resize(){impl_->dirty=true;if(impl_->frozen||impl_->capturePaused)impl_->Stretch();else impl_->Tick();}
 void GlassRenderer::Rebuild(){impl_->ScheduleReset();}
 void GlassRenderer::Stretch(){impl_->Stretch();}
 void GlassRenderer::SetDark(bool dark){if(impl_->dark!=dark){impl_->dark=dark;impl_->dirty=true;}}
@@ -427,11 +425,11 @@ void GlassRenderer::PauseCapture(bool paused){
     if(impl_->ticking)throw hresult_error(E_PENDING);
     impl_->capturePaused=paused;
     if(paused)impl_->capture.reset();
-    else impl_->dirty=true;
+    else{impl_->Scale(1.f,1.f);impl_->dirty=true;impl_->Tick();}
 }
 void GlassRenderer::Suspend(bool suspended){if(impl_->suspended!=suspended){impl_->suspended=suspended;impl_->ScheduleReset();}}
 bool GlassRenderer::Healthy()const{return impl_->ready;}
 std::string GlassRenderer::LastError()const{return impl_->error;}
-GlassRenderer::Counters GlassRenderer::GetCounters()const{return impl_->counts;}
+GlassRenderer::Counters GlassRenderer::GetCounters()const{auto result=impl_->counts;if(impl_->gpu){result.width=impl_->gpu->renderWidth;result.height=impl_->gpu->renderHeight;}return result;}
 HANDLE GlassRenderer::EventHandle()const{return impl_->capture?impl_->capture->ready->event:nullptr;}
 } // namespace delo

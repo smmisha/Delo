@@ -22,7 +22,6 @@ public static class DeloInput {
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr CreateWindowEx(uint ex,string cls,string title,uint style,int x,int y,int w,int h,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr parameter);
  [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h,uint message,IntPtr w,IntPtr l);
- [DllImport("user32.dll")] public static extern uint GetDoubleClickTime();
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] static extern IntPtr CreateWaitableTimerEx(IntPtr attributes,string name,uint flags,uint access);
  [DllImport("kernel32.dll")] static extern bool SetWaitableTimer(IntPtr timer,ref long due,int period,IntPtr callback,IntPtr context,bool resume);
  [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle,uint milliseconds);
@@ -89,7 +88,9 @@ try {
  if($Action -in 'traySingle','trayDouble'){
   [void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x202)
   if($Action -eq 'trayDouble'){Start-Sleep -Milliseconds 50;[void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x203);[void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x202)}
-  Start-Sleep -Milliseconds ([DeloInput]::GetDoubleClickTime()+150)
+  # The callback must complete immediately; waiting for GetDoubleClickTime here used
+  # to hide the production delay that this harness is supposed to detect.
+  Start-Sleep -Milliseconds 10
  }
  if($Action -eq 'compose'){
   # The widget never appears in a screen grab, so a picture of it is assembled from the

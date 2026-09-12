@@ -15,6 +15,7 @@ public:
     struct Counters {
         std::uint64_t copied{}, rendered{}, recoveries{}, errors{};
         LONG cropX{},cropY{};
+        UINT width{},height{};
         double lastSubmitMs{},lastRenderWorkMs{};
     };
     GlassRenderer(HWND host, std::filesystem::path shaderPath);
@@ -22,11 +23,11 @@ public:
     GlassRenderer(GlassRenderer const&) = delete;
     GlassRenderer& operator=(GlassRenderer const&) = delete;
     void Tick();
-    // Geometry changed: the next tick resizes the textures in place and redraws.
+    // Geometry changed: resize the textures and redraw in the same UI turn.
     void Resize();
     // Tears the renderer down so the capture session and GPU resources are rebuilt.
     void Rebuild();
-    // Keeps a frozen frame covering the window while a resize gesture is in flight.
+    // Keeps the held frame covering the window while capture is paused.
     void Stretch();
     void SetDark(bool dark);
     // Holds the last presented frame for the duration of a move/resize gesture.

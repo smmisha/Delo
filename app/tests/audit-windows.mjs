@@ -14,8 +14,8 @@ try{
   check(`physical drag from ${side} actually moves quick window`,after.x!==before.x||after.y!==before.y,{before:{x:before.x,y:before.y},after:{x:after.x,y:after.y}});
  }
  q=await quick.host('diagnostics');native(q.window,'outside');await wait(200);q=await quick.host('diagnostics');check('outside click hides quick without reopening main',!q.visible&&!q.mainVisible,q);
- d=await main.host('diagnostics');native(d.controlWindow,'traySingle');await wait(100);q=await quick.host('diagnostics');check('native tray single-click callback opens quick',q.visible&&!q.mainVisible,q);
- native(d.controlWindow,'trayDouble');await wait(100);q=await quick.host('diagnostics');check('native tray double-click callback opens only full planner',!q.visible&&q.mainVisible,q);
+ d=await main.host('diagnostics');const singleBefore=d.traySingleClicks;native(d.controlWindow,'traySingle');await wait(35);q=await quick.host('diagnostics');check('native tray single-click opens quick without double-click timeout',q.visible&&!q.mainVisible&&q.traySingleClicks===singleBefore+1,q);
+ const doubleBefore=q.trayDoubleClicks;native(d.controlWindow,'trayDouble');await wait(35);q=await quick.host('diagnostics');check('native tray double-click finishes with only the full planner visible',!q.visible&&q.mainVisible&&q.trayDoubleClicks===doubleBefore+1,q);
  await main.click('#hide-widget');d=await main.host('diagnostics');check('one physical minimise click hides full planner',!d.visible&&!d.windowVisible,d);
 }finally{await fs.mkdir(path.dirname(output),{recursive:true});await fs.writeFile(output,JSON.stringify(checks,null,2));main.close();quick.close();}
 if(checks.some(c=>!c.pass))process.exitCode=1;
