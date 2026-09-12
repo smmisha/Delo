@@ -182,12 +182,14 @@ body.dark .add.send.has-draft:disabled{color:#112e4f;background:var(--focus);box
 .settings-fields .settings-check-grid .check{min-width:0;min-height:48px;margin:0;align-items:center}
 .settings-check-grid .check span{min-width:0;overflow-wrap:anywhere}
 
-/* Custom glass tooltip for the archive/trash icon controls. Native title popups use a
-   rectangular system style that does not belong to the material. */
-[data-tooltip]{position:relative;overflow:visible}
-[data-tooltip]::after{content:attr(data-tooltip);position:absolute;z-index:20;left:50%;bottom:calc(100% + 9px);translate:-50% 4px;min-width:max-content;max-width:190px;padding:7px 10px;border:1px solid #ffffff70;border-radius:12px;background:#edf5fbe8;color:#192432;font-size:12px;line-height:1.2;box-shadow:inset 0 1px 1px #fff,0 8px 24px #142b4538;backdrop-filter:blur(16px) saturate(1.2);opacity:0;visibility:hidden;pointer-events:none;transition:opacity 120ms,translate 120ms,visibility 0s linear 120ms}
-[data-tooltip].tip-open::after,[data-tooltip]:focus-visible::after{opacity:1;visibility:visible;translate:-50% 0}
-body.dark [data-tooltip]::after{border-color:#ffffff35;background:#20364bec;color:#f5f7fc;box-shadow:inset 0 1px 1px #ffffff38,0 8px 24px #020b1666}
+/* The group fade masks every descendant of a task row. Tooltips therefore live in a
+   root-level glass layer: they retain the same look but are never cut by the sticky
+   heading or its fade. */
+[data-tooltip]{position:relative}
+.tooltip-layer{position:fixed;z-index:50;width:max-content;max-width:190px;padding:7px 10px;border:1px solid #ffffff70;border-radius:12px;background:#edf5fbe8;color:#192432;font-size:12px;line-height:1.2;box-shadow:inset 0 1px 1px #fff,0 8px 24px #142b4538;backdrop-filter:blur(16px) saturate(1.2);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px);transition:opacity 120ms,transform 120ms,visibility 0s linear 120ms}
+.tooltip-layer[data-placement=below]{transform:translateY(-4px)}
+.tooltip-layer.tip-open{opacity:1;visibility:visible;transform:translateY(0);transition-delay:0s}
+body.dark .tooltip-layer{border-color:#ffffff35;background:#20364bec;color:#f5f7fc;box-shadow:inset 0 1px 1px #ffffff38,0 8px 24px #020b1666}
 
 /* Destructive actions use an in-app Liquid Glass confirmation instead of Chromium's
    system alert, keeping wording, focus, and colour consistent in both themes. */
@@ -239,16 +241,8 @@ body.dark [data-tooltip]::after{border-color:#ffffff35;background:#20364bec;colo
 .widget-head{position:relative}
 .widget-head::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:24px}
 
-/* Header controls sit against the top edge and the widget clips its overflow, so their
-   tooltip drops below instead of above. Row actions hug the right edge, so theirs is
-   anchored to that edge rather than centred, which would run outside the window. */
-.widget-head [data-tooltip]::after{bottom:auto;top:calc(100% + 9px);translate:-50% -4px}
-.widget-head [data-tooltip].tip-open::after,.widget-head [data-tooltip]:focus-visible::after{translate:-50% 0}
-.task-actions [data-tooltip]::after,.inline-entry .add[data-tooltip]::after{left:auto;right:0;translate:0 4px}
-.task-actions [data-tooltip].tip-open::after,.task-actions [data-tooltip]:focus-visible::after,
-.inline-entry .add[data-tooltip].tip-open::after,.inline-entry .add[data-tooltip]:focus-visible::after{translate:0 0}
-.inline-entry .entry-mic[data-tooltip]::after{left:0;right:auto;translate:0 4px}
-.inline-entry .entry-mic[data-tooltip].tip-open::after,.inline-entry .entry-mic[data-tooltip]:focus-visible::after{translate:0 0}
+/* Tooltip coordinates are calculated from the visible control and clamped to the
+   widget viewport. This keeps labels readable at every scroll position. */
 
 /* Primary action goes to the trailing edge of a sheet footer. In the editor the hint keeps
    the leading side; in settings the button was the only child and sat left by default. */
@@ -258,18 +252,10 @@ body.dark [data-tooltip]::after{border-color:#ffffff35;background:#20364bec;colo
    the header into a flicker of labels. One second of dwell means it only answers a
    question that was actually asked. Hiding stays immediate, and keyboard focus keeps the
    label instant: someone tabbing through has already asked. */
-/* A sheet scrolls, so a label above its header is clipped; below, it landed on the first
-   row of the sheet's own content — over the "+5" of the reputation table. Beside the
-   button it stays inside the header band, where the only thing it can cover is empty
-   space next to the title. */
-.capture-head [data-tooltip]::after{bottom:auto;top:50%;left:auto;right:calc(100% + 9px);translate:4px -50%}
-.capture-head [data-tooltip].tip-open::after,.capture-head [data-tooltip]:focus-visible::after{translate:0 -50%}
-
 /* The quick capsule is 84px tall and the field takes 66 of them: a tooltip fits neither
    above (it would start at -1.4px, clipped by the widget's overflow) nor below. The two
    controls sit beside their own placeholder and keep their aria-label, so the visual
-   tooltip is dropped here rather than rendered where it cannot be read. */
-body.quick [data-tooltip]::after{content:none}
+   tooltip is dropped by the controller rather than rendered where it cannot be read. */
 
 /* No text selection in a recorder: the field is not text to edit, and a highlight there
    looked like a stray selection instead of an armed field. */

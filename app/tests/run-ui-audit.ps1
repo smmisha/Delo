@@ -23,6 +23,7 @@ try {
  if(-not $ready){throw 'Harness WebView was not ready within 30 seconds'}
  foreach($test in @(
   @{name='audit-interactions';output=(Join-Path $out 'interactions')},
+  @{name='audit-tooltip';output=(Join-Path $out 'tooltip')},
   @{name='audit-visuals';output=(Join-Path $out 'visuals')},
   @{name='audit-windows';output=(Join-Path $out 'windows.json')},
   @{name='audit-suite';output=(Join-Path $out 'suite.json')},
