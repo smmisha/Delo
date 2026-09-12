@@ -354,3 +354,38 @@ body.dark #editor-form>#editor-input{
   #editor-form>#editor-input{min-height:56px;padding:10px 12px;border-radius:16px;font-size:16px}
   #editor-form .editor-shortcuts{font-size:10px}
 }
+
+/* History deletion is deliberately quiet: the compact action occupies a stable column,
+   appears after a stationary two-second pointer dwell, and becomes visible immediately
+   when reached from the keyboard. */
+.history-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto 24px;
+  gap:8px;
+  align-items:center;
+}
+.history-row strong{float:none}
+.history-copy{min-width:0}
+.history-title,.history-date{display:block;overflow-wrap:anywhere}
+.history-date{color:var(--muted)}
+.history-value{font-variant-numeric:tabular-nums}
+.history-delete{
+  width:24px;
+  height:24px;
+  padding:0;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  color:var(--muted);
+  background:transparent;
+  opacity:0;
+  pointer-events:none;
+  transform:scale(.8);
+  transition:opacity 120ms,transform 120ms,background 120ms,color 120ms;
+}
+.history-delete svg{width:14px;height:14px}
+.history-row.delete-ready .history-delete,.history-delete:focus-visible{opacity:1;pointer-events:auto;transform:scale(1)}
+.history-delete:hover,.history-delete:focus-visible{background:var(--small-surface);color:var(--danger)}
+@media(prefers-reduced-motion:reduce){.history-delete{transition:none}}
+.reduced .history-delete{transition:none}
+#history{overflow-x:hidden}

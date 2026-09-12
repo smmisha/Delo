@@ -76,6 +76,15 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     case 'trash': required();if(t.lifecycle!=='archive')fail('Only archived tasks can move to trash');freeze(t,monotonic);t.lifecycle='trash';t.deletedAt=now;t.undoRemaining=null;break;
     case 'purge': required();if(t.lifecycle!=='trash')fail('Only trash tasks can be deleted permanently');s.tasks=s.tasks.filter(task=>task!==t);break;
     case 'clearTrash': s.tasks=s.tasks.filter(task=>task.lifecycle!=='trash');break;
+    case 'deleteEvent': {
+      if(!Number.isInteger(command.eventId)||command.eventId<1)fail('Invalid event id');
+      const index=s.events.findIndex(event=>event.id===command.eventId&&event.taskId===command.taskId&&event.kind===command.kind&&event.at===command.at&&event.delta===command.delta);
+      if(index<0)fail('Unknown event');
+      const [removed]=s.events.splice(index,1);
+      s.reputation-=removed.delta;
+      s.events.forEach((event,index)=>{event.id=index+1;});
+      break;
+    }
     case 'restore': required();if(!['archive','trash'].includes(t.lifecycle))fail('Not restorable');t.lifecycle='active';t.deletedAt=null;t.archiveAnchor=now;t.undoRemaining=null;if(t.completedAt!==null)t.completedDayEnd=dayEnd(now,timeZone);break;
     case 'settings': for(const key of Object.keys(command.patch))if(!(key in DEFAULT_SETTINGS))fail('Unknown setting');Object.assign(s.settings,command.patch);settingsCheck(s.settings);break;
     case 'suspend': for(const t of s.tasks)freeze(t,monotonic);break;
@@ -96,7 +105,7 @@ export function validateState(s) {
     if(!s||s.schemaVersion!==1||!Array.isArray(s.tasks)||!Array.isArray(s.events)||!Number.isFinite(s.reputation))fail('Invalid database'); settingsCheck(s.settings);
     const ids=new Set();let running=0;
     for(const t of s.tasks) {if(typeof t.id!=='string'||!t.id||ids.has(t.id))fail('Invalid task id');ids.add(t.id);title(t.title);if(!['active','archive','pending','trash'].includes(t.lifecycle)||!['idle','running','paused','working'].includes(t.workState))fail('Invalid task state');for(const k of ['createdAt','archiveAnchor','elapsedMs'])if(!Number.isFinite(t[k])||t[k]<0)fail('Invalid task time');if(t.due){const d=deadline(t.due);if(d.date!==t.due.date||d.time!==t.due.time||d.timeZone!==t.due.timeZone||d.at!==t.due.at)fail('Invalid deadline');}if(!t.penalties||typeof t.penalties.first!=='boolean'||typeof t.penalties.week!=='boolean')fail('Invalid penalties');if(![0,2,5].includes(t.award))fail('Invalid award');if(t.completedAt!==null&&(!Number.isFinite(t.completedAt)||!Number.isFinite(t.completedDayEnd)||t.award===0))fail('Invalid completion');if(t.workState==='running'){running++;if(!Number.isFinite(t.timerAnchor)||t.lifecycle!=='active'||t.completedAt!==null)fail('Invalid timer');}else if(t.timerAnchor!==null)fail('Invalid timer');if(['pending','trash'].includes(t.lifecycle)&&!Number.isFinite(t.deletedAt))fail('Invalid deletion');if(t.lifecycle==='pending'&&(!Number.isFinite(t.undoRemaining)||t.undoRemaining<0||t.undoRemaining>5000))fail('Invalid undo');}
-    if(running>1)fail('Multiple timers');let sum=0;const penalties=new Set();for(let i=0;i<s.events.length;i++){const e=s.events[i];if(e.id!==i+1||typeof e.taskId!=='string'||!Number.isFinite(e.at)||!({first:[-2],week:[-1],complete:[2,5],uncomplete:[-2,-5]}[e.kind]?.includes(e.delta)))fail('Invalid event');if(['first','week'].includes(e.kind)){const key=e.taskId+':'+e.kind;if(penalties.has(key))fail('Repeated penalty');penalties.add(key);}sum+=e.delta;}if(sum!==s.reputation)fail('Reputation ledger mismatch');for(const t of s.tasks){for(const k of ['first','week'])if(t.penalties[k]!==penalties.has(t.id+':'+k))fail('Penalty ledger mismatch');if(t.completedAt===null&&(t.award!==0||t.completedDayEnd!==null))fail('Invalid completion');}return {valid:true};
+    if(running>1)fail('Multiple timers');let sum=0;const penalties=new Set();for(let i=0;i<s.events.length;i++){const e=s.events[i];if(e.id!==i+1||typeof e.taskId!=='string'||!Number.isFinite(e.at)||!({first:[-2],week:[-1],complete:[2,5],uncomplete:[-2,-5]}[e.kind]?.includes(e.delta)))fail('Invalid event');if(['first','week'].includes(e.kind)){const key=e.taskId+':'+e.kind;if(penalties.has(key))fail('Repeated penalty');penalties.add(key);}sum+=e.delta;}if(sum!==s.reputation)fail('Reputation ledger mismatch');for(const t of s.tasks){for(const k of ['first','week'])if(penalties.has(t.id+':'+k)&&!t.penalties[k])fail('Penalty ledger mismatch');if(t.completedAt===null&&(t.award!==0||t.completedDayEnd!==null))fail('Invalid completion');}return {valid:true};
   } catch(error) {return {valid:false,error:error.message};}
 }
 export function recoverState(source) {const check=validateState(source);if(!check.valid)fail(check.error);const s=structuredClone(source);for(const t of s.tasks){if(t.workState==='running'){t.workState='paused';t.timerAnchor=null;}if(t.lifecycle==='pending'){t.lifecycle='trash';t.undoRemaining=null;}}return s;}

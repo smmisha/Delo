@@ -49,4 +49,7 @@ Object.assign(messages.en,{moveQuick:'Move quick entry',archiveTask:'Archive',sh
 Object.assign(messages.ru,{timeShort:'Время',optional:'необязательно'});
 Object.assign(messages.uk,{timeShort:'Час',optional:'необов’язково'});
 Object.assign(messages.en,{timeShort:'Time',optional:'optional'});
+messages.ru.deleteReputationEvent='Удалить запись';
+messages.uk.deleteReputationEvent='Видалити запис';
+messages.en.deleteReputationEvent='Delete entry';
 export const localeFor=language=>({ru:'ru-RU',uk:'uk-UA',en:'en-GB'}[language]||'ru-RU');
