@@ -44,7 +44,8 @@ private:
         HWAVEIN device{};WAVEHDR header{};bool prepared{};
         ~Capture(){if(device){waveInReset(device);if(prepared)waveInUnprepareHeader(device,&header,sizeof(header));waveInClose(device);}}
     };
-    std::vector<short> Record(){
+    struct Recording {std::vector<short> samples;bool limitReached{};};
+    Recording Record(){
         // One bounded buffer also captures the final partial block when Stop resets it.
         std::vector<short> samples(16000*60);
         Handle done{CreateEventW(nullptr,FALSE,FALSE,nullptr)};
@@ -56,13 +57,14 @@ private:
         if(waveInAddBuffer(capture.device,&capture.header,sizeof(WAVEHDR))!=MMSYSERR_NOERROR||waveInStart(capture.device)!=MMSYSERR_NOERROR)throw std::runtime_error("voiceMic");
         Publish("recording");const auto start=GetTickCount64();
         while(!stop_&&!(capture.header.dwFlags&WHDR_DONE)&&GetTickCount64()-start<60000)WaitForSingleObject(done,25);
+        const bool limitReached=!stop_&&((capture.header.dwFlags&WHDR_DONE)||GetTickCount64()-start>=60000);
         waveInReset(capture.device);
         samples.resize(capture.header.dwBytesRecorded/sizeof(short));
-        if(cancel_)return {};
+        if(cancel_)return {{},limitReached};
         if(samples.size()<8000)throw std::runtime_error("voiceNoSpeech");
         double energy=0;for(auto sample:samples)energy+=double(sample)*sample;
         if(std::sqrt(energy/samples.size())<12)throw std::runtime_error("voiceNoSpeech");
-        return samples;
+        return {std::move(samples),limitReached};
     }
     static void WriteWave(std::filesystem::path const& path,std::vector<short> const& samples){
         std::ofstream out(path,std::ios::binary|std::ios::trunc);
@@ -79,10 +81,11 @@ private:
             work=temporary_/std::to_wstring(GetCurrentProcessId());std::filesystem::create_directories(work);
             auto wav=work/L"input.wav",output=work/L"result",transcript=work/L"result.txt";
             std::error_code ignored;std::filesystem::remove(transcript,ignored);
-            if(fixture.empty()){auto samples=Record();if(!cancel_)WriteWave(wav,samples);}
+            bool limitReached=false;
+            if(fixture.empty()){auto recording=Record();limitReached=recording.limitReached;if(!cancel_)WriteWave(wav,recording.samples);}
             else std::filesystem::copy_file(fixture,wav,std::filesystem::copy_options::overwrite_existing);
             if(cancel_)throw std::runtime_error("voiceCancelled");
-            Publish("transcribing");
+            Publish(limitReached?"limit":"transcribing");
             auto exe=runtime_/L"whisper-cli.exe";
             auto command=Quote(exe)+L" -m "+Quote(runtime_/L"ggml-small-q5_1.bin")+L" -f "+Quote(wav)+L" -of "+Quote(output)+L" -otxt -np -nt -ng -t 8 -bs 1 -bo 1 -l "+std::wstring(language.begin(),language.end());
             Handle job{CreateJobObjectW(nullptr,nullptr)};if(!job.value)throw std::runtime_error("voiceFailed");

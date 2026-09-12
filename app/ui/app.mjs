@@ -146,20 +146,24 @@ for(const input of $$('.shortcut-recorder')){
     if(shortcut){input.value=shortcut;input.setCustomValidity('');announce(shortcut);}
   });
 }
-async function submitEntry(){if(busy||!ready||voiceInput.active||voiceInput.phase==='error')return;const input=$('#task-input'),title=input.value.trim();if(!title)return;const original=input.value;const success=await mutate({type:'create',id:crypto.randomUUID(),title});if(success){if(input.value===original)input.value='';grow(input);setBusy(false);if(quick)await host.window('quickDone').catch(error=>report(error));else input.focus();}}
+async function submitEntry(){if(busy||!ready||voiceInput.active)return;const input=$('#task-input'),title=input.value.trim();if(!title)return;const original=input.value;const success=await mutate({type:'create',id:crypto.randomUUID(),title});if(success){if(input.value===original)input.value='';voiceInput.clearError();grow(input);setBusy(false);if(quick)await host.window('quickDone').catch(error=>report(error));else input.focus();}}
 $('#entry').addEventListener('submit',event=>{event.preventDefault();submitEntry();});$('#new-with-date').addEventListener('click',()=>openEditor());
+let voiceTicker=0;
 const voiceInput=new VoiceInput({host,input:$('#task-input'),language:()=>state?.settings.language||'ru',onChange:renderVoice,onText:()=>{grow($('#task-input'));setBusy(busy);}});
+$('#task-input').addEventListener('input',()=>voiceInput.clearError());
+function renderVoiceTimer(){const seconds=voiceInput.recordingSeconds();text($('#voice-timer'),`0:${String(seconds).padStart(2,'0')} / 1:00`);}
 function renderVoice(){
-  const phase=voiceInput.phase,active=voiceInput.active,failed=phase==='error',mic=$('#voice-input');
-  const key=phase==='recording'?'voiceRecording':phase==='starting'?'voiceStarting':'voiceTranscribing';
+  const phase=voiceInput.phase,active=voiceInput.active,failed=phase==='error',recording=phase==='recording',mic=$('#voice-input');
+  const key=recording?'voiceRecording':phase==='starting'?'voiceStarting':voiceInput.limitReached?'voiceLimit':'voiceTranscribing';
   const errorKey=['voiceMissing','voiceBusy','voiceMic','voiceNoSpeech','voiceTimeout','voiceTooLong'].includes(voiceInput.error)?voiceInput.error:'voiceFailed';
   const message=failed?t(errorKey):active?t(key):'';
-  $('#entry').classList.toggle('voice-active',active);$('#entry').classList.toggle('voice-error',failed);
-  mic.dataset.label=active?'voiceStop':'voice';mic.setAttribute('aria-label',t(active?'voiceStop':'voice'));mic.dataset.tooltip=t(active?'voiceStop':'voice');
-  mic.setAttribute('aria-pressed',String(active));mic.disabled=['stopping','transcribing'].includes(phase);
-  mic.querySelector('use').setAttribute('href',active?'#i-stop':'#i-mic');
-  $('#voice-cancel').hidden=!(active||failed);$('#voice-message').hidden=!(active||failed);text($('#voice-message'),message);
-  announce(message||t('voiceReady'));setBusy(busy);
+  $('#entry').classList.toggle('voice-active',active);$('#entry').classList.toggle('voice-error',failed);$('#entry').classList.toggle('voice-recording',recording);
+  mic.dataset.label=recording?'voiceStop':'voice';mic.setAttribute('aria-label',t(recording?'voiceStop':'voice'));mic.dataset.tooltip=t(recording?'voiceStop':'voice');
+  mic.setAttribute('aria-pressed',String(recording));mic.disabled=active&&!recording;
+  mic.querySelector('use').setAttribute('href',recording?'#i-stop':'#i-mic');
+  $('#voice-cancel').hidden=!(active||failed);$('#voice-status').hidden=!(active||failed);text($('#voice-message'),message);$('#voice-timer').hidden=!recording;
+  if(recording){renderVoiceTimer();if(!voiceTicker)voiceTicker=setInterval(renderVoiceTimer,250);}else if(voiceTicker){clearInterval(voiceTicker);voiceTicker=0;}
+  setBusy(busy);
   if(phase==='idle'&&nativeVisible&&document.hasFocus())$('#task-input').focus();
 }
 $('#voice-input').removeAttribute('aria-disabled');

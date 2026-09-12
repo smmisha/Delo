@@ -394,11 +394,17 @@ body.dark #editor-form>#editor-input{
 .reduced .history-delete{transition:none}
 #history{overflow-x:hidden}
 
-/* Voice reuses the capsule's existing geometry, including the fixed-height quick view. */
-.inline-entry.voice-active,.inline-entry.voice-error{align-items:center}
-.voice-active #task-input,.voice-active #new-with-date,.voice-active #add-task,
-.voice-error #task-input,.voice-error #new-with-date,.voice-error #add-task{display:none!important}
-#voice-message{flex:1;min-width:0;max-height:48px;overflow-y:auto;font-size:12px;line-height:16px;color:var(--muted);overflow-wrap:anywhere;scrollbar-width:thin}
-.voice-error #voice-message{color:var(--danger)}
-.voice-active .entry-mic{color:var(--danger);background:var(--small-surface)}
+/* Voice keeps the editable draft visible. Status occupies a compact second line inside
+   the existing capsule; the quick window retains its fixed native height. */
+.inline-entry{position:relative}
+.voice-active #new-with-date,.voice-active #add-task,.voice-error #new-with-date,.voice-error #add-task{display:none!important}
+.voice-active #task-input,.voice-error #task-input{min-height:58px;padding-bottom:22px}
+.quick .voice-active #task-input,.quick .voice-error #task-input{min-height:54px;padding-top:5px;padding-bottom:20px}
+.quick .voice-active #task-input,.quick .voice-error #task-input{white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#voice-status{position:absolute;left:calc(var(--control) + 12px);right:calc(var(--control) + 8px);bottom:6px;display:flex;align-items:center;gap:7px;min-width:0;font-size:11px;line-height:14px;color:var(--muted);pointer-events:none}
+#voice-status[hidden]{display:none}
+.voice-error #voice-status{color:var(--danger)}
+#voice-message{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#voice-timer{flex-shrink:0;color:var(--muted);font-variant-numeric:tabular-nums}
+.voice-recording .entry-mic{color:var(--danger);background:var(--small-surface)}
 #voice-cancel{flex-shrink:0}

@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {VoiceInput} from '../ui/voice.mjs';
 import {translator} from '../ui/i18n.mjs';
-function fixture(){
+function fixture(now=()=>0){
  const host=new EventTarget();host.requests=[];host.request=async(type,payload)=>{host.requests.push({type,...payload});};
- const input={value:'Черновик'},voice=new VoiceInput({host,input,language:()=> 'ru'});
+ const input={value:'Черновик'},voice=new VoiceInput({host,input,language:()=> 'ru',now});
  return {host,input,voice,receive:(state,text='',error='')=>voice.receive({session:voice.session,state,text,error})};
 }
 test('V02 result appends to the latest draft, without submitting a task',async()=>{
@@ -29,6 +29,19 @@ test('V02 failed start clears the session; long results are preserved for editin
  const f=fixture();f.host.request=async()=>{throw Error('voiceBusy');};await f.voice.start();assert.equal(f.voice.error,'voiceBusy');assert.equal(f.voice.session,null);
  const g=fixture();await g.voice.start();g.receive('result','а'.repeat(4000));assert.equal(g.voice.error,'voiceTooLong');assert.equal(g.input.value.length,4009);
 });
+test('V03 recording exposes a clamped one-minute elapsed time',async()=>{
+ let time=12000;const f=fixture(()=>time);await f.voice.start();f.receive('recording');
+ assert.equal(f.voice.recordingSeconds(),0);time=59001;assert.equal(f.voice.recordingSeconds(),47);
+ time=73000;assert.equal(f.voice.recordingSeconds(),60);
+});
+test('V03 the native limit signal explains automatic transcription',async()=>{
+ const f=fixture();await f.voice.start();f.receive('recording');f.receive('limit');
+ assert.equal(f.voice.phase,'transcribing');assert.equal(f.voice.limitReached,true);
+});
+test('V03 typing can dismiss an error without losing the draft',async()=>{
+ const f=fixture();await f.voice.start();f.receive('error','','voiceMic');
+ f.voice.clearError();assert.equal(f.voice.phase,'idle');assert.equal(f.input.value,'Черновик');
+});
 test('V02 voice feedback exists in RU, UK and EN',()=>{
- for(const lang of ['ru','uk','en'])for(const key of ['voice','voiceStop','voiceRecording','voiceTranscribing','voiceMic','voiceNoSpeech','voiceFailed'])assert.notEqual(translator(lang)(key),key);
+ for(const lang of ['ru','uk','en'])for(const key of ['voice','voiceStop','voiceRecording','voiceTranscribing','voiceLimit','voiceMic','voiceNoSpeech','voiceFailed'])assert.notEqual(translator(lang)(key),key);
 });

@@ -1,14 +1,16 @@
 // Session identity makes late native results harmless after Escape, hide or a retry.
 export class VoiceInput {
-  constructor({host,input,language,onChange=()=>{},onText=()=>{}}){
-    Object.assign(this,{host,input,language,onChange,onText});this.phase='idle';this.session=null;this.error='';
+  constructor({host,input,language,onChange=()=>{},onText=()=>{},now=()=>Date.now()}){
+    Object.assign(this,{host,input,language,onChange,onText,now});this.phase='idle';this.session=null;this.error='';this.recordingStartedAt=null;this.limitReached=false;
     host.addEventListener('voiceState',event=>this.receive(event.detail));
   }
   get active(){return ['starting','recording','stopping','transcribing','cancelling'].includes(this.phase);}
   change(phase,error=''){this.phase=phase;this.error=error;this.onChange(this);}
+  recordingSeconds(){return this.recordingStartedAt===null?0:Math.min(60,Math.max(0,Math.floor((this.now()-this.recordingStartedAt)/1000)));}
+  clearError(){if(this.phase==='error')this.change('idle');}
   async start(){
     if(this.active)return;
-    const session=this.session=crypto.randomUUID();this.change('starting');
+    const session=this.session=crypto.randomUUID();this.recordingStartedAt=null;this.limitReached=false;this.change('starting');
     try{await this.host.request('voice',{action:'start',session,language:this.language()});}
     catch(error){if(this.session===session){this.session=null;this.change('error',error.message);}}
   }
@@ -24,8 +26,9 @@ export class VoiceInput {
   }
   receive(update){
     if(!update||update.session!==this.session)return;
-    if(update.state==='recording'){if(this.phase==='starting')this.change('recording');return;}
+    if(update.state==='recording'){if(this.phase==='starting'){this.recordingStartedAt=this.now();this.change('recording');}return;}
     if(update.state==='transcribing'){this.change('transcribing');return;}
+    if(update.state==='limit'){this.limitReached=true;this.change('transcribing');return;}
     this.session=null;
     if(update.state==='result'){
       const result=typeof update.text==='string'?update.text.trim():'';
