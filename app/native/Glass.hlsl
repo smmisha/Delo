@@ -42,8 +42,8 @@ float4 Glass(float4 position : SV_Position) : SV_Target {
     float alpha = saturate(0.5 - distance);
     float3 rgb = sourceTexture.SampleLevel(sourceSampler, uv, 0).rgb;
     float3 tint=lerp(float3(244,248,252),float3(24,35,50),state.z)/255.0;
-    // Keep dark labels legible even over a black desktop in the light theme.
-    rgb=lerp(rgb,tint,lerp(0.72,0.60,state.z));
+    // Preserve the accepted matte tint and optical rim.
+    rgb=lerp(rgb,tint,lerp(0.72,0.76,state.z));
     float rim=exp(-abs(distance+0.8)*0.8);
     float highlight=saturate(dot(normal,normalize(float2(-0.6,-1.0))))*rim;
     rgb=saturate(rgb+highlight*lerp(0.20,0.12,state.z));

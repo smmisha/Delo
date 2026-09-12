@@ -1,6 +1,6 @@
 /* Task controls share the established glass geometry and semantic theme tokens. */
-:root{--work:#785007;--work-surface:#d7971720;--menu-surface:#edf4fbeb}
-body.dark{--work:#ffdb80;--work-surface:#ffc34d16;--menu-surface:#203348ed}
+:root{--work:#785007;--work-surface:#d7971720;--menu-surface:#edf4fbeb;--archive:#8a5a12}
+body.dark{--work:#ffdb80;--work-surface:#ffc34d16;--menu-surface:#203348ed;--archive:#f0c07a}
 [hidden]{display:none!important}
 /* Lockup: vector mark + wordmark in the interface face. Mark is optically 14% over
    cap height and 8% under the baseline; gap is 0.32 of cap height. */
@@ -14,7 +14,7 @@ body.dark{--work:#ffdb80;--work-surface:#ffc34d16;--menu-surface:#203348ed}
 .inline-entry{padding-left:18px}
 /* Send arrow carries the enabled/disabled state: flat and muted with an empty field,
    filled with the action colour as soon as there is something to add. */
-.add.send{transition:background 160ms,color 160ms,opacity 160ms}
+.add.send{transition:none;contain:paint;transform:translateZ(0);backface-visibility:hidden}
 .add.send:disabled{opacity:.55;color:var(--muted);background:transparent}
 .add.send:enabled{background:var(--focus);color:#fff;box-shadow:0 2px 8px #12345424}
 .add.send:enabled:hover{background:var(--focus);color:#fff;filter:brightness(1.12)}
@@ -37,10 +37,16 @@ body.dark .add.send:enabled{color:#112e4f}
 .stop-work::after{content:'';position:absolute;inset:-4px}
 .stop-work svg{width:16px;height:16px;fill:currentColor;stroke-width:0}.stop-work:hover{background:#a9771824}
 .task-group h3.upcoming-label{color:var(--muted)}.task-group h3.done-label{color:var(--success)}
-#task-menu{position:fixed;inset:auto;margin:0;width:256px;max-width:calc(100vw - 16px);padding:6px;border:1px solid #ffffff8a;border-radius:22px;background:var(--menu-surface);color:var(--ink);backdrop-filter:blur(20px) saturate(1.3);box-shadow:0 12px 35px #14264038,inset 0 1px 1px #fff7}
-#task-menu:popover-open{animation:menu-in 180ms cubic-bezier(.2,.8,.2,1)}
-#task-menu button{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border-radius:16px;background:none;min-height:44px;padding:10px 12px;font-size:13px;color:inherit}
-#task-menu button svg{width:18px;height:18px}#task-menu button:hover,#task-menu button:focus-visible{background:var(--small-surface)}#task-menu .delete-action{color:var(--danger)}
+#app-menu,#task-menu{position:fixed;inset:auto;margin:0;width:256px;max-width:calc(100vw - 16px);padding:6px;border:1px solid #ffffff8a;border-radius:22px;background:var(--menu-surface);color:var(--ink);backdrop-filter:blur(20px) saturate(1.3);box-shadow:0 12px 35px #14264038,inset 0 1px 1px #fff7}
+#app-menu:popover-open,#task-menu:popover-open{animation:menu-in 180ms cubic-bezier(.2,.8,.2,1)}
+#app-menu button,#task-menu button{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border-radius:16px;background:none;min-height:44px;padding:10px 12px;font-size:13px;color:inherit}
+#app-menu button svg{width:18px;height:18px}#task-menu button svg{width:18px;height:18px}/* The app menu was generalised into the base row rule but never into this one, so it
+   had no pointer state at all and an item could be chosen by accident. The tint is
+   also stronger than the old 8.6% white: at that level the row under the cursor was
+   barely distinguishable from the one above it. */
+#app-menu button:hover,#app-menu button:focus-visible,
+#task-menu button:hover,#task-menu button:focus-visible{background:color-mix(in srgb,var(--focus) 16%,transparent)}
+#app-menu button:active,#task-menu button:active{background:color-mix(in srgb,var(--focus) 26%,transparent)}#task-menu .delete-action{color:var(--danger)}
 .date-editor{padding:8px 0 4px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center}
 .date-editor label{font-size:13px;font-weight:600}.date-editor label span{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:3px}
 #due-input{width:100%;min-width:0;min-height:44px;padding:8px 10px;border:1px solid #ffffff75;border-radius:13px;background:var(--small-surface);color:var(--ink);font-size:13px;outline:none;color-scheme:light}
@@ -70,3 +76,11 @@ body.reduced button:active{scale:1}
 @keyframes menu-in{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
 @media(max-width:760px){.task-title{font-size:14px}.work-strip{gap:4px}.date-presets{gap:6px}.date-presets button{padding:0 12px}}
 @media(prefers-reduced-motion:reduce){#task-menu:popover-open{animation:none}button:active:not(:disabled){scale:1}}
+
+/* Archive is the only item in this menu that takes the task out of the list, so it sits in
+   its own group below a hairline and carries its own colour. It is deliberately a duller,
+   browner amber than --work: that token means "in progress" on task rows, and the two are
+   visible at the same time while the menu is open. */
+#task-menu [data-action=archive]{position:relative;margin-top:7px;color:var(--archive)}
+#task-menu [data-action=archive]::before{content:'';position:absolute;left:12px;right:12px;top:-4px;height:1px;background:var(--line)}
+#app-menu{width:212px}

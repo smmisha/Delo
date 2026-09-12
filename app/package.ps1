@@ -1,4 +1,4 @@
-param([string]$Version='0.1.1',[string]$Compiler)
+param([string]$Version='0.1.2',[string]$Compiler,[switch]$Offline)
 $ErrorActionPreference='Stop'
 if($Version -notmatch '^\d+\.\d+\.\d+$'){throw 'Version must be major.minor.patch'}
 if(-not $Compiler){$Compiler=Join-Path $PSScriptRoot 'vendor/inno/ISCC.exe'}
@@ -8,7 +8,13 @@ if(-not(Test-Path -LiteralPath $runtime)){throw 'Run setup-distribution.ps1 to d
 $signature=Get-AuthenticodeSignature -LiteralPath $runtime
 if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation'){throw 'WebView2 Runtime signature is not valid Microsoft code.'}
 & (Join-Path $PSScriptRoot 'build.ps1') -Version $Version
-& $Compiler "/DAppVersion=$Version" (Join-Path $PSScriptRoot 'installer/Delo.iss')
+# Default build carries the 2 MB bootstrapper; -Offline embeds the full runtime for
+# machines that will never see the network.
+$defines=@("/DAppVersion=$Version")
+if($Offline){$defines+='/DOffline'}
+$payload=Join-Path $PSScriptRoot ('vendor/distribution/' + $(if($Offline){'MicrosoftEdgeWebView2RuntimeInstallerX64.exe'}else{'MicrosoftEdgeWebView2Setup.exe'}))
+if(-not(Test-Path -LiteralPath $payload)){throw "Missing $payload. Run setup-distribution.ps1 first."}
+& $Compiler @defines (Join-Path $PSScriptRoot 'installer/Delo.iss')
 if($LASTEXITCODE -ne 0){throw 'Installer compilation failed'}
 $package=Join-Path $PSScriptRoot "dist/Delo-$Version-windows-x64-setup.exe"
 $hash=(Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()

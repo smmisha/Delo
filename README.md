@@ -1,6 +1,6 @@
 # Delo
 
-Delo is a local Windows 11 desktop planner. It combines a Win32 host, a D3D11/WGC/DirectComposition backdrop renderer with refraction, and a transparent WebView2 interface.
+Delo is a local Windows 11 desktop planner. It combines a Win32 host, a D3D11/Windows Graphics Capture live backdrop material, and a transparent WebView2 interface.
 
 The app keeps a task list on the desktop, provides global shortcuts for the list and quick entry, tracks focused work, archives stale tasks, keeps deleted tasks for 30 days, and records a simple reputation score. The interface supports Russian, Ukrainian, and English, light and dark themes, keyboard operation, and reduced motion.
 
@@ -11,7 +11,7 @@ Requirements: Windows 11 x64, Visual Studio Build Tools with Desktop development
 ```powershell
 cd app
 ./setup.ps1
-./build.ps1 -Version 0.1.1
+./build.ps1 -Version 0.1.2
 node --test tests/*.test.mjs
 ./test-store.ps1
 ./test-renderer.ps1
@@ -26,7 +26,7 @@ The Inno Setup package installs per user into `%LOCALAPPDATA%\Programs\Delo` and
 ```powershell
 cd app
 ./setup-distribution.ps1
-./package.ps1 -Version 0.1.1
+./package.ps1 -Version 0.1.2
 ```
 
 The installer and a matching SHA-256 sidecar are written to `app/dist`. Build outputs, restored dependencies, test sessions, and user data are excluded from Git.
@@ -39,7 +39,7 @@ The app has no account, cloud synchronization, analytics, or network-backed task
 
 ## Verification status
 
-Local verification covers 28 JavaScript tests, 20 native storage/hotkey assertions, 9 GPU checks, live UI scenarios, Win+D, idle resource use, install/update/uninstall, and a real sleep/resume cycle with renderer recovery and persisted timer state. See [TASKS.md](TASKS.md), [application lifecycle](architecture/APP-LIFECYCLE.md), and [distribution evidence](architecture/DISTRIBUTION.md).
+Local verification covers 32 JavaScript tests, 20 native storage/hotkey assertions, 9 GPU checks, screenshot-key coverage, live UI scenarios, Win+D, idle behavior, install/update/uninstall, and sleep/resume recovery with persisted timer state. See [TASKS.md](TASKS.md), [application lifecycle](architecture/APP-LIFECYCLE.md), and [distribution evidence](architecture/DISTRIBUTION.md).
 
 Physical multi-monitor/DPI scenarios and the missing-WebView2 branch on a clean Windows image remain unverified. The current local installer is unsigned, so SmartScreen can warn until a publisher certificate is used.
 

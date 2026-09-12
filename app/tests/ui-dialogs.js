@@ -6,7 +6,7 @@
   for(const [id,trigger] of [['editor','new-with-date'],['settings','settings-open']]){
     const dialog=document.getElementById(id);
     check(`${id}: initially hidden`,!dialog.open&&getComputedStyle(dialog).display==='none');
-    document.getElementById(trigger).click();await new Promise(r=>setTimeout(r,300));
+    document.getElementById(trigger).click();if(id==='settings')document.querySelector('#open-settings').click();await new Promise(r=>setTimeout(r,300));
     check(`${id}: opens`,dialog.open&&getComputedStyle(dialog).display==='flex');
     const button=dialog.querySelector('.save'),rect=button.getBoundingClientRect();
     check(`${id}: save visible`,rect.top>=0&&rect.bottom<=innerHeight);

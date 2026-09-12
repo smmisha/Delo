@@ -24,20 +24,23 @@
   const shifted=new KeyboardEvent('keydown',{key:'Enter',shiftKey:true,bubbles:true,cancelable:true});input.dispatchEvent(shifted);await wait(50);
   check('Shift+Enter is left to the textarea',!shifted.defaultPrevented);
   document.querySelector('#entry').requestSubmit();
-  check('multiline RU/UK text is preserved',await waitFor(async()=>(await load()).state.tasks.some(task=>task.title==='Первая строка\nДруга лінія')));
+  check('multiline RU/UK text is preserved',await waitFor(async()=>input.value===''&&(await load()).state.tasks.some(task=>task.title==='Первая строка\nДруга лінія')));
 
-  const boundary='x'.repeat(3999)+'Я';input.value=boundary;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();
-  check('4000 character boundary saves',await waitFor(async()=>(await load()).state.tasks.some(task=>task.title.length===4000)));
+  const prefix=`Boundary ${Date.now()} `,boundary=prefix+'x'.repeat(3999-prefix.length)+'Я';input.value=boundary;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();
+  check('4000 character boundary saves',await waitFor(async()=>input.value===''&&(await load()).state.tasks.some(task=>task.title===boundary)));
 
-  const tooLong='z'.repeat(4001);input.value=tooLong;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();await wait(150);
-  check('overlong text stays for retry',input.value===tooLong&&!document.querySelector('#error').hidden&&!(await load()).state.tasks.some(task=>task.title.length===4001));
+  const tooLong='z'.repeat(4001);input.value=tooLong;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();
+  check('overlong text stays for retry',await waitFor(async()=>input.value===tooLong&&!document.querySelector('#error').hidden&&!(await load()).state.tasks.some(task=>task.title.length===4001)));
   document.querySelector('#error-close').click();input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));
 
   const row=[...document.querySelectorAll('.task')].find(node=>node.querySelector('.task-title')?.textContent===repeated);
   row.querySelector('.task-title').click();await wait(30);const editor=document.querySelector('#editor'),editorInput=document.querySelector('#editor-input');editorInput.value='Changed but cancelled';editorInput.dispatchEvent(new Event('input',{bubbles:true}));editor.querySelector('[data-close]').click();await wait(30);
   check('editor cancel keeps original task',!editor.open&&(await load()).state.tasks.some(task=>task.title===repeated));
 
-  row.querySelector('.deadline').click();await wait(30);document.querySelector('#due-input').value='';document.querySelector('#time-input').value='10:30';document.querySelector('#editor-form').requestSubmit();await wait(80);
+  // Undated rows omit the redundant deadline label; their menu still opens date editing.
+  const dateRow=[...document.querySelectorAll('.task')].find(node=>node.querySelector('.task-title')?.textContent===repeated);
+  dateRow.scrollIntoView({block:'nearest'});await wait(30);dateRow.querySelector('.task-more').click();
+  document.querySelector('#task-menu [data-action=date]').click();await wait(30);document.querySelector('#due-input').value='';document.querySelector('#time-input').value='10:30';document.querySelector('#editor-form').requestSubmit();await wait(80);
   check('time without date is rejected without closing editor',editor.open&&!document.querySelector('#editor-error').hidden&&(await load()).state.tasks.find(task=>task.title===repeated).due===null);
   editor.querySelector('[data-close]').click();
   return {checks,total:(await load()).state.tasks.length};

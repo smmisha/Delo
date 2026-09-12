@@ -1,5 +1,5 @@
 /* The native D3D layer supplies desktop optics. WebView contains sharp controls only. */
-:root{background:transparent;color-scheme:light}html,body{width:100%;height:100%;overflow:hidden;background:transparent}body.dark{color-scheme:dark}.widget,body.dark .widget{position:relative;inset:auto;transform:none;margin:0;width:100%;height:100%;max-width:none;border:0;border-radius:36px;background:transparent;box-shadow:none;padding:24px 20px 22px;overflow:hidden}.widget-head{touch-action:none;user-select:none}.widget-head h1{margin:0;font-size:25px;display:flex;align-items:center;min-height:44px}.reputation{background:none;min-height:32px;border-radius:16px;padding:4px 6px}.subhead{margin-bottom:14px}.task-title{font-size:15px}.task-group h2{font-size:12px;margin:10px 5px 4px;font-weight:650;color:var(--muted)}.task-group h2.late-label{color:var(--danger)}.task-group h2.done-label{color:var(--success)}.task-group h2 span{font-weight:400;margin-left:6px}.task-group:not(:has(.task)){display:none}.task-title:focus-visible,.deadline:focus-visible{outline-offset:0}.late .task-title{color:var(--ink)}.in-work .task-title{color:var(--work)}.done .task-title{color:var(--success)}.empty{font-size:14px;line-height:1.6;color:var(--muted);padding:36px 16px;text-align:center}.deadline{min-height:28px}.task-scroll{overscroll-behavior:contain}.error{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px;border-radius:16px;background:var(--popover);color:var(--danger);font-size:13px;line-height:1.45;flex-shrink:0;max-height:32vh;overflow:auto}.error>span{flex:1;min-width:120px}.error button:not(.round){min-height:36px;padding:4px 12px;border-radius:18px;background:var(--small-surface)}.error .round{width:32px;height:32px}.inline-entry textarea{font-size:14px}.status{pointer-events:none}dialog{width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;border-radius:28px;overscroll-behavior:contain}dialog::backdrop{background:#172c4340;backdrop-filter:none}.capture-surface,.trash-surface{padding:14px 18px 18px;border-radius:28px;background:var(--menu-surface);backdrop-filter:none}.capture-head{gap:8px}.capture-head h2{font-size:18px;margin:0;color:var(--ink)}#editor-input{display:block;width:100%;min-height:90px;max-height:28vh;margin:10px 0;padding:10px 2px;font-size:19px;line-height:1.45;border:0;border-bottom:1px solid var(--line);background:transparent;resize:none;overflow:auto}textarea:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);outline-offset:2px}#time-input{width:100%;min-width:0;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:13px;background:var(--small-surface)}#due-input{color-scheme:inherit;border-color:var(--line)}.date-editor{gap:8px}.date-presets{flex-wrap:wrap}.date-presets button{flex:1;padding:0 10px}.capture-foot{gap:8px;align-items:center}.capture-foot>span{max-width:65%;font-size:11px;line-height:1.5}.capture-foot button:not(.save){min-height:44px;padding:0 14px;border-radius:22px;background:var(--small-surface)}#zone-hint{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0;overflow-wrap:anywhere}.settings-fields{display:grid;gap:14px;padding-top:14px}.settings-fields label{display:grid;gap:6px;font-size:13px;line-height:1.4}.settings-fields .check{display:flex;align-items:center;gap:10px;min-height:32px}.check input{width:18px;height:18px;accent-color:var(--focus)}.settings-fields select,.settings-fields input:not([type=checkbox]){min-width:0;width:100%;height:44px;border:1px solid var(--line);border-radius:12px;padding:0 10px;background:var(--popover);color:var(--ink)}.settings-links{display:flex;gap:8px;margin-top:18px}.settings-links button{flex:1;min-height:44px;border-radius:18px;background:var(--small-surface)}#task-menu{max-height:calc(100vh - 16px);overflow:auto;z-index:10}#task-menu:popover-open{display:block}#collection-list,#history-list{max-height:none}.collection-row{padding:12px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.collection-copy{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.collection-copy small{display:block;color:var(--muted);font-size:12px;margin-top:5px}.collection-row button{min-height:44px;border-radius:18px;padding:0 12px;background:var(--small-surface);color:var(--focus)}.history-row{font-size:13px;line-height:1.5;padding:10px 0;border-top:1px solid var(--line)}.history-row strong{float:right}.quick .widget{padding:14px 18px;border-radius:28px;justify-content:center}.quick .widget-head,.quick .subhead,.quick .task-scroll,.quick .undo-bar,.quick #new-with-date{display:none!important}.quick .inline-entry{margin:0}.quick .inline-entry textarea{font-size:20px;max-height:64px}.quick .inline-entry:focus-within{outline:0}.quick .error{margin-bottom:8px}.undo-bar{min-height:56px}.undo-countdown{align-self:center}.save{flex-shrink:0}.task.entering{animation:row-in 220ms ease-out}@keyframes row-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@media(max-width:330px){.widget{padding:16px 10px}.task{grid-template-columns:36px minmax(0,1fr) 72px}.task-actions .timer,.task-more{width:36px}.complete{width:36px}.task-title{font-size:14px}.lockup b{font-size:23px}.date-presets button{font-size:11px}.capture-surface,.trash-surface{padding:12px}.capture-foot>span{max-width:56%}}@media(max-height:380px){.widget{padding-top:12px;padding-bottom:12px}.subhead{margin-bottom:4px}.inline-entry{margin-top:6px}.task-group h2{margin-top:4px}.undo-bar{margin-top:4px}}@media(prefers-reduced-motion:reduce){.task.entering{animation:none}}.reduced .task.entering{animation:none}
+:root{background:transparent;color-scheme:light}html,body{width:100%;height:100%;overflow:hidden;background:transparent}body.dark{color-scheme:dark}.widget{position:relative;inset:auto;transform:none;margin:0;width:100%;height:100%;max-width:none;border:0;border-radius:36px;background:transparent;box-shadow:none;padding:24px 20px 22px;overflow:hidden}body.dark .widget{background:transparent}.widget-head{touch-action:none;user-select:none}.widget-head h1{margin:0;font-size:25px;display:flex;align-items:center;min-height:44px}.reputation{background:none;min-height:32px;border-radius:16px;padding:4px 6px}.subhead{margin-bottom:14px}.task-title{font-size:15px}.task-group h2{font-size:12px;margin:10px 5px 4px;font-weight:650;color:var(--muted)}.task-group h2.late-label{color:var(--danger)}.task-group h2.done-label{color:var(--success)}.task-group h2 span{font-weight:400;margin-left:6px}.task-group:not(:has(.task)){display:none}.task-title:focus-visible,.deadline:focus-visible{outline-offset:0}.late .task-title{color:var(--ink)}.in-work .task-title{color:var(--work)}.done .task-title{color:var(--success)}.empty{font-size:14px;line-height:1.6;color:var(--muted);padding:36px 16px;text-align:center}.deadline{min-height:28px}.task-scroll{overscroll-behavior:contain}.error{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px;border-radius:16px;background:var(--popover);color:var(--danger);font-size:13px;line-height:1.45;flex-shrink:0;max-height:32vh;overflow:auto}.error>span{flex:1;min-width:120px}.error button:not(.round){min-height:36px;padding:4px 12px;border-radius:18px;background:var(--small-surface)}.error .round{width:32px;height:32px}.inline-entry textarea{font-size:14px}.status{pointer-events:none}dialog{width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;border-radius:28px;overscroll-behavior:contain}dialog::backdrop{background:#172c436b;backdrop-filter:none}.capture-surface,.trash-surface{padding:14px 18px 18px;border-radius:28px;background:var(--menu-surface);backdrop-filter:none}.capture-head{gap:8px}.capture-head h2{font-size:18px;margin:0;color:var(--ink)}#editor-input{display:block;width:100%;min-height:90px;max-height:28vh;margin:10px 0;padding:10px 2px;font-size:19px;line-height:1.45;border:0;border-bottom:1px solid var(--line);background:transparent;resize:none;overflow:auto}textarea:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);outline-offset:2px}#time-input{width:100%;min-width:0;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:13px;background:var(--small-surface)}#due-input{color-scheme:inherit;border-color:var(--line)}.date-editor{gap:8px}.date-presets{flex-wrap:wrap}.date-presets button{flex:1;padding:0 10px}.capture-foot{gap:8px;align-items:center}.capture-foot>span{max-width:65%;font-size:11px;line-height:1.5}.capture-foot button:not(.save){min-height:44px;padding:0 14px;border-radius:22px;background:var(--small-surface)}#zone-hint{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0;overflow-wrap:anywhere}.settings-fields{display:grid;gap:14px;padding-top:14px}.settings-fields label{display:grid;gap:6px;font-size:13px;line-height:1.4}.settings-fields .check{display:flex;align-items:center;gap:10px;min-height:32px}.check input{width:18px;height:18px;accent-color:var(--focus)}.settings-fields select,.settings-fields input:not([type=checkbox]){min-width:0;width:100%;height:44px;border:1px solid var(--line);border-radius:12px;padding:0 10px;background:var(--popover);color:var(--ink)}.settings-links{display:flex;gap:8px;margin-top:18px}.settings-links button{flex:1;min-height:44px;border-radius:18px;background:var(--small-surface)}#task-menu{max-height:calc(100vh - 16px);overflow:auto;z-index:10}#task-menu:popover-open{display:block}#collection-list,#history-list{max-height:none}.collection-row{padding:12px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.collection-copy{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.collection-copy small{display:block;color:var(--muted);font-size:12px;margin-top:5px}.collection-row button{min-height:44px;border-radius:18px;padding:0 12px;background:var(--small-surface);color:var(--focus)}.history-row{font-size:13px;line-height:1.5;padding:10px 0;border-top:1px solid var(--line)}.history-row strong{float:right}.quick .widget{padding:8px;border-radius:32px;justify-content:stretch}.quick .inline-entry{flex:1 1 auto}.quick .widget-head,.quick .subhead,.quick .task-scroll,.quick .undo-bar,.quick #new-with-date{display:none!important}.quick .inline-entry{margin:0}.quick .inline-entry textarea{font-size:20px;max-height:64px}.quick .inline-entry:focus-within{outline:0}.quick .error{margin-bottom:8px}.undo-bar{min-height:56px}.undo-countdown{align-self:center}.save{flex-shrink:0}.task.entering{animation:row-in 220ms ease-out}@keyframes row-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@media(max-width:330px){.widget{padding:16px 10px}.task{grid-template-columns:36px minmax(0,1fr) 72px}.task-actions .timer,.task-more{width:36px}.complete{width:36px}.task-title{font-size:14px}.lockup b{font-size:23px}.date-presets button{font-size:11px}.capture-surface,.trash-surface{padding:12px}.capture-foot>span{max-width:56%}}@media(max-height:380px){.widget{padding-top:12px;padding-bottom:12px}.subhead{margin-bottom:4px}.inline-entry{margin-top:6px}.task-group h2{margin-top:4px}.undo-bar{margin-top:4px}}@media(prefers-reduced-motion:reduce){.task.entering{animation:none}}.reduced .task.entering{animation:none}
 
 
 /* Editor: keep the primary action on screen. The dialog scrolled as a whole, which
@@ -17,12 +17,13 @@
 #settings[open]{display:flex;overflow:hidden}
 #settings-form{display:flex;flex-direction:column;width:100%;max-height:100%;min-height:0}
 #settings-form>.capture-head,#settings-form>.capture-foot,#settings-form>.error{flex:0 0 auto}
-#settings-form>.settings-fields{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+#settings-form>.settings-fields{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:12px}
 /* Collapsible groups. The heading becomes a 44px toggle; the chevron points down when
    open and left when closed, so state reads without relying on colour. */
 .task-group h2{margin:6px 0 2px;padding:0}
 .group-toggle{display:flex;align-items:center;gap:7px;width:100%;min-height:44px;padding:0 5px;background:none;border:0;border-radius:12px;color:inherit;font:inherit;text-align:left;cursor:pointer}
-.group-toggle:hover{background:var(--small-surface)}
+.group-toggle:hover{background:none}
+.group-toggle:hover>svg{opacity:1}
 .group-toggle .group-name{margin-right:auto}
 .group-toggle>svg{width:13px;height:13px;flex-shrink:0;opacity:.75;transition:transform 160ms ease}
 .task-group.collapsed .group-toggle>svg{transform:rotate(-90deg)}
@@ -42,10 +43,271 @@
 body.dark #due-input::-webkit-calendar-picker-indicator,
 body.dark #time-input::-webkit-calendar-picker-indicator{filter:invert(1)}
 
-/* Voice input sits between the date and send buttons and follows the same 44px box.
-   Disabled until an engine is wired, so it reads as not-yet rather than broken. */
-#voice-input:disabled{opacity:.45;cursor:default}
 /* Quick capture is a single autofocused field, like Spotlight: a hard 3px ring on the
    bare textarea read as a stray wide frame. The caret and the window itself carry the
    focus, matching the capsule ring already suppressed above. */
 .quick #task-input:focus-visible{outline:0}
+
+/* The entry field belongs to the rounded capsule. Keep keyboard focus on that shape
+   instead of drawing Chromium's rectangular textarea outline inside it. */
+#task-input:focus-visible{outline:none}
+
+.shortcut-hint{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.shortcut-recorder{cursor:pointer;font-variant-numeric:tabular-nums}
+.shortcut-recorder:focus{outline:none;border-color:color-mix(in srgb,var(--focus) 60%,transparent);background:linear-gradient(145deg,#ffffff25,#ffffff0d);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 30%,transparent),inset 0 1px 1px #fff4}
+
+.collection-actions{display:flex;gap:6px;align-items:center}
+.collection-row .permanent-delete,#clear-trash{color:var(--danger)}
+.collection-foot{display:flex;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--line)}
+.collection-foot button{min-height:44px;border-radius:18px;padding:0 12px;background:var(--small-surface)}
+
+.entry-mic{display:grid;place-items:center;width:40px;height:40px;flex:0 0 40px;border-radius:20px;background:transparent;color:var(--muted)}
+.entry-mic:hover{background:#ffffff2b;color:var(--focus)}
+.entry-mic[aria-disabled=true]{opacity:.76}
+.entry-mic svg{width:18px;height:18px}
+.quick-drag-zone{display:none}
+.quick .quick-drag-zone{display:block;position:absolute;z-index:3;border-radius:5px;pointer-events:none}
+.quick .quick-drag-top{top:3px;left:14px;right:14px;height:4px;background:linear-gradient(90deg,transparent,#ffffff24 24%,#ffffff24 76%,transparent)}
+.quick .quick-drag-bottom{bottom:3px;left:14px;right:14px;height:4px;background:linear-gradient(90deg,transparent,#ffffff16 24%,#ffffff16 76%,transparent)}
+.quick .quick-drag-left{left:3px;top:14px;bottom:14px;width:4px;background:linear-gradient(transparent,#ffffff1d 24%,#ffffff1d 76%,transparent)}
+.quick .quick-drag-right{right:3px;top:14px;bottom:14px;width:4px;background:linear-gradient(transparent,#ffffff16 24%,#ffffff16 76%,transparent)}
+.quick .widget{cursor:grab;touch-action:none}.quick .widget:active{cursor:grabbing}.quick .inline-entry{cursor:auto}
+.quick .inline-entry{align-items:center}
+.quick .widget,.quick .inline-entry{border-radius:999px}
+.quick .inline-entry textarea{font-size:16px;max-height:54px}
+
+/* The native Composition layer blurs the live desktop. Layered highlights restore the
+   depth and directional rim of the accepted glass design without capturing the screen. */
+.widget,body.dark .widget{
+  border:1px solid #ffffff82;
+  background:
+    radial-gradient(120% 72% at 8% -8%,#ffffff9c 0%,#ffffff24 48%,transparent 72%),
+    radial-gradient(90% 45% at 96% 104%,#9fc8e943 0%,transparent 68%),
+    linear-gradient(145deg,#eef7ff75,#e4f0fb55 58%,#d8eaf652);
+  box-shadow:inset 0 1px 1px #fff,inset 1px 0 1px #ffffff9c,inset 0 -1px 1px #83a9c55c,inset -1px 0 1px #7ca3bf38;
+}
+body.dark .widget{
+  border-color:#ffffff31;
+  background:
+    radial-gradient(120% 72% at 8% -8%,#ffffff35 0%,#ffffff0d 48%,transparent 72%),
+    radial-gradient(90% 45% at 96% 104%,#6ca5cf26 0%,transparent 68%),
+    linear-gradient(145deg,#21364c9c,#182b4090 58%,#13283b94);
+  box-shadow:inset 0 1px 1px #ffffff5e,inset 1px 0 1px #ffffff32,inset 0 -1px 1px #0615219c,inset -1px 0 1px #07182773;
+}
+.inline-entry{background:linear-gradient(145deg,#ffffff72,#e8f3fb48);box-shadow:inset 0 1px 1px #ffffffad,inset 0 -1px 1px #7699b235,0 5px 18px #17385312}
+body.dark .inline-entry{background:linear-gradient(145deg,#ffffff1e,#ffffff0d);box-shadow:inset 0 1px 1px #ffffff31,inset 0 -1px 1px #0006,0 5px 18px #0002}
+
+/* Focus stays inside each rounded control and never expands under the scrollbar. */
+textarea:focus-visible,input:focus-visible,select:focus-visible{outline:none;border-color:color-mix(in srgb,var(--focus) 68%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 42%,transparent),inset 0 1px 1px #fff5}
+
+/* Dialogs continue the same optical hierarchy as the outer pane. The centre stays
+   readable while asymmetric highlights and an inset rim retain the glass character. */
+.capture-surface,.trash-surface,body.dark .capture-surface,body.dark .trash-surface{
+  border:1px solid #ffffff78;
+  background:
+    radial-gradient(120% 70% at 7% -10%,#ffffff8c 0%,#ffffff20 48%,transparent 72%),
+    radial-gradient(85% 48% at 100% 105%,#8fc4e43b 0%,transparent 70%),
+    linear-gradient(145deg,#eaf5fdf7,#dcecf8f2 60%,#cfe3f1f4);
+  backdrop-filter:blur(28px) saturate(1.28);
+  box-shadow:inset 0 1px 1px #fff,inset 1px 0 1px #ffffff8a,inset 0 -1px 1px #668ba654,0 22px 58px #071a3238;
+}
+body.dark .capture-surface,body.dark .trash-surface{
+  border-color:#ffffff34;
+  background:
+    radial-gradient(120% 70% at 7% -10%,#ffffff35 0%,#ffffff0c 48%,transparent 72%),
+    radial-gradient(85% 48% at 100% 105%,#6aa7cf22 0%,transparent 70%),
+    linear-gradient(145deg,#29435bf8,#1c3349f5 60%,#172e43f7);
+  box-shadow:inset 0 1px 1px #ffffff55,inset 1px 0 1px #ffffff29,inset 0 -1px 1px #061521a8,0 22px 58px #020b163d;
+}
+.settings-fields select,.settings-fields input:not([type=checkbox]){border-color:#ffffff42;background-color:#e8f2f9;background-image:linear-gradient(145deg,#ffffff8a,#dcebf5d9);box-shadow:inset 0 1px 1px #ffffff8f,inset 0 -1px 1px #64819a24}
+.settings-fields select{color-scheme:light;color:#192432}
+.settings-fields select option{background:#edf5fa;color:#192432}
+body.dark .settings-fields select,body.dark .settings-fields input:not([type=checkbox]){background-color:#20374c;background-image:linear-gradient(145deg,#314b63,#1b3146);color:#f5f7fc}
+body.dark .settings-fields select{color-scheme:dark}
+body.dark .settings-fields select option{background:#20374a;color:#f5f7fc}
+.settings-links button,.capture-foot button:not(.save){border:1px solid #ffffff30;background:linear-gradient(145deg,#ffffff2d,#ffffff12);box-shadow:inset 0 1px 1px #ffffff40}
+.settings-links{justify-content:center;gap:12px}
+.settings-links button{display:grid;place-items:center;width:48px;height:48px;min-height:48px;flex:0 0 48px;padding:0;border-radius:50%;line-height:0}
+.settings-links button svg{display:block;width:20px;height:20px;margin:auto}
+#settings-form>.capture-foot{padding-top:14px;border-top:1px solid var(--line)}
+.settings-fields::-webkit-scrollbar,.task-scroll::-webkit-scrollbar{width:8px}
+.settings-fields::-webkit-scrollbar-track,.task-scroll::-webkit-scrollbar-track{background:transparent}
+.settings-fields::-webkit-scrollbar-thumb,.task-scroll::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:8px;background:color-mix(in srgb,var(--muted) 42%,transparent);background-clip:padding-box}
+
+/* WebView2 forwards the native resize edges. Quick capture keeps only left/right. */
+.resize-grip{position:absolute;z-index:4;touch-action:none;user-select:none}
+.resize-left,.resize-right{top:24px;bottom:24px;width:4px;cursor:ew-resize}
+.resize-left{left:0}.resize-right{right:0}
+.resize-top,.resize-bottom{left:24px;right:24px;height:4px;cursor:ns-resize}
+.resize-top{top:0}.resize-bottom{bottom:0}
+.resize-top-left,.resize-top-right,.resize-bottom-left,.resize-bottom-right{width:24px;height:24px}
+.resize-top-left,.resize-bottom-right{cursor:nwse-resize}
+.resize-top-right,.resize-bottom-left{cursor:nesw-resize}
+.resize-top-left{top:0;left:0}.resize-top-right{top:0;right:0}
+.resize-bottom-left{bottom:0;left:0}.resize-bottom-right{bottom:0;right:0}
+.quick .resize-left,.quick .resize-right{top:16px;bottom:16px}
+.quick .widget{border-width:.667px;border-color:#ffffff57;box-shadow:inset 0 .667px .667px #ffffffaa,inset .667px 0 .667px #ffffff68,inset 0 -.667px .667px #83a9c53d,inset -.667px 0 .667px #7ca3bf25}
+body.dark.quick .widget{border-width:.667px;border-color:#ffffff21;box-shadow:inset 0 .667px .667px #ffffff3f,inset .667px 0 .667px #ffffff21,inset 0 -.667px .667px #06152168,inset -.667px 0 .667px #0718274d}
+@media(max-width:380px){.widget{padding-left:12px;padding-right:12px}.widget-head{padding-left:4px}.lockup b{font-size:22px}.mark{width:28px;height:28px}.head-actions{gap:0}.round{width:40px;height:40px}.task{grid-template-columns:38px minmax(0,1fr) 76px}.task-actions .timer,.task-more,.complete{width:38px}.inline-entry{--control:38px}.inline-entry textarea{font-size:13px}.settings-links{flex-direction:column}}
+@media(max-width:380px){.settings-links{flex-direction:row}}
+@media(max-height:420px){.widget{padding-top:12px;padding-bottom:12px}.widget-head h1{min-height:38px}.subhead{margin-bottom:4px}.inline-entry{margin-top:5px}}
+#task-input:focus-visible{outline:none;border:0;box-shadow:none}
+
+/* Quick-entry drag targets stay functional but invisible. The highlighted strips read
+   as an extra frame even though they were only meant to explain the hit area. */
+.quick .quick-drag-zone{background:none}
+
+/* Keep the quick/main entry balanced: microphone mirrors the send action at the other
+   edge, and the focus state remains a restrained inner glass rim. */
+.inline-entry{padding-left:5px}
+.inline-entry:focus-within{border-color:color-mix(in srgb,var(--focus) 42%,#ffffff70);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 34%,transparent),inset 0 1px 1px #ffffff9c,0 4px 15px #17385312}
+.task:not(.done) .circle{border-color:#b7d8ee;background:#ffffff18;box-shadow:0 0 0 1px #29496357,inset 0 1px 1px #ffffffb8}
+body.dark .task:not(.done) .circle{border-color:#c5e1f4;background:#ffffff0b;box-shadow:0 0 0 1px #081624b8,inset 0 1px 1px #ffffff4f}
+.task.late:not(.done) .circle,body.dark .task.late:not(.done) .circle{border-color:var(--danger)}
+.task.in-work:not(.done) .circle,body.dark .task.in-work:not(.done) .circle{border-color:var(--work)}
+.round,.add,.entry-mic,.settings-icon-button,.timer,.task-more,.complete{line-height:0}
+.round>svg,.add>svg,.entry-mic>svg,.settings-icon-button>svg,.timer>svg,.task-more>svg,.complete svg{display:block;margin:auto}
+
+/* The disabled arrow used group opacity; caret repaints could make that translucent
+   layer shimmer. Give the idle control its own opaque, stable surface and colour. */
+.add.send:disabled{opacity:1;color:#607589;background:#e7f0f6;box-shadow:inset 0 0 0 1px #ffffffa8}
+body.dark .add.send:disabled{opacity:1;color:#a9bdcf;background:#20364b;box-shadow:inset 0 0 0 1px #ffffff24}
+/* A checkpoint can lock submission briefly; it must not look like the draft vanished. */
+.add.send.has-draft:disabled{color:#fff;background:var(--focus);box-shadow:0 2px 8px #12345424}
+body.dark .add.send.has-draft:disabled{color:#112e4f;background:var(--focus);box-shadow:0 2px 8px #12345424}
+.add.send svg{opacity:1;isolation:isolate;mix-blend-mode:normal}
+
+/* Four binary settings fill two balanced rows instead of leaving an empty column. */
+.settings-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
+.settings-fields .settings-check-grid .check{min-width:0;min-height:48px;margin:0;align-items:center}
+.settings-check-grid .check span{min-width:0;overflow-wrap:anywhere}
+
+/* Custom glass tooltip for the archive/trash icon controls. Native title popups use a
+   rectangular system style that does not belong to the material. */
+[data-tooltip]{position:relative;overflow:visible}
+[data-tooltip]::after{content:attr(data-tooltip);position:absolute;z-index:20;left:50%;bottom:calc(100% + 9px);translate:-50% 4px;min-width:max-content;max-width:190px;padding:7px 10px;border:1px solid #ffffff70;border-radius:12px;background:#edf5fbe8;color:#192432;font-size:12px;line-height:1.2;box-shadow:inset 0 1px 1px #fff,0 8px 24px #142b4538;backdrop-filter:blur(16px) saturate(1.2);opacity:0;visibility:hidden;pointer-events:none;transition:opacity 120ms,translate 120ms,visibility 0s linear 120ms}
+[data-tooltip].tip-open::after,[data-tooltip]:focus-visible::after{opacity:1;visibility:visible;translate:-50% 0}
+body.dark [data-tooltip]::after{border-color:#ffffff35;background:#20364bec;color:#f5f7fc;box-shadow:inset 0 1px 1px #ffffff38,0 8px 24px #020b1666}
+
+/* Destructive actions use an in-app Liquid Glass confirmation instead of Chromium's
+   system alert, keeping wording, focus, and colour consistent in both themes. */
+#confirmation[open]{display:flex;overflow:hidden}
+.confirm-surface{display:flex;flex-direction:column;width:100%;max-width:440px;margin:auto;padding:20px 22px 22px}
+#confirmation-message{margin:18px 0 22px;color:var(--ink);font-size:14px;line-height:1.55}
+.confirm-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:16px}
+.confirm-actions button{min-height:44px;padding:0 17px;border:1px solid #ffffff3f;border-radius:22px;background:var(--small-surface);color:var(--ink)}
+#confirmation-accept{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,var(--small-surface));font-weight:620}
+.shortcut-recorder.recording{border-color:color-mix(in srgb,var(--focus) 72%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 48%,transparent),0 0 0 3px color-mix(in srgb,var(--focus) 10%,transparent)}
+
+/* Actions get their own row before they can squeeze an archived title to zero. */
+.collection-row{grid-template-columns:minmax(0,1fr)}
+.collection-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.collection-actions button{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.collection-row button{font-size:13px;line-height:1.4;padding:6px 10px}
+.confirm-actions{flex-wrap:wrap}
+.confirm-actions button{max-width:100%;overflow-wrap:anywhere}
+.check input{flex:0 0 18px}
+
+/* One control size drives the three round targets in the capsule and the field's own
+   height, so a collapsed capsule leaves the same gap above and below every circle. The
+   buttons stay bottom-aligned as the field grows, which is what a composer should do;
+   before this the field was 43.5px against 38px buttons and every circle sat 8.3px from
+   the top and 2.8px from the bottom. */
+.inline-entry{--control:40px;--entry-line:1.5;gap:2px;padding:4px}
+.inline-entry .entry-mic,.inline-entry .add{width:var(--control);height:var(--control);flex:0 0 var(--control);border-radius:50%}
+.inline-entry textarea{line-height:var(--entry-line);padding-block:calc((var(--control) - var(--entry-line)*1em)/2);padding-inline:6px}
+
+/* A setting that currently governs nothing should read as governed by something else,
+   not as broken: dimmed with its label, still present so the relationship is visible. */
+.settings-fields label.inactive{opacity:.45}
+.settings-fields label.inactive select{cursor:not-allowed}
+
+/* The scroll region ended flush against the footer divider, so whichever control sat on
+   the fold was sliced in half with nothing to say more was below. */
+.settings-fields{padding-bottom:10px;scroll-padding-bottom:10px;mask-image:linear-gradient(#000 calc(100% - 14px),transparent)}
+
+/* aria-disabled keeps the control reachable for screen readers, but button:disabled never
+   matches it, so the mic kept the pointer cursor and lit up under the cursor while doing
+   nothing. It should look like what it is until an engine is behind it. */
+.entry-mic[aria-disabled=true]{cursor:default}
+.entry-mic[aria-disabled=true]:hover{background:transparent;color:var(--muted)}
+
+/* The header's own box began 24px below the window edge, and the native resize band ends
+   at 10px, so a 14px strip across the top dragged nothing and resized nothing — exactly
+   where a window is normally grabbed. The handle now reaches the edge without moving any
+   layout; the resize band still wins the first 10px because it is decided natively. */
+.widget-head{position:relative}
+.widget-head::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:24px}
+
+/* Header controls sit against the top edge and the widget clips its overflow, so their
+   tooltip drops below instead of above. Row actions hug the right edge, so theirs is
+   anchored to that edge rather than centred, which would run outside the window. */
+.widget-head [data-tooltip]::after{bottom:auto;top:calc(100% + 9px);translate:-50% -4px}
+.widget-head [data-tooltip].tip-open::after,.widget-head [data-tooltip]:focus-visible::after{translate:-50% 0}
+.task-actions [data-tooltip]::after,.inline-entry .add[data-tooltip]::after{left:auto;right:0;translate:0 4px}
+.task-actions [data-tooltip].tip-open::after,.task-actions [data-tooltip]:focus-visible::after,
+.inline-entry .add[data-tooltip].tip-open::after,.inline-entry .add[data-tooltip]:focus-visible::after{translate:0 0}
+.inline-entry .entry-mic[data-tooltip]::after{left:0;right:auto;translate:0 4px}
+.inline-entry .entry-mic[data-tooltip].tip-open::after,.inline-entry .entry-mic[data-tooltip]:focus-visible::after{translate:0 0}
+
+/* Primary action goes to the trailing edge of a sheet footer. In the editor the hint keeps
+   the leading side; in settings the button was the only child and sat left by default. */
+.capture-foot>.save{margin-left:auto}
+
+/* A tooltip that appears the instant the pointer crosses a control turns every pass over
+   the header into a flicker of labels. One second of dwell means it only answers a
+   question that was actually asked. Hiding stays immediate, and keyboard focus keeps the
+   label instant: someone tabbing through has already asked. */
+.capture-head [data-tooltip]::after{bottom:auto;top:calc(100% + 9px);translate:-50% -4px}
+.capture-head [data-tooltip].tip-open::after,.capture-head [data-tooltip]:focus-visible::after{translate:-50% 0}
+
+/* The quick capsule is 84px tall and the field takes 66 of them: a tooltip fits neither
+   above (it would start at -1.4px, clipped by the widget's overflow) nor below. The two
+   controls sit beside their own placeholder and keep their aria-label, so the visual
+   tooltip is dropped here rather than rendered where it cannot be read. */
+body.quick [data-tooltip]::after{content:none}
+
+/* No text selection in a recorder: the field is not text to edit, and a highlight there
+   looked like a stray selection instead of an armed field. */
+.shortcut-recorder{user-select:none;-webkit-user-select:none}
+.shortcut-recorder::selection{background:transparent}
+.shortcut-recorder.recording::placeholder{color:var(--focus);opacity:.9}
+
+/* The platform arrow sat hard against the right border and cannot be rotated, so the
+   selects carry the app's own chevron instead: inset from the edge, and turned over while
+   the list is open. select:open is the control's real state, not an inference from
+   clicks. Under reduced motion the turn is instant — the state still reads, the tween
+   does not. */
+.select-shell{position:relative;display:block}
+.select-shell select{appearance:none;-webkit-appearance:none;padding-right:38px}
+.select-chevron{position:absolute;right:13px;top:50%;width:16px;height:16px;translate:0 -50%;color:var(--muted);pointer-events:none;transition:rotate 170ms ease}
+.select-shell:has(select:open) .select-chevron{rotate:180deg}
+.select-shell:has(select:focus-visible) .select-chevron{color:var(--focus)}
+
+/* One crammed sentence listed five different rules. As a column each rule is one glance:
+   the condition on the left, what it does to the score on the right, sign carried by
+   colour as well as by the minus so it does not rely on colour alone. */
+.reputation-rules{display:grid;gap:7px;margin:12px 0 16px}
+.reputation-rules>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:baseline}
+.reputation-rules dt{font-size:13px;line-height:1.35;color:var(--ink)}
+.reputation-rules dd{margin:0;font-size:13px;font-variant-numeric:tabular-nums;font-weight:650;white-space:nowrap}
+.reputation-rules .gain{color:var(--success)}
+.reputation-rules .loss{color:var(--danger)}
+.reputation-rules .neutral{font-weight:400;color:var(--muted)}
+
+/* Match the settings scroll fade, above the rows instead of below the fields.
+   Headings keep their real buttons and stay above the independently masked rows. */
+.task-group h2{position:sticky;top:0;z-index:2;margin:0 0 4px;padding:0 5px;background:none}
+.task-group-rows{display:flow-root;mask-image:linear-gradient(transparent var(--group-fade-start,-14px),#000 calc(var(--group-fade-start,-14px) + 14px))}
+.task-scroll{scroll-padding-top:58px}
+.group-toggle:focus-visible{outline-offset:-3px}
+.task-group+.task-group{margin-top:4px}
+
+/* Exempt just this turn from the system reduce-motion rule: the user asked for it and a
+   170ms chevron is the mildest motion in the app. The in-app "reduce motion" switch is
+   still honoured — that one is an explicit choice inside this product, not an OS-wide
+   default, so it keeps meaning something. */
+@media(prefers-reduced-motion:reduce){
+  .select-chevron{transition:rotate 170ms ease!important}
+  body.reduced .select-chevron{transition:none!important}
+}

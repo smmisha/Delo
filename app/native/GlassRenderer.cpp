@@ -6,6 +6,7 @@
 #include <d2d1.h>
 #include <dcomp.h>
 #include <dwmapi.h>
+#include <wincodec.h>
 #include <windows.graphics.capture.interop.h>
 #include <windows.graphics.directx.direct3d11.interop.h>
 #include <winrt/Windows.Foundation.h>
@@ -50,6 +51,8 @@ struct GPU {
     GPU(std::filesystem::path const& shader) {
         D3D_FEATURE_LEVEL level{};
         check_hresult(D3D11CreateDevice(nullptr,D3D_DRIVER_TYPE_HARDWARE,nullptr,D3D11_CREATE_DEVICE_BGRA_SUPPORT,nullptr,0,D3D11_SDK_VERSION,device.put(),&level,context.put()));
+        // One swap chain per device: do not queue several obsolete desktop crops.
+        check_hresult(device.as<IDXGIDevice1>()->SetMaximumFrameLatency(1));
         auto dxgi=device.as<IDXGIDevice>(); com_ptr<IDXGIAdapter> adapter; check_hresult(dxgi->GetAdapter(adapter.put())); DXGI_ADAPTER_DESC desc{}; check_hresult(adapter->GetDesc(&desc));
         auto v=Compile(shader,"VS","vs_5_0"), p=Compile(shader,"Glass","ps_5_0");
         check_hresult(device->CreateVertexShader(v->GetBufferPointer(),v->GetBufferSize(),nullptr,vs.put()));
@@ -106,7 +109,9 @@ struct GPU {
         check_hresult(visual->SetContent(swap.get())); check_hresult(target->SetRoot(visual.get())); check_hresult(composition->Commit());
     }
     void Present() {
-        com_ptr<ID3D11Texture2D> back; check_hresult(swap->GetBuffer(0,__uuidof(ID3D11Texture2D),back.put_void())); context->CopyResource(back.get(),output.get()); check_hresult(swap->Present(1,0));
+        // DWM still composes at display cadence. SyncInterval 0 lets the flip queue
+        // replace obsolete crops instead of keeping each for an extra refresh.
+        com_ptr<ID3D11Texture2D> back; check_hresult(swap->GetBuffer(0,__uuidof(ID3D11Texture2D),back.put_void())); context->CopyResource(back.get(),output.get()); check_hresult(swap->Present(0,0));
     }
 };
 
@@ -139,9 +144,9 @@ struct ChangeDetector {
         D3D11_TEXTURE2D_DESC desc{};gpu.source->GetDesc(&desc);desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;
         check_hresult(gpu.device->CreateTexture2D(&desc,nullptr,previous.put()));check_hresult(gpu.device->CreateShaderResourceView(previous.get(),nullptr,view.put()));
     }
-    bool Changed(GPU& gpu) {
-        bool changed=!valid;
-        if(valid){
+    bool Changed(GPU& gpu,bool force=false) {
+        bool changed=!valid||force;
+        if(valid&&!force){
             auto& ctx=gpu.context;auto rt=gpu.outputRT.get();ctx->OMSetRenderTargets(1,&rt,nullptr);ctx->OMSetBlendState(noWrite.get(),nullptr,~0u);
             D3D11_VIEWPORT vp{0,0,float(gpu.renderWidth),float(gpu.renderHeight),0,1};ctx->RSSetViewports(1,&vp);ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             ctx->VSSetShader(gpu.vs.get(),nullptr,0);ctx->PSSetShader(shader.get(),nullptr,0);ID3D11ShaderResourceView* views[]{gpu.sourceView.get(),view.get()};ctx->PSSetShaderResources(0,2,views);
@@ -156,6 +161,7 @@ struct ChangeDetector {
 
 struct Signal {
     HANDLE event=CreateEvent(nullptr,FALSE,FALSE,nullptr);
+    std::atomic_bool posted{false};
     Signal(){if(!event)throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));}
     ~Signal(){if(event)CloseHandle(event);}
 };
@@ -165,8 +171,8 @@ struct EventCapture {
     winrt::Windows::Graphics::SizeInt32 size{};
     std::shared_ptr<Signal> ready=std::make_shared<Signal>();
     event_token arrived{},closed{}; bool subscribed{}; std::shared_ptr<std::atomic_bool> ended=std::make_shared<std::atomic_bool>(false);
-    com_ptr<ID3D11Texture2D> latestTexture; RECT monitor{}; unsigned recreates{};
-    EventCapture(GPU& gpu, HMONITOR handle) {
+    com_ptr<ID3D11Texture2D> latestTexture; RECT monitor{}; unsigned recreates{}; HRESULT borderless{E_PENDING};
+    EventCapture(GPU& gpu, HMONITOR handle,HWND host) {
         auto interop=get_activation_factory<GraphicsCaptureItem,IGraphicsCaptureItemInterop>();
         MONITORINFO mi{sizeof(mi)};
         if(!GetMonitorInfo(handle,&mi))throw hresult_error(E_INVALIDARG);
@@ -177,9 +183,25 @@ struct EventCapture {
         size=item.Size();
         pool=Direct3D11CaptureFramePool::CreateFreeThreaded(device,winrt::Windows::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,2,size);
         auto signal=ready; auto flag=ended;
-        arrived=pool.FrameArrived([signal](auto const&,auto const&){SetEvent(signal->event);});
+        // Windows' modal move loop cannot wait on EventHandle. A coalesced message
+        // delivers fresh frames there too, without a fixed-frequency UI timer.
+        arrived=pool.FrameArrived([signal,host](auto const&,auto const&){
+            SetEvent(signal->event);
+            if(!signal->posted.exchange(true)&&!PostMessageW(host,GlassFrameReadyMessage,0,0))signal->posted=false;
+        });
         closed=item.Closed([signal,flag](auto const&,auto const&){flag->store(true);SetEvent(signal->event);}); subscribed=true;
-        session=pool.CreateCaptureSession(item); session.IsCursorCaptureEnabled(false); session.StartCapture();
+        session=pool.CreateCaptureSession(item); session.IsCursorCaptureEnabled(false);
+        // Windows draws a yellow capture border around any monitor under capture. The
+        // widget is a desktop ornament, not a recording tool, so it asks for borderless
+        // capture; the property is honoured only once the access request is granted.
+        borderless=E_PENDING;
+        try {
+            if(auto session3=session.try_as<IGraphicsCaptureSession3>()) {
+                session3.IsBorderRequired(false);
+                borderless=session3.IsBorderRequired()?S_FALSE:S_OK;
+            } else borderless=E_NOINTERFACE;
+        } catch(hresult_error const& e){borderless=e.code();}
+        session.StartCapture();
     }
     ~EventCapture() {
         // Callbacks retain only their own signal/flag; no access to the destroyed renderer.
@@ -231,7 +253,7 @@ struct GlassRenderer::Impl {
     HMONITOR monitor{};
     POINT origin{};
     UINT width{},height{};
-    bool dark{}, suspended{}, frozen{}, dirty{true}, ready{}, ticking{}, resetPending{};
+    bool dark{}, suspended{}, frozen{}, capturePaused{}, dirty{true}, ready{}, ticking{}, tickPending{}, resetPending{};
     unsigned attempts{};
     ULONGLONG retryAt{}, captureStarted{};
     std::string error;
@@ -288,20 +310,60 @@ struct GlassRenderer::Impl {
         if(!GraphicsCaptureSession::IsSupported())throw hresult_error(E_NOTIMPL);
         gpu=std::make_unique<GPU>(shader);gpu->Resize(width,height);ApplyGeometry();
         gpu->Attach(host);detector=std::make_unique<ChangeDetector>(*gpu);
-        capture=std::make_unique<EventCapture>(*gpu,monitor);
+        capture=std::make_unique<EventCapture>(*gpu,monitor,host);
         ++counts.recoveries;captureStarted=GetTickCount64();dirty=true;
     }
+    // Straight off the output texture, before DirectComposition hands it to DWM. The
+    // swapchain is premultiplied, PNG is not, so the copy divides the colour back out.
+    void SaveMaterial(std::filesystem::path const& destination) {
+        if(!gpu||!ready)throw hresult_error(E_NOT_VALID_STATE);
+        D3D11_TEXTURE2D_DESC desc{};gpu->output->GetDesc(&desc);
+        desc.Usage=D3D11_USAGE_STAGING;desc.BindFlags=0;desc.CPUAccessFlags=D3D11_CPU_ACCESS_READ;desc.MiscFlags=0;
+        com_ptr<ID3D11Texture2D> staging;
+        check_hresult(gpu->device->CreateTexture2D(&desc,nullptr,staging.put()));
+        gpu->context->CopyResource(staging.get(),gpu->output.get());
+        D3D11_MAPPED_SUBRESOURCE mapped{};
+        check_hresult(gpu->context->Map(staging.get(),0,D3D11_MAP_READ,0,&mapped));
+        std::vector<uint8_t> pixels(size_t(desc.Width)*desc.Height*4);
+        for(UINT y=0;y<desc.Height;++y){
+            auto source=static_cast<uint8_t const*>(mapped.pData)+size_t(y)*mapped.RowPitch;
+            auto target=pixels.data()+size_t(y)*desc.Width*4;
+            for(UINT x=0;x<desc.Width;++x){
+                auto alpha=source[x*4+3];
+                for(int c=0;c<3;++c)
+                    target[x*4+c]=alpha?uint8_t(std::min(255,int(source[x*4+c])*255/alpha)):0;
+                target[x*4+3]=alpha;
+            }
+        }
+        gpu->context->Unmap(staging.get(),0);
+        com_ptr<IWICImagingFactory> factory;
+        check_hresult(CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(factory.put())));
+        com_ptr<IWICStream> stream;check_hresult(factory->CreateStream(stream.put()));
+        check_hresult(stream->InitializeFromFilename(destination.c_str(),GENERIC_WRITE));
+        com_ptr<IWICBitmapEncoder> encoder;check_hresult(factory->CreateEncoder(GUID_ContainerFormatPng,nullptr,encoder.put()));
+        check_hresult(encoder->Initialize(stream.get(),WICBitmapEncoderNoCache));
+        com_ptr<IWICBitmapFrameEncode> frame;com_ptr<IPropertyBag2> options;
+        check_hresult(encoder->CreateNewFrame(frame.put(),options.put()));
+        check_hresult(frame->Initialize(options.get()));
+        check_hresult(frame->SetSize(desc.Width,desc.Height));
+        WICPixelFormatGUID format=GUID_WICPixelFormat32bppBGRA;
+        check_hresult(frame->SetPixelFormat(&format));
+        if(format!=GUID_WICPixelFormat32bppBGRA)throw hresult_error(E_NOTIMPL);
+        check_hresult(frame->WritePixels(desc.Height,desc.Width*4,UINT(pixels.size()),pixels.data()));
+        check_hresult(frame->Commit());check_hresult(encoder->Commit());
+    }
     void Tick() {
-        if(ticking)return;
+        if(capture)capture->ready->posted=false;
+        if(ticking){tickPending=true;return;}
         ticking=true;
         struct TickExit {
             Impl* self;
-            ~TickExit(){self->ticking=false;if(self->resetPending){self->resetPending=false;self->Reset();}}
+            ~TickExit(){self->ticking=false;if(self->resetPending){self->resetPending=false;self->Reset();}if(self->tickPending){self->tickPending=false;PostMessageW(self->host,GlassFrameReadyMessage,0,0);}}
         } exit{this};
         if(resetPending){resetPending=false;Reset();}
         // Frozen returns before the size/monitor check on purpose: a Reset here would
         // tear the swapchain down mid-gesture and the window would go blank.
-        if(frozen||suspended||!IsWindow(host)||!IsWindowVisible(host)||IsIconic(host))return;
+        if(frozen||capturePaused||suspended||!IsWindow(host)||!IsWindowVisible(host)||IsIconic(host))return;
         RECT rect{};if(!GetClientRect(host,&rect))return;
         UINT w=UINT(rect.right),h=UINT(rect.bottom);if(!w||!h)return;
         POINT position{};if(!ClientToScreen(host,&position))return;
@@ -328,11 +390,17 @@ struct GlassRenderer::Impl {
             DWORD affinity{};
             if(!GetWindowDisplayAffinity(host,&affinity)||affinity!=WDA_EXCLUDEFROMCAPTURE)
                 throw hresult_error(E_ACCESSDENIED);
+            if(!capture){capture=std::make_unique<EventCapture>(*gpu,monitor,host);captureStarted=GetTickCount64();dirty=true;}
+            const auto workStarted=PreciseMilliseconds();
             if(capture->CopyLatest(*gpu,origin,moved||dirty)) {
                 ++counts.copied;
-                bool changed=detector->Changed(*gpu);
+                // A new crop/geometry is already known to require rendering. Avoid
+                // waiting for a GPU comparison just to rediscover that during a drag.
+                bool changed=detector->Changed(*gpu,moved||dirty);
                 if(changed||dirty) {
                     gpu->Draw(dark);gpu->Present();++counts.rendered;
+                    counts.cropX=origin.x;counts.cropY=origin.y;
+                    counts.lastSubmitMs=PreciseMilliseconds();counts.lastRenderWorkMs=counts.lastSubmitMs-workStarted;
                     ready=true;dirty=false;attempts=0;error.clear();
                 }
             }
@@ -344,6 +412,7 @@ GlassRenderer::GlassRenderer(HWND host,std::filesystem::path shaderPath)
     :impl_(std::make_unique<Impl>(host,std::move(shaderPath))){}
 GlassRenderer::~GlassRenderer()=default;
 void GlassRenderer::Tick(){impl_->Tick();}
+void GlassRenderer::SaveMaterial(std::filesystem::path const& destination){impl_->SaveMaterial(destination);}
 // Tick picks the new client size up by itself and resizes the textures in place, so this
 // only has to ask for a redraw. A full teardown is Rebuild, for when the capture session
 // itself is no longer valid.
@@ -352,6 +421,14 @@ void GlassRenderer::Rebuild(){impl_->ScheduleReset();}
 void GlassRenderer::Stretch(){impl_->Stretch();}
 void GlassRenderer::SetDark(bool dark){if(impl_->dark!=dark){impl_->dark=dark;impl_->dirty=true;}}
 void GlassRenderer::Freeze(bool frozen){if(impl_->frozen==frozen)return;impl_->frozen=frozen;if(!frozen){impl_->Scale(1.f,1.f);impl_->dirty=true;}}
+void GlassRenderer::PauseCapture(bool paused){
+    if(impl_->capturePaused==paused)return;
+    // A nested WebView/window callback must not close a capture currently used by Tick.
+    if(impl_->ticking)throw hresult_error(E_PENDING);
+    impl_->capturePaused=paused;
+    if(paused)impl_->capture.reset();
+    else impl_->dirty=true;
+}
 void GlassRenderer::Suspend(bool suspended){if(impl_->suspended!=suspended){impl_->suspended=suspended;impl_->ScheduleReset();}}
 bool GlassRenderer::Healthy()const{return impl_->ready;}
 std::string GlassRenderer::LastError()const{return impl_->error;}

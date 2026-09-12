@@ -9,9 +9,14 @@
 #include <cstdint>
 
 namespace delo {
+inline constexpr UINT GlassFrameReadyMessage=WM_APP+42;
 class GlassRenderer {
 public:
-    struct Counters { std::uint64_t copied{}, rendered{}, recoveries{}, errors{}; };
+    struct Counters {
+        std::uint64_t copied{}, rendered{}, recoveries{}, errors{};
+        LONG cropX{},cropY{};
+        double lastSubmitMs{},lastRenderWorkMs{};
+    };
     GlassRenderer(HWND host, std::filesystem::path shaderPath);
     ~GlassRenderer();
     GlassRenderer(GlassRenderer const&) = delete;
@@ -28,7 +33,14 @@ public:
     // Unlike Suspend this keeps the GPU resources and the capture session alive,
     // so releasing the window resumes live refraction without a rebuild.
     void Freeze(bool frozen);
+    // Stops monitor capture while retaining the material and Composition resources.
+    // Restore display exclusion on every widget before resuming any renderer.
+    void PauseCapture(bool paused);
     void Suspend(bool suspended);
+    // Writes the composed material to a PNG straight off the GPU. The window excludes
+    // itself from screen capture — otherwise the glass would sample its own output — so
+    // normal live screen grabs omit it; this reads the source of truth instead.
+    void SaveMaterial(std::filesystem::path const& destination);
     bool Healthy() const;
     std::string LastError() const;
     Counters GetCounters() const;

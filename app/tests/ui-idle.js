@@ -1,5 +1,6 @@
 (async()=>{
   const {HostBridge}=await import('./bridge.mjs');const host=new HostBridge();
+  document.activeElement?.blur();
   await new Promise(resolve=>setTimeout(resolve,1500));
   const before=await host.window('diagnostics');
   await new Promise(resolve=>setTimeout(resolve,10000));

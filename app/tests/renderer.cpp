@@ -19,7 +19,7 @@ int wmain(int argc,wchar_t** argv){try{
         auto pixel=[&](int x,int y){return reinterpret_cast<uint32_t*>(static_cast<unsigned char*>(map.pData)+y*map.RowPitch)[x];};
         Require((pixel(0,0)>>24)==0,"rounded corner is transparent");
         Require((pixel(80,80)>>24)==255,"material interior is opaque composite");
-        const double tint=dark?24.0:244.0, mix=dark?.60:.72;
+        const double tint=dark?24.0:244.0, mix=dark?.76:.72;
         auto red=[&](int x,int y){return int((pixel(x,y)>>16)&255);};
         Require(std::abs(red(80,80)-(80*255.0/159*(1-mix)+tint*mix))<2,"interior matches Gaussian ramp and theme tint");
         double distance=-4.5,band=1+distance/24,offset=14*band*band;

@@ -15,10 +15,15 @@ inline Hotkey ParseHotkey(std::wstring const& text){
         UINT key=token==L"SPACE"?VK_SPACE:(token.size()==1&&((token[0]>=L'A'&&token[0]<=L'Z')||(token[0]>=L'0'&&token[0]<=L'9')))?token[0]:0;
         if(!key||result.key)throw std::runtime_error("Hotkey must contain one supported key");result.key=key;
     }
-    if(!result.key||result.modifiers==MOD_NOREPEAT)throw std::runtime_error("Hotkey requires modifiers and a key");return result;
+    // Shift is welcome alongside another modifier, never on its own: a global
+    // Shift+letter swallows every capital of that letter system-wide, in every
+    // other application, which is indistinguishable from a broken keyboard.
+    if(!result.key)throw std::runtime_error("Hotkey requires modifiers and a key");
+    if(!(result.modifiers&(MOD_CONTROL|MOD_ALT|MOD_WIN)))throw std::runtime_error("Hotkey needs Ctrl, Alt or Win; Shift alone would capture every capital letter");
+    return result;
 }
 inline wchar_t const* TrayLabel(std::wstring const& language,unsigned command){
-    if(language==L"uk")return command==1?L"Показати список":command==2?L"Нове завдання":L"Вихід";
-    if(language==L"en")return command==1?L"Show tasks":command==2?L"New task":L"Exit";
-    return command==1?L"Показать список":command==2?L"Новая задача":L"Выход";
+    if(language==L"uk")return command==1?L"Показати список":command==2?L"Нове завдання":command==4?L"Знімок екрана (15 с)":L"Вихід";
+    if(language==L"en")return command==1?L"Show tasks":command==2?L"New task":command==4?L"Screenshot (15 s)":L"Exit";
+    return command==1?L"Показать список":command==2?L"Новая задача":command==4?L"Снимок экрана (15 с)":L"Выход";
 }

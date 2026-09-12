@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.1.1"
+  #define AppVersion "0.1.2"
 #endif
 [Setup]
 AppId={{CE9AAB6D-03AE-43FB-A87E-48BF58868D12}
@@ -52,7 +52,14 @@ Source: "..\bin\core\*.mjs"; DestDir: "{app}\core"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\vendor\webview2-1.0.4191.47\LICENSE.txt"; DestDir: "{app}\licenses"; DestName: "WebView2-SDK.txt"; Flags: ignoreversion
 Source: "..\vendor\webview2-1.0.4191.47\NOTICE.txt"; DestDir: "{app}\licenses"; DestName: "WebView2-NOTICE.txt"; Flags: ignoreversion
+#ifdef Offline
+; Offline build: the whole runtime travels inside the installer (~250 MB).
 Source: "..\vendor\distribution\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Flags: dontcopy
+#else
+; Default: Microsoft's evergreen bootstrapper (~2 MB) fetches the runtime during
+; install, and only on machines that do not already have WebView2.
+Source: "..\vendor\distribution\MicrosoftEdgeWebView2Setup.exe"; Flags: dontcopy
+#endif
 
 [Icons]
 Name: "{group}\Delo"; Filename: "{app}\Delo.exe"
@@ -78,8 +85,13 @@ var Code: Integer;
 begin
   Result := '';
   if HasRuntime then exit;
+#ifdef Offline
   ExtractTemporaryFile('MicrosoftEdgeWebView2RuntimeInstallerX64.exe');
   if not Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe'), '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, Code) then
+#else
+  ExtractTemporaryFile('MicrosoftEdgeWebView2Setup.exe');
+  if not Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebView2Setup.exe'), '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, Code) then
+#endif
     Result := CustomMessage('RuntimeFailed')
   else if not HasRuntime then Result := CustomMessage('RuntimeFailed');
 end;

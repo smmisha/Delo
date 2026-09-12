@@ -12,10 +12,13 @@
     document.querySelector('#entry').requestSubmit();
     const expected=initialCount+index;
     const end=Date.now()+3000;
-    while(Date.now()<end&&document.querySelectorAll('.task').length<expected)await wait(25);
+    while(Date.now()<end&&(document.querySelectorAll('.task').length<expected||input.value!==''))await wait(25);
+    check(`seed task ${index} finishes saving`,document.querySelectorAll('.task').length>=expected&&input.value==='');
   }
   const menu=document.querySelector('#task-menu');
   const buttons=()=>[...document.querySelectorAll('.task-more')];
+  // A pointer cannot click an offscreen row. Earlier tests may leave this scroller at the bottom.
+  document.querySelector('#task-scroll').scrollTop=0;await wait(120);
   let triggers=buttons();
   triggers[0].click();await wait(30);
   check('opens from first task',menu.matches(':popover-open'));

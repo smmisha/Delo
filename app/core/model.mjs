@@ -68,10 +68,14 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     case 'work': unfinished();freeze(t,monotonic);t.workState='working';break;
     case 'complete': active();if(t.completedAt!==null)break;freeze(t,monotonic);t.workState='idle';t.completedAt=now;t.completedDayEnd=dayEnd(now,timeZone);t.award=t.due&&now>=t.due.at?2:5;event(s,t,'complete',now,t.award);break;
     case 'uncomplete': active();if(t.completedAt===null)break;event(s,t,'uncomplete',now,-t.award);t.award=0;t.completedAt=null;t.completedDayEnd=null;break;
+    case 'archive': active();freeze(t,monotonic);t.lifecycle='archive';break;
     case 'delete': active();freeze(t,monotonic);t.lifecycle='pending';t.deletedAt=now;t.undoRemaining=5000;break;
     case 'undo': {const pending=command.id?t:s.tasks.filter(t=>t.lifecycle==='pending').sort((a,b)=>a.deletedAt-b.deletedAt).at(-1);if(!pending||pending.lifecycle!=='pending')fail('No pending deletion');pending.lifecycle='active';pending.deletedAt=null;pending.undoRemaining=null;break;}
     case 'advanceUndo': if(!Number.isFinite(command.delta)||command.delta<0)fail('Invalid delta');if(!command.paused)for(const p of s.tasks.filter(t=>t.lifecycle==='pending')) {p.undoRemaining=Math.max(0,p.undoRemaining-command.delta);if(p.undoRemaining===0){p.lifecycle='trash';p.undoRemaining=null;}}break;
     case 'finalizeDeletes': for(const p of s.tasks.filter(t=>t.lifecycle==='pending')) {p.lifecycle='trash';p.undoRemaining=null;}break;
+    case 'trash': required();if(t.lifecycle!=='archive')fail('Only archived tasks can move to trash');freeze(t,monotonic);t.lifecycle='trash';t.deletedAt=now;t.undoRemaining=null;break;
+    case 'purge': required();if(t.lifecycle!=='trash')fail('Only trash tasks can be deleted permanently');s.tasks=s.tasks.filter(task=>task!==t);break;
+    case 'clearTrash': s.tasks=s.tasks.filter(task=>task.lifecycle!=='trash');break;
     case 'restore': required();if(!['archive','trash'].includes(t.lifecycle))fail('Not restorable');t.lifecycle='active';t.deletedAt=null;t.archiveAnchor=now;t.undoRemaining=null;if(t.completedAt!==null)t.completedDayEnd=dayEnd(now,timeZone);break;
     case 'settings': for(const key of Object.keys(command.patch))if(!(key in DEFAULT_SETTINGS))fail('Unknown setting');Object.assign(s.settings,command.patch);settingsCheck(s.settings);break;
     case 'suspend': for(const t of s.tasks)freeze(t,monotonic);break;

@@ -1,6 +1,10 @@
 # Аудит требований Delo v1
 
-Дата: 11 сентября 2026 года. Статусы относятся к текущим исходникам и локальной сборке 0.1.1.
+Дата: 11 сентября 2026 года. Статусы относятся к текущим исходникам и локальной сборке 0.1.2.
+
+После завершения аудита пользователь разрешил немедленное обновление: обычная копия `app/bin` теперь содержит проверенную сборку и перезапущена. Задачи и автозапуск сохранены. Статусы непроверенных требований и старого installer этим не меняются; подробности в начале [UI-AUDIT-20260911](UI-AUDIT-20260911.md).
+
+Уточнение после повторного UI-аудита: [UI-AUDIT-20260911](UI-AUDIT-20260911.md) имеет приоритет над прежними утверждениями о физических клавишах, изменении размеров и моргании. Исправления перенесены в обычную копию `app/bin`; исторический installer 0.1.2 их не содержит. Строки о сне, Win+D и поставке ниже описывают прежние проверки, а не повторную сертификацию этой сборки.
 
 `PASS` означает проверенное поведение. `PARTIAL` означает, что реализация существует, но обязательная часть требует другой среды или физического сценария. Непроверенная часть не засчитывается автоматически.
 
@@ -27,9 +31,9 @@
 | R01–R03 | PASS | Unit V06/V07 подтверждают награды, штрафы, позднее выполнение, undo и offline event ordering без повторного начисления. |
 | A01–A04 | PASS | Unit V08 покрывает выполненные/незавершённые, scopes, будущий срок и повторный отсчёт после restore; live archive/trash доступны. |
 | D01–D03 | PASS | Live undo/trash 12 PASS и unit retention boundary: независимые окна, hover/focus pause, LIFO undo, hidden pause, restore и 30 дней. |
-| U01–U02 | PASS | Production D3D11/WGC/DComp захватывает реальный monitor backdrop с самоисключением; 9 GPU checks подтверждают Gaussian blur, inward refraction, tint и прозрачные углы. |
-| U03 | PASS | 44 px controls, multiline wrapping, фиксированные header/input и dialog/menu bounds проверены live-сценариями. |
-| U04 | PASS | Обе темы и material проверены на светлых, тёмных и детализированных контролируемых фонах; состояния имеют текст/иконки и видимый focus. |
+| U01–U02 | PARTIAL | Production host использует живой Windows Composition Backdrop без screen capture, системной рамки и самозахвата; системный Gaussian Blur, многослойный tint, направленные блики и округление проверены. Видимое пространственное преломление внешнего фона у кромки U01 временно отсутствует. |
+| U03 | PARTIAL | Проверены multiline, dialog/menu bounds и минимальные окна; в узком режиме часть контролов имеет 38 CSS px. Изменение размеров мышью исправлено; отдельный zoom интерфейса не реализован. |
+| U04 | PARTIAL | Обе темы и фактические снимки проверены; состояния имеют текст/иконки и видимый focus. Полный набор контрастных измерений с разными внешними фонами для текущего renderer не выполнен. |
 | U05 | PASS | На неподвижном desktop за 10 секунд 0 новых presents. Live reduced motion 4 PASS: настройка применяется/сохраняется, transition и displacement animation отключены. |
 | U06 | PASS | Live RU/UK/EN 13 PASS, исходный текст задач не меняется; menu/dialog focus и accessible names проверены. Installer имеет те же три языка. |
 | U07 | PASS | Completion/overdue policy покрыта 4 unit тестами: только новые live ledger events, без звука startup/re-render/deadline edit. Настройки независимы. |
@@ -51,9 +55,9 @@
 | V07 | PASS | Exact time, midnight, 7 days, offline, deadline/zone unit scenarios. |
 | V08 | PASS | Archive scopes, future protection, restore cycle unit/live scenarios. |
 | V09 | PASS | Undo/trash 12 live PASS плюс restart/retention unit boundaries. |
-| V10 | PARTIAL | Themes, backgrounds, languages, keyboard, reduced motion, idle и rapid actions проверены; физические DPI/monitor scenarios остаются. |
+| V10 | PARTIAL | Themes, Liquid Glass settings, dropdown contrast, icon alignment, custom tooltip/confirmation, hotkey recording, 2 × 2 settings grid, stable send arrow, languages, keyboard, reduced motion, idle, rapid actions и responsive размеры 320 × 360 / 296 × 71 проверены; физические DPI/monitor scenarios остаются. |
 | V11 | PASS | Write failures, restart, update and explicit backup recovery проверены. Первый sleep-run нашёл crash; fix прошёл реальный сон и relaunch. |
-| V12 | PARTIAL | install 0.1.0 → update 0.1.1 → relaunch → uninstall и повторные final-package cycles PASS; clean Windows/missing runtime и GitHub publication остаются. |
+| V12 | PARTIAL | Финальный пакет 0.1.2 SHA-256 `B97951DB122D4A4DBCFC1B8254C94DDC659E9285475219275E30BF8A6899937D`: отдельная установка, 17 allowlist-файлов, live UI, создание задачи, relaunch и uninstall с сохранением данных PASS. Windows Sandbox не дошла до LogonCommand, а повторный клиент завершился до создания VM с `0x800706D9`; clean Windows/missing-runtime и GitHub publication остаются. |
 
 ## Внешние действия для закрытия
 

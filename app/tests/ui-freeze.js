@@ -1,1 +1,0 @@
-(async()=>{const {HostBridge}=await import('./bridge.mjs');const host=new HostBridge();await host.window('pin',{pinned:true});await new Promise(r=>setTimeout(r,400));return host.window('freezeForScreenshot');})()

@@ -2,9 +2,13 @@
 
 Дата проверки: 11 сентября 2026 года.
 
+После отдельной команды пользователя обычная копия `app/bin` обновлена точными файлами проверенного runtime и успешно запущена; задачи и автозапуск сохранены. Это не пересборка установщика. Приведённые ниже install/update/uninstall результаты остаются историческими; текущий EXE описан в [отчёте UI-аудита](UI-AUDIT-20260911.md).
+
+После [повторного UI-аудита](UI-AUDIT-20260911.md) появились новые исправления host/UI. Приведённые ниже установщик 0.1.2, контрольные суммы и install/relaunch результаты относятся к предыдущей сборке. Аудит собирает новый runtime в отдельный каталог; его установка и перенос в обычную копию пока не выполнены.
+
 ## Состав
 
-`app/package.ps1` сначала собирает release x64, затем вызывает Inno Setup и создаёт SHA-256 рядом с установщиком. `app/installer/Delo.iss` использует явный allowlist: приложение, HLSL, UI/core modules, лицензия Delo, LICENSE/NOTICE WebView2 SDK и подписанный автономный WebView2 Runtime x64. Тесты, исходники, `vendor`, `test-output` и пользовательские данные в пакет не входят.
+`app/package.ps1` сначала собирает release x64, затем вызывает Inno Setup и создаёт SHA-256 рядом с установщиком. `app/installer/Delo.iss` использует явный allowlist: приложение, UI/core modules, лицензия Delo, LICENSE/NOTICE WebView2 SDK и подписанный автономный WebView2 Runtime x64. Тесты, исходники, `vendor`, `test-output` и пользовательские данные в пакет не входят.
 
 Установка выполняется с `PrivilegesRequired=lowest` для текущего пользователя в `%LOCALAPPDATA%\Programs\Delo`. Поддерживается Windows 11 x64, минимальная версия — 10.0.22000. Доступны русский, украинский и английский интерфейсы установщика. Стабильный AppId позволяет обновлять существующую установку.
 
@@ -18,7 +22,7 @@
 cd app
 ./setup.ps1
 ./setup-distribution.ps1
-./package.ps1 -Version 0.1.1
+./package.ps1 -Version 0.1.2
 ```
 
 `setup-distribution.ps1` проверяет Authenticode автономного WebView2 и требует издателя Microsoft Corporation. `package.ps1` снова проверяет подпись перед упаковкой. Локально использован Inno Setup 6.7.3 с действительной подписью Pyrsys B.V.
@@ -42,6 +46,20 @@ cd app
 После найденного и исправленного native crash при sleep/resume пакет собран ещё раз. Затем в EXE добавлен согласованный с installer ресурс VERSIONINFO: FileVersion `0.1.1.0`, ProductVersion `0.1.1`. Финальный release `Delo.exe` имеет SHA-256 `4914E354E0443C9507CE9A728528DBAA36A2D700B37C79E1C9D8078A27A58BB9`. Окончательный пакет установлен в новый каталог `installed-versioned-20260911`; установленный EXE совпал с release, host отвечал, renderer сообщил `healthy=true`, `errors=0`, `recoveries=1`. Деинсталляция завершилась кодом 0 и снова удалила EXE, uninstaller, ярлык и uninstall key.
 
 Журналы локальной проверки находятся в игнорируемом `app/test-output`. Они не предназначены для публикации, поскольку могут содержать абсолютные пути пользователя.
+
+Финальный пакет 0.1.2 после UI polish собран Inno Setup 6.7.3. SHA-256 установщика: `B97951DB122D4A4DBCFC1B8254C94DDC659E9285475219275E30BF8A6899937D`. В новой установке было 17 allowlist-файлов; исходников, тестов и vendor-каталогов нет. Установленный и release `Delo.exe` совпали по SHA-256 `B618C4A145239E2EDD7EE2EF189321F83AF5831F84B6E4B92933F9E87A878E8E`, VERSIONINFO — `0.1.2.0` / `0.1.2`. Установленный UI прошёл hotkey 8 PASS, settings 11 PASS, quick-window 17 PASS, archive/trash 12 PASS, locales 13 PASS и hide-once 3 PASS. После штатного relaunch сохранилась созданная quick-задача, renderer остался `healthy=true`, `errors=0`. Uninstall завершился кодом 0 и удалил EXE, uninstaller, ярлык и uninstall key; изолированный `tasks.json` сохранил SHA-256 `680D655182068675E79ACE3AB442F0F55835B612008DE6F3C00BA7CBB4931EE0`.
+
+После перезагрузки `WindowsSandbox.exe`, Hyper-V VM и виртуальный коммутатор стартовали. Первая гостевая VM не дошла до LogonCommand: mapped-каталог не получил даже диагностический marker, а защищённый `vmmemWindowsSandbox` временно остался без активного HCS-контейнера. После его завершения повторный `WindowsSandboxClient.exe` остановился до создания VM с HRESULT `0x800706D9` — endpoint mapper не предоставил конечную точку RPC. Минимальная проба без установщика дала тот же результат, поэтому дефект находится в инфраструктуре Windows Sandbox до запуска Delo. Перезапуск `CmService`/Hyper-V/WSL-служб не выполнялся, так как он может затронуть другие виртуальные среды; clean-system проверка остаётся открытой до восстановления Sandbox или отдельной VM.
+
+## Проверка Sandbox 12 сентября
+
+Повторно прочитан журнал Application: события `.NET Runtime`, ID 1023, в 02:13:53, 02:20:03 и 02:21:02 подтверждают отказ загрузки существующего `hostfxr.dll` процессом `WindowsSandboxRemoteSession.exe` пакета `MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy`, HRESULT `0x80070005`. Это сбой хостового клиента до выполнения установщика Delo. Отсутствие общих ACE для app-package SID, записанное в TASKS.md, является основанием для исследования ACL, но само по себе не доказывает первопричину: [AppContainer может получать доступ через package SID или capability SID](https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer).
+
+TASKS.md фиксирует выполненное отключение `Containers-DisposableClientVM` и незавершённый цикл переустановки. При этой проверке `WindowsSandbox.exe` и регистрация пакета не обнаружены; актуальное состояние optional feature требует повышенных прав и не перепроверено. Системные компоненты, ACL и службы не менялись, перезагрузка и ремонт не запускались. Повторное включение компонента не гарантирует исправления ACL WindowsApps.
+
+Исправлен тестовый запуск: каждый прогон получает отдельный mapped-каталог, runner ждёт marker начала guest-скрипта и затем завершённый `result.json`, проверяет `passed` и различает таймаут старта гостя и тестов. Наличие процесса клиента больше не считается успешным стартом гостя. Guest публикует результат через переименование временного JSON и дополнительно проверяет ошибки renderer после relaunch. `repair-sandbox-component.ps1 -Stage check` сообщает наблюдаемые ACE, не объявляя Sandbox исправным по одному наличию записи.
+
+Проверены синтаксис трёх PowerShell-скриптов и шесть локальных проверок runner с подменённым запуском процесса: успешный результат, неуспешный результат, отсутствие guest marker, отсутствие финального результата, уникальность каталогов, валидация версии. Это проверки скриптов, не запуск Windows Sandbox. Чистая Windows и установка отсутствующего WebView2 остаются `UNVERIFIED`.
 
 ## Что ещё не доказано
 
