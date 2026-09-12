@@ -318,62 +318,39 @@ body.quick [data-tooltip]::after{content:none}
 #editor{border-radius:32px}
 #editor-form{border-radius:32px}
 #editor-form>#editor-input{
-  flex-basis:92px;
-  min-height:72px;
+  flex-basis:64px;
+  min-height:56px;
   margin:10px 0 12px;
-  padding:13px 14px;
-  border:1px solid color-mix(in srgb,var(--line) 72%,#ffffff4d);
+  padding:10px 14px;
+  border:1px solid var(--line);
   border-radius:18px;
-  background:linear-gradient(145deg,#ffffff52,#dcebf52c);
-  box-shadow:inset 0 1px 1px #ffffff75,inset 0 -1px 1px #486d8424;
+  background:transparent;
+  box-shadow:none;
   color:var(--ink);
-  font-size:16px;
+  font-size:19px;
   line-height:1.45;
 }
 #editor-form>#editor-input::placeholder{color:color-mix(in srgb,var(--muted) 82%,var(--ink));opacity:1}
 body.dark #editor-form>#editor-input{
-  border-color:#ffffff36;
-  background:linear-gradient(145deg,#ffffff17,#0615221f);
-  box-shadow:inset 0 1px 1px #ffffff26,inset 0 -1px 1px #0005;
+  border-color:var(--line);
+  background:transparent;
+  box-shadow:none;
 }
 #editor-form>#editor-input:focus-visible{
   border-color:color-mix(in srgb,var(--focus) 72%,#ffffff50);
-  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 50%,transparent),inset 0 1px 1px #ffffff75,0 0 0 3px color-mix(in srgb,var(--focus) 12%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 50%,transparent);
 }
-
-/* Date and time are one compact block: matching fields, useful preset buttons, and a
-   restrained fade only when their content needs to scroll below the fixed save action. */
-#editor-form>.date-editor{
-  gap:10px 12px;
-  padding:4px 0 12px;
-  scroll-padding-bottom:12px;
-  mask-image:linear-gradient(#000 calc(100% - 14px),transparent);
-}
-#editor-form .date-editor label{font-size:13px;line-height:1.35;color:var(--ink)}
-#editor-form #due-input,#editor-form #time-input{
-  min-height:48px;
-  border:1px solid color-mix(in srgb,var(--line) 72%,#ffffff4d);
-  border-radius:15px;
-  background:linear-gradient(145deg,#ffffff54,#dcebf52b);
-  box-shadow:inset 0 1px 1px #ffffff70,inset 0 -1px 1px #486d8420;
-}
-body.dark #editor-form #due-input,body.dark #editor-form #time-input{
-  border-color:#ffffff36;
-  background:linear-gradient(145deg,#ffffff18,#06152220);
-  box-shadow:inset 0 1px 1px #ffffff24,inset 0 -1px 1px #0005;
-}
-#editor-form>.date-editor::-webkit-scrollbar{width:8px}
-#editor-form>.date-editor::-webkit-scrollbar-track{background:transparent}
-#editor-form>.date-editor::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:8px;background:color-mix(in srgb,var(--muted) 44%,transparent);background-clip:padding-box}
 
 /* Keep both shortcuts readable at the native widget width instead of relying on an
    incidental line wrap beside the primary action. */
 #editor-form .capture-foot{align-items:end}
 #editor-form .editor-shortcuts{display:grid;gap:2px;min-width:0;font-size:11px;line-height:1.45;color:var(--muted)}
 #editor-form .editor-shortcuts>span{display:block}
+#editor-form .date-editor label[for="time-input"]>span:first-child{margin:0;font-size:13px;font-weight:600;color:var(--ink)}
+#editor-form .date-editor label[for="time-input"]>span:last-child{color:var(--muted)}
 @media(max-width:330px){
   #editor{border-radius:26px}
   #editor-form{border-radius:26px}
-  #editor-form>#editor-input{min-height:64px;padding:11px 12px;border-radius:16px;font-size:15px}
+  #editor-form>#editor-input{min-height:56px;padding:10px 12px;border-radius:16px;font-size:16px}
   #editor-form .editor-shortcuts{font-size:10px}
 }
