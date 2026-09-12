@@ -49,6 +49,11 @@ Source: "..\bin\ui\*.html"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "..\bin\ui\*.css"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "..\bin\ui\*.mjs"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "..\bin\core\*.mjs"; DestDir: "{app}\core"; Flags: ignoreversion
+Source: "..\bin\voice\*.exe"; DestDir: "{app}\voice"; Flags: ignoreversion
+Source: "..\bin\voice\*.dll"; DestDir: "{app}\voice"; Flags: ignoreversion
+Source: "..\bin\voice\*.bin"; DestDir: "{app}\voice"; Flags: ignoreversion
+Source: "..\bin\voice\*.txt"; DestDir: "{app}\voice"; Flags: ignoreversion
+Source: "..\bin\voice\manifest.json"; DestDir: "{app}\voice"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\vendor\webview2-1.0.4191.47\LICENSE.txt"; DestDir: "{app}\licenses"; DestName: "WebView2-SDK.txt"; Flags: ignoreversion
 Source: "..\vendor\webview2-1.0.4191.47\NOTICE.txt"; DestDir: "{app}\licenses"; DestName: "WebView2-NOTICE.txt"; Flags: ignoreversion

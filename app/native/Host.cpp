@@ -16,6 +16,7 @@
 #include "Hotkey.h"
 #include "GlassRenderer.h"
 #include "ScreenshotKeys.h"
+#include "Voice.h"
 #include "resource.h"
 
 using Microsoft::WRL::Callback;
@@ -35,6 +36,8 @@ std::unique_ptr<delo::LightshotTray> lightshotTray;
 std::unique_ptr<delo::ScreenshotKeys> screenshotKeys;
 com_ptr<ICoreWebView2Environment> environment;std::unique_ptr<delo::Store> store;
 fs::path appRoot,dataRoot;JsonObject nativeSettings;std::string storageError;
+std::unique_ptr<delo::Voice> voice;View* voiceView{};hstring voiceSession;
+void CancelVoice(View* view=nullptr){if(voice&&(!view||voiceView==view))voice->Cancel();}
 bool pinned{},exiting{},harness{},mainHiddenForQuick{},ignoreTrayButtonUp{},shortcutRecording{};UINT taskbarCreated{};HPOWERNOTIFY powerNotify{};
 std::uint64_t powerSuspends{},powerResumes{},dragRequests{},quickDismissals{},traySingleClicks{},trayDoubleClicks{};
 std::ofstream trace;
@@ -54,7 +57,7 @@ void Bounds(View& v){if(v.controller){RECT r{};GetClientRect(v.hwnd,&r);v.contro
 void Layout(View& v){Bounds(v);if(v.glass)v.glass->Resize();}
 // Layout synchronously resizes and redraws the material as well as WebView2.
 void Reposition(View& v){Layout(v);}
-void Hide(View& v){v.visible=false;ShowWindow(v.hwnd,SW_HIDE);if(v.controller)v.controller->put_IsVisible(FALSE);JsonObject p;p.Insert(L"visible",Bool(false));Event(v,L"visibility",p);}
+void Hide(View& v){CancelVoice(&v);v.visible=false;ShowWindow(v.hwnd,SW_HIDE);if(v.controller)v.controller->put_IsVisible(FALSE);JsonObject p;p.Insert(L"visible",Bool(false));Event(v,L"visibility",p);}
 void ShowPassive(View& v){v.visible=true;ShowWindow(v.hwnd,SW_SHOWNOACTIVATE);if(v.controller)v.controller->put_IsVisible(TRUE);Reposition(v);JsonObject p;p.Insert(L"visible",Bool(true));Event(v,L"visibility",p);}
 void Focus(View& v){v.visible=true;ShowWindow(v.hwnd,SW_SHOW);if(v.controller)v.controller->put_IsVisible(TRUE);Reposition(v);if(v.controller)v.controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);SetForegroundWindow(v.hwnd);JsonObject p;p.Insert(L"visible",Bool(true));Event(v,L"visibility",p);}
 void ReturnFocus(View& v){if(IsWindow(v.previous))SetForegroundWindow(v.previous);v.previous=nullptr;}
@@ -80,7 +83,7 @@ void RecordShortcuts(bool enabled){
     Broadcast(L"nativeChanged",nativeSettings);
 }
 void SetAutostart(bool enabled){if(harness){Log("autostart_simulated",enabled?"true":"false");return;}HKEY raw{};check_hresult(HRESULT_FROM_WIN32(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&raw,nullptr)));auto exe=appRoot/L"Delo.exe";auto value=L"\""+exe.wstring()+L"\"";LSTATUS error=enabled?RegSetValueExW(raw,L"Delo",0,REG_SZ,reinterpret_cast<BYTE const*>(value.c_str()),DWORD((value.size()+1)*sizeof(wchar_t))):RegDeleteValueW(raw,L"Delo");RegCloseKey(raw);if(error!=ERROR_SUCCESS&&error!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("Could not change autostart");}
-void RequestExit(){if(exiting)return;exiting=true;Broadcast(L"beforeExit");SetTimer(control,4,20000,nullptr);}
+void RequestExit(){if(exiting)return;CancelVoice();exiting=true;Broadcast(L"beforeExit");SetTimer(control,4,20000,nullptr);}
 void FinishScreenshot(){
     // Exclude every widget before restarting either monitor session: otherwise the
     // other view could copy the temporarily visible glass into its own background.
@@ -110,6 +113,23 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
     else if(type==L"load"){if(!storageError.empty())throw std::runtime_error(storageError);result.Insert(L"state",store->State()?store->State().as<IJsonValue>():JsonValue::CreateNullValue());result.Insert(L"revision",Number(double(store->Revision())));result.Insert(L"native",nativeSettings);result.Insert(L"monotonicMs",Number(MonotonicMs()));}
     else if(type==L"save"){auto expected=payload.GetNamedNumber(L"revision",-1);if(expected<0)throw std::runtime_error("Missing revision");auto revision=store->Save(payload.GetNamedObject(L"state"),uint64_t(expected));result.Insert(L"revision",Number(double(revision)));JsonObject changed;changed.Insert(L"state",store->State());changed.Insert(L"revision",Number(double(revision)));Reply(v,id,true,result);if(&v!=&mainView)Event(mainView,L"stateChanged",changed);if(&v!=&quickView)Event(quickView,L"stateChanged",changed);return;}
     else if(type==L"restoreBackup"){store->RestoreBackup();storageError.clear();result.Insert(L"state",store->State());result.Insert(L"revision",Number(double(store->Revision())));Broadcast(L"stateChanged",result);}
+    else if(type==L"voice"){
+        auto action=payload.GetNamedString(L"action"),session=payload.GetNamedString(L"session",L"");
+        if(action==L"start"){
+            if(!v.visible||session.empty()||session.size()>64)throw std::runtime_error("voiceFailed");
+            // Finish delivering the preceding session before assigning the next owner.
+            if(voiceView)throw std::runtime_error("voiceBusy");
+            if(!voice)voice=std::make_unique<delo::Voice>(appRoot/L"voice",dataRoot/L"voice-temp");
+            fs::path fixture;
+            if(harness&&payload.HasKey(L"fixture")){
+                auto name=payload.GetNamedString(L"fixture");
+                if(name!=L"en.wav"&&name!=L"ru.wav"&&name!=L"uk.wav")throw std::runtime_error("voiceFailed");
+                fixture=appRoot/L"test-output"/L"voice-fixtures"/std::wstring(name);
+            }
+            voice->Start(to_string(payload.GetNamedString(L"language",L"ru")),fixture);
+            voiceView=&v;voiceSession=session;SetTimer(control,7,50,nullptr);
+        }else if(voice&&voiceView==&v&&session==voiceSession){if(action==L"stop")voice->Stop();else if(action==L"cancel")voice->Cancel();else throw std::runtime_error("voiceFailed");}
+    }
     else if(type==L"window"){
         auto action=payload.GetNamedString(L"action");
         if(action==L"pin"){pinned=payload.GetNamedBoolean(L"pinned",!pinned);mainView.temporary=false;ApplyMode();SaveNative();Broadcast(L"nativeChanged",nativeSettings);}
@@ -218,6 +238,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         if(message==WM_DESTROY){v->glass.reset();if(v->controller)v->controller->Close();v->controller=nullptr;v->web=nullptr;v->hwnd=nullptr;return 0;}
     }
     if(hwnd==control){
+        if(message==WM_TIMER&&w==7){
+            if(voice){
+                // Snapshot completion before draining to avoid losing a terminal update.
+                bool finished=!voice->Busy();
+                for(auto const& update:voice->Take())if(voiceView){JsonObject p;p.Insert(L"session",Text(voiceSession.c_str()));p.Insert(L"state",Text(to_hstring(update.state).c_str()));p.Insert(L"text",Text(to_hstring(update.text).c_str()));p.Insert(L"error",Text(to_hstring(update.error).c_str()));Event(*voiceView,L"voiceState",p);}
+                if(finished){KillTimer(control,7);voiceView=nullptr;voiceSession=L"";}
+            }return 0;
+        }
+        if((message==WM_POWERBROADCAST&&w==PBT_APMSUSPEND)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_LOCK)||message==WM_QUERYENDSESSION)CancelVoice();
         if(message==delo::ScreenshotKeys::PrepareMessage){
             if(!screenshotKeys)return 0;
             if(!w){Log("screenshot_keys_timeout",std::to_string(screenshotKeys->GetCounters().timeouts));return 0;}
@@ -309,6 +338,7 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
         if(GetTickCount64()-ownerCheck>2000){ownerCheck=GetTickCount64();if(!mainView.hwnd&&!exiting){CreateWindowFor(mainView);Log("window_recreated","true");}if(mainView.hwnd&&!pinned&&!mainView.temporary){auto owner=GetWindow(mainView.hwnd,GW_OWNER);if(!IsWindow(owner))ApplyMode();}}
         HANDLE handles[2]{};DWORD count{};for(auto* v:{&mainView,&quickView})if(v->visible&&v->glass&&v->glass->EventHandle())handles[count++]=v->glass->EventHandle();MsgWaitForMultipleObjectsEx(count,handles,50,QS_ALLINPUT,MWMO_INPUTAVAILABLE);
     }
+    voice.reset();
     screenshotKeys.reset();
     lightshotTray.reset();
     NOTIFYICONDATAW n{sizeof(n)};n.hWnd=control;n.uID=1;Shell_NotifyIconW(NIM_DELETE,&n);UnregisterHotKey(control,1);UnregisterHotKey(control,2);if(powerNotify)UnregisterSuspendResumeNotification(powerNotify);WTSUnRegisterSessionNotification(control);if(mainView.hwnd)DestroyWindow(mainView.hwnd);if(quickView.hwnd)DestroyWindow(quickView.hwnd);DestroyWindow(control);return exitCode;

@@ -389,3 +389,12 @@ body.dark #editor-form>#editor-input{
 @media(prefers-reduced-motion:reduce){.history-delete{transition:none}}
 .reduced .history-delete{transition:none}
 #history{overflow-x:hidden}
+
+/* Voice reuses the capsule's existing geometry, including the fixed-height quick view. */
+.inline-entry.voice-active,.inline-entry.voice-error{align-items:center}
+.voice-active #task-input,.voice-active #new-with-date,.voice-active #add-task,
+.voice-error #task-input,.voice-error #new-with-date,.voice-error #add-task{display:none!important}
+#voice-message{flex:1;min-width:0;max-height:48px;overflow-y:auto;font-size:12px;line-height:16px;color:var(--muted);overflow-wrap:anywhere;scrollbar-width:thin}
+.voice-error #voice-message{color:var(--danger)}
+.voice-active .entry-mic{color:var(--danger);background:var(--small-surface)}
+#voice-cancel{flex-shrink:0}

@@ -22,4 +22,11 @@ try {
  if($LASTEXITCODE -ne 0){throw 'Delo compilation failed'}
  Copy-Item -LiteralPath "$PSScriptRoot/native/Glass.hlsl" -Destination $out -Force
  foreach($folder in @('ui','core')){$target=Join-Path $out $folder;if(Test-Path -LiteralPath $target){Remove-Item -LiteralPath $target -Recurse -Force}Copy-Item -LiteralPath "$PSScriptRoot/$folder" -Destination $out -Recurse -Force}
+ $voice=Join-Path $PSScriptRoot 'vendor/voice'
+ if(-not(Test-Path -LiteralPath (Join-Path $voice 'manifest.json'))){throw 'Run setup-voice.ps1 to restore the local Whisper runtime.'}
+ foreach($item in (Get-Content -LiteralPath (Join-Path $voice 'manifest.json') -Raw | ConvertFrom-Json)){
+  if((Get-FileHash -LiteralPath (Join-Path $voice $item.file)).Hash -ne $item.sha256){throw "Voice dependency checksum mismatch: $($item.file)"}
+ }
+ $voiceTarget=Join-Path $out 'voice';New-Item -ItemType Directory -Path $voiceTarget -Force | Out-Null
+ Get-ChildItem -LiteralPath $voice -File | Copy-Item -Destination $voiceTarget -Force
 } finally {$env:PATH=$oldPath}

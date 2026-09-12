@@ -5,6 +5,7 @@ import {HostBridge} from './bridge.mjs';
 import {translator,localeFor} from './i18n.mjs';
 import {notificationFor} from './notification-policy.mjs';
 import {installGroupFade} from './group-fade.mjs';
+import {VoiceInput} from './voice.mjs';
 const $=selector=>document.querySelector(selector), $$=selector=>[...document.querySelectorAll(selector)];
 const refreshGroupFade=installGroupFade($('#task-scroll'));
 const host=new HostBridge();
@@ -143,9 +144,28 @@ for(const input of $$('.shortcut-recorder')){
     if(shortcut){input.value=shortcut;input.setCustomValidity('');announce(shortcut);}
   });
 }
-async function submitEntry(){if(busy||!ready)return;const input=$('#task-input'),title=input.value.trim();if(!title)return;const original=input.value;const success=await mutate({type:'create',id:crypto.randomUUID(),title});if(success){if(input.value===original)input.value='';grow(input);setBusy(false);if(quick)await host.window('quickDone').catch(error=>report(error));else input.focus();}}
+async function submitEntry(){if(busy||!ready||voiceInput.active||voiceInput.phase==='error')return;const input=$('#task-input'),title=input.value.trim();if(!title)return;const original=input.value;const success=await mutate({type:'create',id:crypto.randomUUID(),title});if(success){if(input.value===original)input.value='';grow(input);setBusy(false);if(quick)await host.window('quickDone').catch(error=>report(error));else input.focus();}}
 $('#entry').addEventListener('submit',event=>{event.preventDefault();submitEntry();});$('#new-with-date').addEventListener('click',()=>openEditor());
-$('#voice-input').addEventListener('click',()=>announce(t('voice')));
+const voiceInput=new VoiceInput({host,input:$('#task-input'),language:()=>state?.settings.language||'ru',onChange:renderVoice,onText:()=>{grow($('#task-input'));setBusy(busy);}});
+function renderVoice(){
+  const phase=voiceInput.phase,active=voiceInput.active,failed=phase==='error',mic=$('#voice-input');
+  const key=phase==='recording'?'voiceRecording':phase==='starting'?'voiceStarting':'voiceTranscribing';
+  const errorKey=['voiceMissing','voiceBusy','voiceMic','voiceNoSpeech','voiceTimeout','voiceTooLong'].includes(voiceInput.error)?voiceInput.error:'voiceFailed';
+  const message=failed?t(errorKey):active?t(key):'';
+  $('#entry').classList.toggle('voice-active',active);$('#entry').classList.toggle('voice-error',failed);
+  mic.dataset.label=active?'voiceStop':'voice';mic.setAttribute('aria-label',t(active?'voiceStop':'voice'));mic.dataset.tooltip=t(active?'voiceStop':'voice');
+  mic.setAttribute('aria-pressed',String(active));mic.disabled=['stopping','transcribing'].includes(phase);
+  mic.querySelector('use').setAttribute('href',active?'#i-stop':'#i-mic');
+  $('#voice-cancel').hidden=!(active||failed);$('#voice-message').hidden=!(active||failed);text($('#voice-message'),message);
+  announce(message||t('voiceReady'));setBusy(busy);
+  if(phase==='idle'&&nativeVisible&&document.hasFocus())$('#task-input').focus();
+}
+$('#voice-input').removeAttribute('aria-disabled');
+$('#voice-input').addEventListener('click',()=>{if(!ready||busy)return;if(voiceInput.active)voiceInput.stop();else voiceInput.start();});
+$('#voice-cancel').addEventListener('click',()=>voiceInput.cancel());
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&(voiceInput.active||voiceInput.phase==='error')){event.preventDefault();event.stopImmediatePropagation();voiceInput.cancel();}},true);
+host.addEventListener('visibility',event=>{if(!event.detail.visible)voiceInput.cancel();});
+host.addEventListener('suspend',()=>voiceInput.cancel());
 function closeMenu(focus=false){if(!menuTrigger)return;$('#task-menu').hidePopover();const trigger=menuTrigger;trigger.setAttribute('aria-expanded','false');menuTrigger=null;menuId=null;if(focus)trigger.focus();}
 function openMenu(task,trigger){if(menuTrigger===trigger){closeMenu(true);return;}closeMenu();menuTrigger=trigger;menuId=task.id;trigger.setAttribute('aria-expanded','true');$('#task-menu [data-action=work]').disabled=task.completedAt!==null;const menu=$('#task-menu');menu.showPopover();const rect=trigger.getBoundingClientRect(),bounds=menu.getBoundingClientRect();menu.style.left=`${Math.max(8,Math.min(rect.right-bounds.width,innerWidth-bounds.width-8))}px`;menu.style.top=`${Math.max(8,Math.min(rect.bottom+4,innerHeight-bounds.height-8))}px`;menu.querySelector('button:not(:disabled)').focus();}
 $('#task-menu').addEventListener('click',async event=>{const action=event.target.closest('[data-action]')?.dataset.action;if(!action)return;const task=state.tasks.find(item=>item.id===menuId);closeMenu();if(!task)return;if(action==='edit'||action==='date'){openEditor(task,action==='date');return;}const row=$$('.task[data-task]').find(node=>node.dataset.task===task.id);if(action==='archive'&&row)animate(row,[{opacity:1},{opacity:.2,transform:'translateX(14px)'}],180);if(await mutate({type:action,id:task.id}))$('#task-input').focus();});
