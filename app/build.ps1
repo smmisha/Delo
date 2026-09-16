@@ -1,4 +1,4 @@
-param([Alias('Version')][string]$AppVersion='0.1.6',[string]$OutputDirectory)
+param([Alias('Version')][string]$AppVersion='0.1.7',[string]$OutputDirectory)
 $ErrorActionPreference='Stop'
 if($AppVersion -notmatch '^(\d+)\.(\d+)\.(\d+)$'){throw 'Version must be major.minor.patch'}
 $major=[int]$Matches[1];$minor=[int]$Matches[2];$patch=[int]$Matches[3]
