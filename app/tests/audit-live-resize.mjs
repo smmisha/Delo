@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFile} from 'node:child_process';
-import {connect,native,wait,screenshot} from './audit-harness.mjs';
+import {connect,native,wait,screenshot,ready} from './audit-harness.mjs';
 
 const output=path.resolve(process.argv[2]||'app/test-output/live-resize');
 await fs.mkdir(output,{recursive:true});
@@ -15,8 +15,8 @@ try{
  for(const interval of [16,8]){
   let state=await main.host('diagnostics');
   const scale=state.width/await main.evaluate('innerWidth');
-  native(state.window,'resize',{Width:Math.round(420*scale),Height:Math.round(620*scale)});await wait(180);
-  const before=await main.host('diagnostics');assert(before.healthy&&before.windowVisible&&aligned(before));
+  native(state.window,'resize',{Width:Math.round(420*scale),Height:Math.round(620*scale)});
+  const before=await ready(main);assert(before.healthy&&before.windowVisible&&aligned(before));
   const inset=Math.round(12*scale),steps=Math.round(960/interval);
   let finished=false,driverError;
   const driver=new Promise(resolve=>execFile('powershell.exe',['-NoProfile','-File',path.join(import.meta.dirname,'native-input.ps1'),'-Window',String(before.window),'-Action','drag','-X',String(before.x+before.width-inset),'-Y',String(before.y+before.height-inset),'-Width','220','-Height','140','-DragSteps',String(steps),'-DragStepMs',String(interval),'-PreciseDrag'],{windowsHide:true,timeout:20000},(error,stdout,stderr)=>{finished=true;driverError=error?Error(stderr||error.message):null;resolve();}));

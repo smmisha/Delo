@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','unpinOverlap','traySingle','trayDouble','trayLostUp')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag)
+param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','unpinOverlap','traySingle','trayDouble','trayLostUp','backdrop','probe')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag,[ValidateRange(0,60000)][int]$HoldMs=0)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -23,6 +23,11 @@ public static class DeloInput {
  [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h,uint message,IntPtr w,IntPtr l);
  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h,uint command);
+ [StructLayout(LayoutKind.Sequential)] public struct MSG {public IntPtr hwnd;public uint message;public IntPtr wParam,lParam;public uint time;public POINT pt;}
+ [DllImport("user32.dll")] public static extern bool PeekMessage(out MSG msg,IntPtr h,uint min,uint max,uint remove);
+ [DllImport("user32.dll")] public static extern bool TranslateMessage(ref MSG msg);
+ [DllImport("user32.dll")] public static extern IntPtr DispatchMessage(ref MSG msg);
+ public static void Pump(int milliseconds){var end=Environment.TickCount+milliseconds;MSG m;do{while(PeekMessage(out m,IntPtr.Zero,0,0,1)){TranslateMessage(ref m);DispatchMessage(ref m);}System.Threading.Thread.Sleep(15);}while(Environment.TickCount<end);}
  public static bool Above(IntPtr upper,IntPtr lower){for(var h=GetWindow(upper,2);h!=IntPtr.Zero;h=GetWindow(h,2))if(h==lower)return true;return false;}
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] static extern IntPtr CreateWaitableTimerEx(IntPtr attributes,string name,uint flags,uint access);
  [DllImport("kernel32.dll")] static extern bool SetWaitableTimer(IntPtr timer,ref long due,int period,IntPtr callback,IntPtr context,bool resume);
@@ -82,7 +87,7 @@ try {
   foreach($code in $codes){[DeloInput]::keybd_event($code,[byte][DeloInput]::MapVirtualKey($code,0),2,[UIntPtr]::Zero)}
  }
  if($Action -eq 'resize'){[void][DeloInput]::SetWindowPos($target,[IntPtr]::Zero,0,0,$Width,$Height,6)}
- $outsideResult=$null;$unpinResult=$null
+ $outsideResult=$null;$unpinResult=$null;$probeResult=$null
  if($Action -in 'outside','outsideOverlap','unpinOverlap'){
   if($Action -in 'outsideOverlap','unpinOverlap'){
    $targetRect=New-Object DeloInput+RECT
@@ -124,6 +129,27 @@ try {
    }
   }finally{[void][DeloInput]::DestroyWindow($outside)}
  }
+ if($Action -eq 'probe'){
+  # Reports what is at X,Y without moving the pointer, so callers can wait out a
+  # transient window (a toast, another app) instead of clicking through it.
+  $point=New-Object DeloInput+POINT;$point.X=$X;$point.Y=$Y
+  $hit=[DeloInput]::WindowFromPoint($point);[uint32]$hitId=0;[void][DeloInput]::GetWindowThreadProcessId($hit,[ref]$hitId)
+  $probeResult=@{covered=($hitId -ne $targetId -and [DeloInput]::GetAncestor($hit,2) -ne $target);hitProcess=$hitId}
+ }
+ if($Action -eq 'backdrop'){
+  # A still, opaque window directly under the widget for HoldMs: the material then has
+  # nothing live to follow, so any present during that time is the renderer's own.
+  $rect=New-Object DeloInput+RECT
+  if(-not[DeloInput]::GetWindowRect($target,[ref]$rect)){throw 'Cannot read harness bounds for backdrop'}
+  $margin=96
+  $backdrop=[DeloInput]::CreateWindowEx(0x08000088,'STATIC','Delo harness backdrop',[uint32]2147483648,$rect.Left-$margin,$rect.Top-$margin,($rect.Right-$rect.Left)+2*$margin,($rect.Bottom-$rect.Top)+2*$margin,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
+  if($backdrop -eq [IntPtr]::Zero){throw 'Cannot create harness backdrop'}
+  try{
+   # Directly below the widget (SWP_NOACTIVATE|SWP_SHOWWINDOW), above everything else.
+   [void][DeloInput]::SetWindowPos($backdrop,$target,0,0,0,0,0x0053)
+   [DeloInput]::Pump($HoldMs)
+  }finally{[void][DeloInput]::DestroyWindow($backdrop)}
+ }
  if($Action -in 'traySingle','trayDouble','trayLostUp'){
   # The shell reports a press and a release; in a double click the second press arrives
   # as WM_LBUTTONDBLCLK. trayLostUp drops the final release, as when the button is
@@ -163,5 +189,6 @@ try {
  $result=@{action=$Action;pid=$targetId;foreground=[DeloInput]::GetForegroundWindow().ToInt64()}
  if($outsideResult){$result.overlap=$outsideResult}
  if($unpinResult){$result.unpin=$unpinResult}
+ if($probeResult){$result.probe=$probeResult}
  $result | ConvertTo-Json -Depth 4 -Compress
 } finally {[void][DeloInput]::SetThreadDpiAwarenessContext($previousDpi)}
