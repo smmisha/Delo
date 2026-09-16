@@ -29,6 +29,17 @@ try{
  quickState=await quick.host('diagnostics');mainState=await main.host('diagnostics');
  assert(quickState.visible&&!mainState.visible&&!mainState.windowVisible&&quickState.traySingleClicks===singleDoubleBefore+1&&quickState.trayDoubleClicks===doubleBefore+1&&aligned(quickState));
  record('double-click sequence remains one immediate aligned quick-capsule action',quickState);
+
+ // A double click released away from the icon never sends its final button-up. The next
+ // genuine click must still open the capsule instead of being swallowed as that release.
+ await quick.host('quickDone');
+ const lostBefore=(await quick.host('diagnostics')).traySingleClicks;
+ native(mainState.controlWindow,'trayLostUp');await wait(35);
+ await quick.host('quickDone');
+ native(mainState.controlWindow,'traySingle');await wait(35);
+ quickState=await quick.host('diagnostics');
+ assert(quickState.visible&&quickState.traySingleClicks===lostBefore+2,`click after a lost release was swallowed: ${JSON.stringify(quickState)}`);
+ record('click after a double click with a lost release still opens the capsule',quickState);
 }finally{
  await fs.mkdir(path.dirname(output),{recursive:true});await fs.writeFile(output,JSON.stringify(results,null,2));
  main.close();quick.close();

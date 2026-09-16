@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','traySingle','trayDouble')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag)
+param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','traySingle','trayDouble','trayLostUp')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -107,9 +107,14 @@ try {
    }
   }finally{[void][DeloInput]::DestroyWindow($outside)}
  }
- if($Action -in 'traySingle','trayDouble'){
+ if($Action -in 'traySingle','trayDouble','trayLostUp'){
+  # The shell reports a press and a release; in a double click the second press arrives
+  # as WM_LBUTTONDBLCLK. trayLostUp drops the final release, as when the button is
+  # released away from the icon.
+  [void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x201)
   [void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x202)
-  if($Action -eq 'trayDouble'){Start-Sleep -Milliseconds 50;[void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x203);[void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x202)}
+  if($Action -in 'trayDouble','trayLostUp'){Start-Sleep -Milliseconds 50;[void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x203)}
+  if($Action -eq 'trayDouble'){[void][DeloInput]::PostMessage($target,0x8001,[IntPtr]1,[IntPtr]0x202)}
   # The callback must complete immediately; waiting for GetDoubleClickTime here used
   # to hide the production delay that this harness is supposed to detect.
   Start-Sleep -Milliseconds 10
