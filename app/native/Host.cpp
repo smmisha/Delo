@@ -27,7 +27,7 @@ constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2;
 constexpr wchar_t ClassName[]=L"Delo.Widget.Host";
 constexpr int QuickHeightDip=83;
 struct View {
-    HWND hwnd{};bool quick{},temporary{},visible{true},captureFrozen{},gesture{};HWND previous{};
+    HWND hwnd{};bool quick{},temporary{},visible{true},captureFrozen{},gesture{},sinkOnDeactivate{};HWND previous{};
     com_ptr<ICoreWebView2Controller> controller;com_ptr<ICoreWebView2> web;
     std::unique_ptr<delo::GlassRenderer> glass;bool lastHealthy{true};
 };
@@ -51,7 +51,9 @@ void Broadcast(wchar_t const* name,JsonObject const& payload={}){Event(mainView,
 void SaveNative(){nativeSettings.Insert(L"pinned",Bool(pinned));delo::AtomicWrite(dataRoot/L"window.json",to_string(nativeSettings.Stringify()));}
 BOOL CALLBACK FindDesktop(HWND h,LPARAM){if(FindWindowExW(h,nullptr,L"SHELLDLL_DefView",nullptr)){desktopOwner=h;return FALSE;}return TRUE;}
 HWND Desktop(){desktopOwner=nullptr;EnumWindows(FindDesktop,0);if(!desktopOwner){auto progman=FindWindowW(L"Progman",nullptr);DWORD_PTR out{};if(progman)SendMessageTimeoutW(progman,0x052c,0,0,SMTO_ABORTIFHUNG,1000,&out);EnumWindows(FindDesktop,0);}return desktopOwner;}
-void ApplyMode(){if(!mainView.hwnd)return;auto top=pinned||mainView.temporary;auto owner=top?nullptr:Desktop();SetWindowLongPtrW(mainView.hwnd,GWLP_HWNDPARENT,reinterpret_cast<LONG_PTR>(owner));if(GetWindow(mainView.hwnd,GW_OWNER)!=owner)Log("owner_error",std::to_string(GetLastError()));SetWindowPos(mainView.hwnd,top?HWND_TOPMOST:HWND_BOTTOM,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);}
+// sink=false keeps an unpinned window where it is in the ordinary layer; it is only for the
+// widget the user is working in right now, which goes to the desktop layer on deactivation.
+void ApplyMode(bool sink=true){if(!mainView.hwnd)return;if(sink)mainView.sinkOnDeactivate=false;auto top=pinned||mainView.temporary;auto owner=top?nullptr:Desktop();SetWindowLongPtrW(mainView.hwnd,GWLP_HWNDPARENT,reinterpret_cast<LONG_PTR>(owner));if(GetWindow(mainView.hwnd,GW_OWNER)!=owner)Log("owner_error",std::to_string(GetLastError()));SetWindowPos(mainView.hwnd,top?HWND_TOPMOST:sink?HWND_BOTTOM:HWND_NOTOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);}
 void ClampWindow(View& v){RECT r{};GetWindowRect(v.hwnd,&r);auto mon=MonitorFromRect(&r,MONITOR_DEFAULTTONEAREST);MONITORINFO mi{sizeof(mi)};GetMonitorInfoW(mon,&mi);int width=std::min(r.right-r.left,mi.rcWork.right-mi.rcWork.left),height=std::min(r.bottom-r.top,mi.rcWork.bottom-mi.rcWork.top);int x=std::clamp(r.left,mi.rcWork.left,mi.rcWork.right-width),y=std::clamp(r.top,mi.rcWork.top,mi.rcWork.bottom-height);SetWindowPos(v.hwnd,nullptr,x,y,width,height,SWP_NOZORDER|SWP_NOACTIVATE);}
 void Bounds(View& v){if(v.controller){RECT r{};GetClientRect(v.hwnd,&r);v.controller->put_Bounds(r);v.controller->NotifyParentWindowPositionChanged();}}
 void Layout(View& v){Bounds(v);if(v.glass)v.glass->Resize();}
@@ -132,7 +134,7 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
     }
     else if(type==L"window"){
         auto action=payload.GetNamedString(L"action");
-        if(action==L"pin"){pinned=payload.GetNamedBoolean(L"pinned",!pinned);mainView.temporary=false;ApplyMode();SaveNative();Broadcast(L"nativeChanged",nativeSettings);}
+        if(action==L"pin"){pinned=payload.GetNamedBoolean(L"pinned",!pinned);mainView.temporary=false;/* Unpinning from inside the widget must not bury the window the user just clicked. */const bool keep=!pinned&&GetForegroundWindow()==mainView.hwnd;ApplyMode(!keep);mainView.sinkOnDeactivate=keep;SaveNative();Broadcast(L"nativeChanged",nativeSettings);}
         else if(action==L"hide"){if(v.quick)FinishQuick(false);else{mainView.temporary=false;ApplyMode();Hide(mainView);ReturnFocus(mainView);}}
         else if(action==L"show")ShowList();
         else if(action==L"recordShortcuts"&&!v.quick)RecordShortcuts(payload.GetNamedBoolean(L"enabled",false)&&GetForegroundWindow()==v.hwnd);
@@ -228,7 +230,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         }
         if(message==WM_DPICHANGED){auto r=reinterpret_cast<RECT*>(l);SetWindowPos(hwnd,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);Layout(*v);return 0;}
         if(message==WM_ACTIVATE&&LOWORD(w)==WA_INACTIVE){
-            if(!v->quick){RecordShortcuts(false);if(!pinned&&v->temporary&&v->visible&&!v->gesture&&!v->captureFrozen){v->temporary=false;ApplyMode();}}
+            if(!v->quick){RecordShortcuts(false);if(!pinned&&(v->temporary||v->sinkOnDeactivate)&&v->visible&&!v->gesture&&!v->captureFrozen){v->temporary=false;ApplyMode();}}
             else if(v->visible&&!v->gesture&&!v->captureFrozen){DismissQuick();return 0;}
         }
         if(message==WM_GETMINMAXINFO){auto info=reinterpret_cast<MINMAXINFO*>(l);auto dpi=GetDpiForWindow(hwnd);if(v->quick){auto height=MulDiv(QuickHeightDip,dpi,96);info->ptMinTrackSize={MulDiv(296,dpi,96),height};info->ptMaxTrackSize.y=height;}else info->ptMinTrackSize={MulDiv(320,dpi,96),MulDiv(360,dpi,96)};return 0;}

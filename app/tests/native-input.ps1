@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','traySingle','trayDouble','trayLostUp')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag)
+param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','unpinOverlap','traySingle','trayDouble','trayLostUp')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -22,6 +22,8 @@ public static class DeloInput {
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr CreateWindowEx(uint ex,string cls,string title,uint style,int x,int y,int w,int h,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr parameter);
  [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h,uint message,IntPtr w,IntPtr l);
+ [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h,uint command);
+ public static bool Above(IntPtr upper,IntPtr lower){for(var h=GetWindow(upper,2);h!=IntPtr.Zero;h=GetWindow(h,2))if(h==lower)return true;return false;}
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] static extern IntPtr CreateWaitableTimerEx(IntPtr attributes,string name,uint flags,uint access);
  [DllImport("kernel32.dll")] static extern bool SetWaitableTimer(IntPtr timer,ref long due,int period,IntPtr callback,IntPtr context,bool resume);
  [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle,uint milliseconds);
@@ -80,9 +82,9 @@ try {
   foreach($code in $codes){[DeloInput]::keybd_event($code,[byte][DeloInput]::MapVirtualKey($code,0),2,[UIntPtr]::Zero)}
  }
  if($Action -eq 'resize'){[void][DeloInput]::SetWindowPos($target,[IntPtr]::Zero,0,0,$Width,$Height,6)}
- $outsideResult=$null
- if($Action -in 'outside','outsideOverlap'){
-  if($Action -eq 'outsideOverlap'){
+ $outsideResult=$null;$unpinResult=$null
+ if($Action -in 'outside','outsideOverlap','unpinOverlap'){
+  if($Action -in 'outsideOverlap','unpinOverlap'){
    $targetRect=New-Object DeloInput+RECT
    if(-not[DeloInput]::GetWindowRect($target,[ref]$targetRect)){throw 'Cannot read harness bounds for overlap test'}
    $outsideX=$targetRect.Left;$outsideY=$targetRect.Top;$outsideWidth=($targetRect.Right-$targetRect.Left)+120;$outsideHeight=$targetRect.Bottom-$targetRect.Top
@@ -94,6 +96,21 @@ try {
    [void][DeloInput]::SetForegroundWindow($outside)
    if($Action -eq 'outside'){
     [void][DeloInput]::SetCursorPos(1000,230);[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+   }elseif($Action -eq 'unpinOverlap'){
+    # The ordinary window becomes active under the pinned widget, then the widget's own pin
+    # button (X,Y) is really clicked: the user unpins the window they are working in.
+    $strip={[void][DeloInput]::SetCursorPos(($targetRect.Right+60),($targetRect.Top+40));[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 250}
+    $probe=New-Object DeloInput+POINT;$probe.X=$targetRect.Left+[int](($targetRect.Right-$targetRect.Left)/2);$probe.Y=$targetRect.Top+[int](($targetRect.Bottom-$targetRect.Top)/2)
+    $measure={@{targetForeground=([DeloInput]::GetForegroundWindow()-eq$target);foreignForeground=([DeloInput]::GetForegroundWindow()-eq$outside);targetAbove=[DeloInput]::Above($target,$outside);targetVisibleAtCentre=([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)-eq$target)}}
+    & $strip
+    $before=& $measure
+    $pin=New-Object DeloInput+POINT;$pin.X=$X;$pin.Y=$Y
+    if([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($pin),2)-ne$target){throw 'Pin button is covered; refusing to click'}
+    [void][DeloInput]::SetCursorPos($X,$Y);[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 400
+    $afterUnpin=& $measure
+    & $strip
+    $afterForeign=& $measure
+    $unpinResult=@{before=$before;afterUnpin=$afterUnpin;afterForeign=$afterForeign}
    }elseif($Action -eq 'outsideOverlap'){
     # Activate the ordinary window through the strip protruding past Delo. The
     # overlapping centre then reveals which window really won the normal z-order.
@@ -145,5 +162,6 @@ try {
  }
  $result=@{action=$Action;pid=$targetId;foreground=[DeloInput]::GetForegroundWindow().ToInt64()}
  if($outsideResult){$result.overlap=$outsideResult}
+ if($unpinResult){$result.unpin=$unpinResult}
  $result | ConvertTo-Json -Depth 4 -Compress
 } finally {[void][DeloInput]::SetThreadDpiAwarenessContext($previousDpi)}
