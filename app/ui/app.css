@@ -187,7 +187,11 @@ body.dark .add.send.has-draft:disabled{color:#112e4f;background:var(--focus);box
    heading or its fade. */
 [data-tooltip]{position:relative}
 .tooltip-layer{position:fixed;z-index:50;width:max-content;max-width:190px;padding:7px 10px;border:1px solid #ffffff70;border-radius:12px;background:#edf5fbe8;color:#192432;font-size:12px;line-height:1.2;box-shadow:inset 0 1px 1px #fff,0 8px 24px #142b4538;backdrop-filter:blur(16px) saturate(1.2);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px);transition:opacity 120ms,transform 120ms,visibility 0s linear 120ms}
+/* The layer is a manual popover: undo the UA popover box so left/top from the controller
+   place it, and keep it out of the flow while closed. */
+.tooltip-layer{inset:auto;margin:0;height:auto;overflow:visible}
 .tooltip-layer[data-placement=below]{transform:translateY(-4px)}
+.tooltip-layer[data-placement=left]{transform:translateX(4px)}
 .tooltip-layer.tip-open{opacity:1;visibility:visible;transform:translateY(0);transition-delay:0s}
 body.dark .tooltip-layer{border-color:#ffffff35;background:#20364bec;color:#f5f7fc;box-shadow:inset 0 1px 1px #ffffff38,0 8px 24px #020b1666}
 

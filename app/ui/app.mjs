@@ -28,6 +28,9 @@ const tooltipLayer=element('div','tooltip-layer');
 tooltipLayer.id='tooltip-layer';
 tooltipLayer.setAttribute('role','tooltip');
 tooltipLayer.setAttribute('aria-hidden','true');
+// Sheets open with showModal() and live in the top layer, which paints over everything in
+// body. A manual popover joins that layer and, shown after the sheet, stacks above it.
+tooltipLayer.popover='manual';
 document.body.append(tooltipLayer);
 function icon(name){const node=document.createElementNS('http://www.w3.org/2000/svg','svg');node.setAttribute('aria-hidden','true');const use=document.createElementNS(node.namespaceURI,'use');use.setAttribute('href',`#i-${name}`);node.append(use);return node;}
 function button(className,label,handler,iconName){const node=element('button',className);node.type='button';node.setAttribute('aria-label',label);if(iconName)node.dataset.tooltip=label;if(iconName)node.append(icon(iconName));else text(node,label);if(handler)node.addEventListener('click',handler);return node;}
@@ -278,18 +281,30 @@ function openAppMenu(){const trigger=$('#settings-open'),menu=$('#app-menu');if(
 // pointerover also fires when a dialog opens beneath a parked cursor, and the label that
 // followed answered a question nobody asked — over the sheet's own first row, at that.
 let tipTimer=null,tipNode=null;
-function closeTooltip(){if(tipTimer)clearTimeout(tipTimer);tipTimer=null;if(tipNode)tipNode.classList.remove('tip-open');tipNode=null;tooltipLayer.classList.remove('tip-open');tooltipLayer.setAttribute('aria-hidden','true');}
+function closeTooltip(){if(tipTimer)clearTimeout(tipTimer);tipTimer=null;if(tipNode)tipNode.classList.remove('tip-open');tipNode=null;tooltipLayer.classList.remove('tip-open');tooltipLayer.setAttribute('aria-hidden','true');if(tooltipLayer.matches(':popover-open'))tooltipLayer.hidePopover();}
 function openTooltip(node){
   if(quick||tipNode!==node||!node.isConnected)return;
   const label=node.dataset.tooltip||node.getAttribute('aria-label');if(!label)return;
   node.classList.add('tip-open');tooltipLayer.textContent=label;tooltipLayer.classList.remove('tip-open');tooltipLayer.style.left='8px';tooltipLayer.style.top='8px';
+  // Re-show on every open so the layer is re-stacked above a sheet opened since last time.
+  if(tooltipLayer.matches(':popover-open'))tooltipLayer.hidePopover();
+  tooltipLayer.showPopover();
   const target=node.getBoundingClientRect(),layer=tooltipLayer.getBoundingClientRect(),inset=8,gap=9;
-  const needsBelow=target.top-inset<layer.height+gap&&innerHeight-target.bottom-inset>=layer.height+gap;
-  const below=needsBelow||node.closest('.widget-head');
-  const preferredX=node.closest('.task-actions,.inline-entry .add')?target.right-layer.width:node.closest('.inline-entry .entry-mic')?target.left:target.left+(target.width-layer.width)/2;
-  tooltipLayer.dataset.placement=below?'below':'above';
-  tooltipLayer.style.left=`${Math.max(inset,Math.min(preferredX,innerWidth-layer.width-inset))}px`;
-  tooltipLayer.style.top=`${below?Math.min(innerHeight-layer.height-inset,target.bottom+gap):Math.max(inset,target.top-layer.height-gap)}px`;
+  const clampX=x=>Math.max(inset,Math.min(x,innerWidth-layer.width-inset)),clampY=y=>Math.max(inset,Math.min(y,innerHeight-layer.height-inset));
+  if(node.closest('.capture-head')){
+    // A sheet header: above is outside the sheet, below lands on its first row. Beside the
+    // button the label stays in the header band, next to the title.
+    tooltipLayer.dataset.placement='left';
+    tooltipLayer.style.left=`${clampX(target.left-gap-layer.width)}px`;
+    tooltipLayer.style.top=`${clampY(target.top+(target.height-layer.height)/2)}px`;
+  }else{
+    const needsBelow=target.top-inset<layer.height+gap&&innerHeight-target.bottom-inset>=layer.height+gap;
+    const below=needsBelow||node.closest('.widget-head');
+    const preferredX=node.closest('.task-actions,.inline-entry .add')?target.right-layer.width:node.closest('.inline-entry .entry-mic')?target.left:target.left+(target.width-layer.width)/2;
+    tooltipLayer.dataset.placement=below?'below':'above';
+    tooltipLayer.style.left=`${clampX(preferredX)}px`;
+    tooltipLayer.style.top=`${below?Math.min(innerHeight-layer.height-inset,target.bottom+gap):Math.max(inset,target.top-layer.height-gap)}px`;
+  }
   tooltipLayer.setAttribute('aria-hidden','false');tooltipLayer.classList.add('tip-open');
 }
 document.addEventListener('pointermove',event=>{
