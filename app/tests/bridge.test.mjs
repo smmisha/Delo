@@ -28,3 +28,11 @@ test('state events are distinct from acknowledgements',async()=>{
   const request=bridge.window('pin',{pinned:true});assert.equal(native.sent[0].type,'window');assert.deepEqual(native.sent[0].payload,{action:'pin',pinned:true});
   native.reply({id:native.sent[0].id,ok:true,result:{}});await request;
 });
+test('bridges sharing one host never answer another bridge request',async()=>{
+  const native=new FakeHost(),first=new HostBridge(native),second=new HostBridge(native);
+  const load=first.request('load'),diagnostics=second.request('window',{action:'diagnostics'});
+  assert.notEqual(native.sent[0].id,native.sent[1].id);
+  native.reply({id:native.sent[1].id,ok:true,result:{healthy:true}});
+  native.reply({id:native.sent[0].id,ok:true,result:{state:{}}});
+  assert.deepEqual(await load,{state:{}});assert.deepEqual(await diagnostics,{healthy:true});
+});
