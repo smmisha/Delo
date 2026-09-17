@@ -21,5 +21,7 @@ skills/
 # Windows and editor metadata
 Thumbs.db
 Desktop.ini
+# Custom folder icon referenced by Desktop.ini
+/folder_icon.ico
 *.swp
 *.tmp
