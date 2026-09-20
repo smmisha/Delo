@@ -26,8 +26,21 @@ inline void AtomicWrite(std::filesystem::path const& path,std::string const& byt
     DWORD written{};
     if(bytes.size()>16*1024*1024||!WriteFile(file.get(),bytes.data(),DWORD(bytes.size()),&written,nullptr)||written!=bytes.size()||!FlushFileBuffers(file.get()))throw std::runtime_error("Data write failed");
     file.close();auto bak=path;bak+=L".bak";
-    BOOL ok=std::filesystem::exists(path)?ReplaceFileW(path.c_str(),temp.c_str(),backup?bak.c_str():nullptr,REPLACEFILE_IGNORE_MERGE_ERRORS,nullptr,nullptr):MoveFileExW(temp.c_str(),path.c_str(),MOVEFILE_WRITE_THROUGH);
-    if(!ok)throw std::runtime_error("Atomic data replacement failed");
+    // A scanner or indexer can hold the data file for a few milliseconds right after it was
+    // written, and replacing it then fails with a sharing violation. That passes by itself,
+    // so retry briefly (about half a second in all) before reporting a failed save. The
+    // existence check is repeated on every attempt: a replacement that failed half way can
+    // leave the target absent, and the next attempt then has to move the file into place.
+    // The system error code stays in the message so a persistent failure says what it was.
+    BOOL ok=FALSE;DWORD code=0;
+    for(int attempt=0;attempt<8;++attempt){
+        ok=std::filesystem::exists(path)?ReplaceFileW(path.c_str(),temp.c_str(),backup?bak.c_str():nullptr,REPLACEFILE_IGNORE_MERGE_ERRORS,nullptr,nullptr):MoveFileExW(temp.c_str(),path.c_str(),MOVEFILE_WRITE_THROUGH);
+        if(ok)break;
+        code=GetLastError();
+        if(code!=ERROR_SHARING_VIOLATION&&code!=ERROR_LOCK_VIOLATION&&code!=ERROR_ACCESS_DENIED&&code!=ERROR_UNABLE_TO_REMOVE_REPLACED&&code!=ERROR_UNABLE_TO_MOVE_REPLACEMENT&&code!=ERROR_UNABLE_TO_MOVE_REPLACEMENT_2)break;
+        if(attempt<7)Sleep(20*(attempt+1));
+    }
+    if(!ok)throw std::runtime_error("Atomic data replacement failed ("+std::to_string(code)+")");
 }
 class Store {
     std::filesystem::path path_;JsonObject state_{nullptr};uint64_t revision_{};bool blocked_{};
