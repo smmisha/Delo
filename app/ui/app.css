@@ -410,3 +410,12 @@ body.dark .engraving{color:rgba(0,0,0,.52);text-shadow:0 1px 0 rgba(255,255,255,
 .quick .engraving{display:none}
 @media(max-width:330px),(max-height:380px){.engraving{display:none}}
 @media(forced-colors:active){.engraving{display:none}}
+
+/* Demo mode (tray menu). Without the glass the widget has nothing behind its text, so it
+   borrows the matte material the menus already use: the same tint, the same rim, close to
+   opaque because whatever is behind is now the presenter's live screen, not a blurred
+   backdrop. Sheets already carry this material and need nothing. */
+.demo .widget{background:var(--menu-surface);box-shadow:inset 0 0 0 .8px #ffffff54,inset 0 1px 1px #ffffff77}
+/* body.dark .widget resets the background to transparent at higher specificity than
+   .demo .widget, so the dark theme needs its own rule to get the matte at all. */
+body.dark.demo .widget{background:var(--menu-surface);box-shadow:inset 0 0 0 .8px #ffffff2e,inset 0 1px 1px #ffffff2e}

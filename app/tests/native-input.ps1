@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','unpinOverlap','traySingle','trayDouble','trayLostUp','backdrop','probe')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag,[ValidateRange(0,60000)][int]$HoldMs=0)
+param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','unpinOverlap','traySingle','trayDouble','trayLostUp','backdrop','probe','diff')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag,[ValidateRange(0,60000)][int]$HoldMs=0,[ValidateRange(0,765)][int]$Threshold=40)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -47,7 +47,7 @@ $target=[IntPtr]$Window
 $process=Get-CimInstance Win32_Process -Filter "ProcessId=$targetId"
 # compose only reads and writes image files; the named-harness guard exists to keep input
 # and screen grabs away from the user's own copy, and neither is involved here.
-if($Action -ne 'compose' -and ($process.Name -ne 'Delo.exe' -or $process.CommandLine -notmatch '--harness=[A-Za-z0-9_-]+')){throw 'Native input is restricted to a named Delo harness process'}
+if($Action -notin 'compose','diff' -and ($process.Name -ne 'Delo.exe' -or $process.CommandLine -notmatch '--harness=[A-Za-z0-9_-]+')){throw 'Native input is restricted to a named Delo harness process'}
 $previousDpi=[DeloInput]::SetThreadDpiAwarenessContext([IntPtr](-4))
 try {
  if($Action -in 'click','keys','drag'){
@@ -87,7 +87,7 @@ try {
   foreach($code in $codes){[DeloInput]::keybd_event($code,[byte][DeloInput]::MapVirtualKey($code,0),2,[UIntPtr]::Zero)}
  }
  if($Action -eq 'resize'){[void][DeloInput]::SetWindowPos($target,[IntPtr]::Zero,0,0,$Width,$Height,6)}
- $outsideResult=$null;$unpinResult=$null;$probeResult=$null
+ $outsideResult=$null;$unpinResult=$null;$probeResult=$null;$diffResult=$null
  if($Action -in 'outside','outsideOverlap','unpinOverlap'){
   if($Action -in 'outsideOverlap','unpinOverlap'){
    $targetRect=New-Object DeloInput+RECT
@@ -162,6 +162,29 @@ try {
   # to hide the production delay that this harness is supposed to detect.
   Start-Sleep -Milliseconds 10
  }
+ if($Action -eq 'diff'){
+  # Share of pixels that differ between two captures by more than $Threshold summed over the
+  # colour channels: how much of a window region a screen capture actually shows of it.
+  Add-Type -ReferencedAssemblies System.Drawing @'
+using System;using System.Drawing;using System.Drawing.Imaging;using System.Runtime.InteropServices;
+public static class DeloDiff {
+ public static double Changed(string first,string second,int threshold){
+  using(var a=new Bitmap(first))using(var b=new Bitmap(second)){
+   if(a.Width!=b.Width||a.Height!=b.Height)return 1.0;
+   var rect=new Rectangle(0,0,a.Width,a.Height);
+   var da=a.LockBits(rect,ImageLockMode.ReadOnly,PixelFormat.Format32bppArgb);var db=b.LockBits(rect,ImageLockMode.ReadOnly,PixelFormat.Format32bppArgb);
+   try{
+    int bytes=Math.Abs(da.Stride)*a.Height;var pa=new byte[bytes];var pb=new byte[bytes];
+    Marshal.Copy(da.Scan0,pa,0,bytes);Marshal.Copy(db.Scan0,pb,0,bytes);
+    long changed=0;for(int i=0;i<bytes;i+=4){if(Math.Abs(pa[i]-pb[i])+Math.Abs(pa[i+1]-pb[i+1])+Math.Abs(pa[i+2]-pb[i+2])>threshold)changed++;}
+    return (double)changed/((double)a.Width*a.Height);
+   }finally{a.UnlockBits(da);b.UnlockBits(db);}
+  }
+ }
+}
+'@
+  $diffResult=@{changed=[DeloDiff]::Changed([IO.Path]::GetFullPath($Base),[IO.Path]::GetFullPath($Overlay),$Threshold)}
+ }
  if($Action -eq 'compose'){
   # The widget never appears in a screen grab, so a picture of it is assembled from the
   # two layers that actually compose on screen: GPU material below, document above.
@@ -190,5 +213,6 @@ try {
  if($outsideResult){$result.overlap=$outsideResult}
  if($unpinResult){$result.unpin=$unpinResult}
  if($probeResult){$result.probe=$probeResult}
+ if($diffResult){$result.diff=$diffResult}
  $result | ConvertTo-Json -Depth 4 -Compress
 } finally {[void][DeloInput]::SetThreadDpiAwarenessContext($previousDpi)}

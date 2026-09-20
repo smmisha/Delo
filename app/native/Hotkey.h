@@ -23,7 +23,7 @@ inline Hotkey ParseHotkey(std::wstring const& text){
     return result;
 }
 inline wchar_t const* TrayLabel(std::wstring const& language,unsigned command){
-    if(language==L"uk")return command==1?L"Показати список":command==2?L"Нове завдання":command==4?L"Знімок екрана (15 с)":L"Вихід";
-    if(language==L"en")return command==1?L"Show tasks":command==2?L"New task":command==4?L"Screenshot (15 s)":L"Exit";
-    return command==1?L"Показать список":command==2?L"Новая задача":command==4?L"Снимок экрана (15 с)":L"Выход";
+    if(language==L"uk")return command==1?L"Показати список":command==2?L"Нове завдання":command==4?L"Знімок екрана (15 с)":command==5?L"Режим демонстрації":L"Вихід";
+    if(language==L"en")return command==1?L"Show tasks":command==2?L"New task":command==4?L"Screenshot (15 s)":command==5?L"Demo mode":L"Exit";
+    return command==1?L"Показать список":command==2?L"Новая задача":command==4?L"Снимок экрана (15 с)":command==5?L"Режим демонстрации":L"Выход";
 }
