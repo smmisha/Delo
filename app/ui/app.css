@@ -398,3 +398,15 @@ body.dark #editor-form>#editor-input{
 #voice-timer{flex-shrink:0;color:var(--muted);font-variant-numeric:tabular-nums}
 .voice-recording .entry-mic{color:var(--danger);background:var(--small-surface)}
 #voice-cancel{flex-shrink:0}
+
+/* Maker's mark pressed into the bottom bezel, in the band under the entry capsule. Light
+   falls from above, so the lower lip of each letter catches it and the fill is a shade
+   darker than the surface: it reads as recessed, not printed. Decorative only: no pointer,
+   no selection, hidden from assistive tech. The band is 22px tall, so where the padding
+   shrinks (short or narrow windows) there is no room and the mark steps aside; the quick
+   capsule has a fixed height and never shows it. */
+.engraving{position:absolute;left:0;right:0;bottom:9px;text-align:center;font:700 11px/13px 'Segoe UI Variable','Segoe UI',sans-serif;letter-spacing:2.5px;text-rendering:geometricPrecision;color:rgba(25,36,50,.42);text-shadow:0 1px 0 rgba(255,255,255,.78);pointer-events:none;user-select:none}
+body.dark .engraving{color:rgba(0,0,0,.52);text-shadow:0 1px 0 rgba(255,255,255,.22)}
+.quick .engraving{display:none}
+@media(max-width:330px),(max-height:380px){.engraving{display:none}}
+@media(forced-colors:active){.engraving{display:none}}
