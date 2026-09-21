@@ -13,6 +13,8 @@ try{
   await page.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value='Компактный ввод';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   const bounds=await page.evaluate(`(()=>{const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};return {width:innerWidth,height:innerHeight,mic:rect(document.querySelector('#voice-input')),input:rect(document.querySelector('#task-input')),send:rect(document.querySelector('#add-task')),scrollWidth:document.body.scrollWidth};})()`);
   check(`${mode}: minimum size keeps input and icons visible`,bounds.input.width>50&&bounds.mic.right<=bounds.input.x+1&&bounds.input.right<=bounds.send.x+1&&[bounds.mic,bounds.input,bounds.send].every(r=>r.x>=0&&r.y>=0&&r.right<=bounds.width&&r.bottom<=bounds.height)&&bounds.scrollWidth<=bounds.width,bounds);
+  const marked=await page.evaluate(`getComputedStyle(document.querySelector('.engraving')).display`);
+  check(`${mode}: engraved mark steps aside where the bezel band is too thin`,marked==='none',{display:marked});
   const grips=await page.evaluate(`[...document.querySelectorAll('.resize-grip')].map(node=>node.className)`);
   check(`${mode}: exposes the intended resize axes`,mode==='quick'?grips.length===2&&grips.every(name=>/resize-(left|right)/.test(name)):grips.length===8,grips);
   if(mode==='quick'){

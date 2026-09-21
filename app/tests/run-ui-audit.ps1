@@ -29,6 +29,7 @@ try {
   @{name='audit-suite';output=(Join-Path $out 'suite.json')},
   @{name='audit-resize';output=(Join-Path $out 'resize')},
   @{name='audit-reputation';output=(Join-Path $out 'reputation.json')}
+  ,@{name='audit-demo';output=(Join-Path $out 'demo')}
  )){
   & node "$PSScriptRoot/$($test.name).mjs" $test.output | Tee-Object -FilePath (Join-Path $out "$($test.name).log")
   if($LASTEXITCODE -ne 0){throw "$($test.name) failed; inspect its JSON/log before continuing"}

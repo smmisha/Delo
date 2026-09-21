@@ -26,6 +26,12 @@ try{
     await page.click('#task-input');
     const name=`${theme}-${mode}-${filled?'filled':'empty'}`,directory=path.join(output,name);await fs.mkdir(directory,{recursive:true});
     const boxes=await page.evaluate(`(()=>{const a=document.querySelector('#add-task').getBoundingClientRect(),i=document.querySelector('#task-input').getBoundingClientRect();return {width:innerWidth,height:innerHeight,arrow:{x:a.x+3,y:a.y+3,width:a.width-6,height:a.height-6},input:{x:i.x+2,y:i.y+2,width:i.width-4,height:i.height-4}};})()`);
+    if(!filled){
+     // The maker's mark lives in the bezel band under the capsule: never over it, never in
+     // the fixed-height quick capsule, and never as anything a pointer or reader can reach.
+     const mark=await page.evaluate(`(()=>{const e=document.querySelector('.engraving'),c=document.querySelector('#entry').getBoundingClientRect(),w=document.querySelector('#widget').getBoundingClientRect(),s=getComputedStyle(e),r=e.getBoundingClientRect();return {display:s.display,text:e.textContent,ariaHidden:e.getAttribute('aria-hidden'),pointer:s.pointerEvents,top:r.top,bottom:r.bottom,capsuleBottom:c.bottom,widgetBottom:w.bottom,centre:Math.abs((r.left+r.right)/2-(w.left+w.right)/2)};})()`);
+     check(`${name}: engraved mark ${mode==='quick'?'is absent from the fixed-height capsule':'sits in the bezel band clear of the capsule'}`,mode==='quick'?mark.display==='none':mark.display!=='none'&&mark.text==='socialmediamisha'&&mark.ariaHidden==='true'&&mark.pointer==='none'&&mark.top>=mark.capsuleBottom-0.5&&mark.bottom<=mark.widgetBottom+0.5&&mark.centre<=1,mark);
+    }
     const size=mode==='quick'?await quickFrames(page,directory,20):await documentFrames(page,directory,20);
     const sx=size.width/boxes.width,sy=size.height/boxes.height,regions=Object.fromEntries(['arrow','input'].map(k=>[k,{x:Math.ceil(boxes[k].x*sx),y:Math.ceil(boxes[k].y*sy),width:Math.floor(boxes[k].width*sx),height:Math.floor(boxes[k].height*sy)}]));
     const regionsFile=path.join(directory,'regions.json');await fs.writeFile(regionsFile,JSON.stringify(regions));

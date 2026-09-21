@@ -60,7 +60,7 @@ try{
  const beforeKeyboard=await page.evaluate(`Number(document.querySelector('#score').textContent)`);
  native(diagnostics.window,'keys',{Keys:'ENTER'});
  await wait(250);
- const keyboardResult=await page.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const loaded=await new HostBridge().request('load');return {score:Number(document.querySelector('#score').textContent),persistedScore:loaded.state.reputation,activeClass:document.activeElement.className};})()`);
+ const keyboardResult=await page.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const loaded=await new HostBridge().request('load');return {score:Number(document.querySelector('#score').textContent),persistedScore:loaded.state.reputation,activeClass:[...document.activeElement.classList].filter(name=>name!=='tip-open').join(' ')};})()`);
  check('keyboard deletion removes +5 and keeps focus inside history',keyboardResult.score===beforeKeyboard-5&&keyboardResult.persistedScore===keyboardResult.score&&['history-delete','round'].includes(keyboardResult.activeClass),keyboardResult);
 }finally{
  await fs.mkdir(path.dirname(output),{recursive:true});
