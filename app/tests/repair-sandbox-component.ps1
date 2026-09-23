@@ -59,5 +59,5 @@ if ($Stage -eq '1') {
   if ($before.State -eq 'Enabled') { Write-Output 'feature is already enabled; restart and run -Stage check'; return }
   $r = Enable-WindowsOptionalFeature -Online -FeatureName $feature -NoRestart
   Write-Output "enabled, restart needed = $($r.RestartNeeded)"
-  Write-Output 'Restart Windows, then run -Stage check and app/tests/run-windows-sandbox.ps1 -Version 0.1.8.'
+  Write-Output 'Restart Windows, then run -Stage check and app/tests/run-windows-sandbox.ps1 -Version 0.1.9.'
 }

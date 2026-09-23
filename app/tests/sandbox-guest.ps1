@@ -1,4 +1,4 @@
-param([string]$Version='0.1.8')
+param([string]$Version='0.1.9')
 # Session name doubles as the harness id and the data folder, so it must not collide
 # with a developer session on the host.
 $session='sandbox' + ($Version -replace '\.', '')
