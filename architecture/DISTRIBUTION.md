@@ -26,7 +26,7 @@
 cd app
 ./setup.ps1
 ./setup-distribution.ps1
-./package.ps1 -Version 0.1.8
+./package.ps1 -Version 0.1.9
 ```
 
 `setup-distribution.ps1` проверяет Authenticode автономного WebView2 и требует издателя Microsoft Corporation. `package.ps1` снова проверяет подпись перед упаковкой. Локально использован Inno Setup 6.7.3 с действительной подписью Pyrsys B.V.
