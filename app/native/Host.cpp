@@ -9,6 +9,7 @@
 #include <WebView2.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Data.Json.h>
+#include <cmath>
 #include <memory>
 #include <vector>
 #include <sstream>
@@ -42,7 +43,7 @@ bool demoMode{};
 bool pinned{},exiting{},harness{},mainHiddenForQuick{},ignoreTrayButtonUp{},shortcutRecording{};UINT taskbarCreated{};HPOWERNOTIFY powerNotify{};
 std::uint64_t powerSuspends{},powerResumes{},dragRequests{},quickDismissals{},traySingleClicks{},trayDoubleClicks{};
 std::ofstream trace;
-void Log(std::string const& kind,std::string const& value){if(!trace)return;JsonObject r;r.Insert(L"event",JsonValue::CreateStringValue(to_hstring(kind)));r.Insert(L"value",JsonValue::CreateStringValue(to_hstring(value)));trace<<to_string(r.Stringify())<<'\n';trace.flush();}
+void Log(std::string const& kind,std::string const& value){if(!trace)return;JsonObject r;SYSTEMTIME now{};GetLocalTime(&now);wchar_t when[32]{};swprintf_s(when,L"%04u-%02u-%02uT%02u:%02u:%02u.%03u",now.wYear,now.wMonth,now.wDay,now.wHour,now.wMinute,now.wSecond,now.wMilliseconds);r.Insert(L"time",JsonValue::CreateStringValue(when));r.Insert(L"event",JsonValue::CreateStringValue(to_hstring(kind)));r.Insert(L"value",JsonValue::CreateStringValue(to_hstring(value)));trace<<to_string(r.Stringify())<<'\n';trace.flush();}
 JsonValue Number(double n){return JsonValue::CreateNumberValue(n);}JsonValue Text(std::wstring const& s){return JsonValue::CreateStringValue(s);}
 JsonValue Bool(bool b){return JsonValue::CreateBooleanValue(b);}
 double MonotonicMs(){ULONGLONG ticks{};QueryUnbiasedInterruptTimePrecise(&ticks);return double(ticks)/10000.0;}
@@ -136,7 +137,17 @@ void SetDemoMode(bool on){
     demoMode=on;UpdateTrayTip();JsonObject changed;changed.Insert(L"on",Bool(on));Broadcast(L"demo",changed);Log("demo_mode",on?"on":"off");
 }
 void Reply(View& v,IJsonValue const& id,bool ok,JsonObject const& result,std::string const& error={}){JsonObject response;response.Insert(L"id",id);response.Insert(L"ok",Bool(ok));if(ok)response.Insert(L"result",result);else response.Insert(L"error",JsonValue::CreateStringValue(to_hstring(error)));Send(v,response);}
-void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNullValue();try{auto request=JsonObject::Parse(json);id=request.GetNamedValue(L"id");auto type=request.GetNamedString(L"type");auto payload=request.GetNamedObject(L"payload",JsonObject{});JsonObject result;
+// The page stops waiting for a reply after 15 s. A request that sat that long before the host
+// thread got to it, or took that long to handle, can still take effect afterwards, and the page
+// then finds its revision stale. Recording both, with the time, says which of the two happened.
+// Page request ids begin with the page's Date.now(), so the wait is measured from the send.
+struct RequestTiming{
+    std::string type;double sent{-1},arrived{};ULONGLONG start{GetTickCount64()};
+    static double NowMs(){FILETIME ft{};GetSystemTimePreciseAsFileTime(&ft);return double(((ULONGLONG(ft.dwHighDateTime)<<32)|ft.dwLowDateTime)-116444736000000000ULL)/10000.0;}
+    RequestTiming():arrived(NowMs()){}
+    ~RequestTiming(){try{auto handled=GetTickCount64()-start;auto waited=sent>0?arrived-sent:0.0;if(!type.empty()&&(waited>2000||handled>1000))Log("slow_request",type+" waited="+std::to_string(llround(waited))+"ms handled="+std::to_string(handled)+"ms");}catch(...){}}
+};
+void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNullValue();RequestTiming requestTiming;try{auto request=JsonObject::Parse(json);id=request.GetNamedValue(L"id");auto type=request.GetNamedString(L"type");requestTiming.type=to_string(type);if(id.ValueType()==JsonValueType::String)requestTiming.sent=wcstod(id.GetString().c_str(),nullptr);auto payload=request.GetNamedObject(L"payload",JsonObject{});JsonObject result;
     if(type==L"clock"){result.Insert(L"monotonicMs",Number(MonotonicMs()));}
     else if(type==L"load"){if(!storageError.empty())throw std::runtime_error(storageError);result.Insert(L"state",store->State()?store->State().as<IJsonValue>():JsonValue::CreateNullValue());result.Insert(L"revision",Number(double(store->Revision())));result.Insert(L"native",nativeSettings);result.Insert(L"demoMode",Bool(demoMode));result.Insert(L"monotonicMs",Number(MonotonicMs()));}
     else if(type==L"save"){auto expected=payload.GetNamedNumber(L"revision",-1);if(expected<0)throw std::runtime_error("Missing revision");auto revision=store->Save(payload.GetNamedObject(L"state"),uint64_t(expected));result.Insert(L"revision",Number(double(revision)));JsonObject changed;changed.Insert(L"state",store->State());changed.Insert(L"revision",Number(double(revision)));Reply(v,id,true,result);if(&v!=&mainView)Event(mainView,L"stateChanged",changed);if(&v!=&quickView)Event(quickView,L"stateChanged",changed);return;}
