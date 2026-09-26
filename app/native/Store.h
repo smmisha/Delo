@@ -55,12 +55,19 @@ public:
     explicit Store(std::filesystem::path path):path_(std::move(path)){}
     void Load(){if(!std::filesystem::exists(path_))return;try{auto root=Parse(path_);state_=root.GetNamedObject(L"state");revision_=uint64_t(root.GetNamedNumber(L"revision"));}catch(...){blocked_=true;throw;}}
     JsonObject State() const{return state_;}uint64_t Revision() const{return revision_;}bool Blocked()const{return blocked_;}
-    uint64_t Save(JsonObject const& state,uint64_t expected) {
+    // A save in three steps, so the disk write can happen off the window thread: Prepare checks
+    // the revision and serializes, the caller writes the bytes to Path() with AtomicWrite, and
+    // Commit adopts the state only after that write succeeded. The caller must not prepare
+    // another save until this one is committed or abandoned.
+    std::string Prepare(JsonObject const& state,uint64_t expected) const {
         if(blocked_)throw std::runtime_error("Data is damaged; restore backup before saving");
         if(expected!=revision_)throw std::runtime_error("conflict");
         JsonObject root;root.Insert(L"format",JsonValue::CreateNumberValue(1));root.Insert(L"revision",JsonValue::CreateNumberValue(double(revision_+1)));root.Insert(L"state",state);
-        AtomicWrite(path_,winrt::to_string(root.Stringify()));state_=state;++revision_;return revision_;
+        return winrt::to_string(root.Stringify());
     }
+    uint64_t Commit(JsonObject const& state){state_=state;return ++revision_;}
+    std::filesystem::path const& Path() const{return path_;}
+    uint64_t Save(JsonObject const& state,uint64_t expected){auto bytes=Prepare(state,expected);AtomicWrite(path_,bytes);return Commit(state);}
     void RestoreBackup(){auto bak=path_;bak+=L".bak";auto root=Parse(bak);if(std::filesystem::exists(path_)){auto corrupt=path_;corrupt+=L".damaged-"+std::to_wstring(GetTickCount64());std::filesystem::copy_file(path_,corrupt);}
         auto restoredRevision=std::max(revision_,uint64_t(root.GetNamedNumber(L"revision")))+1;
         root.Insert(L"revision",JsonValue::CreateNumberValue(double(restoredRevision)));

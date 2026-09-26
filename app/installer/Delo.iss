@@ -21,7 +21,6 @@ OutputBaseFilename=Delo-{#AppVersion}-windows-x64-setup
 UninstallDisplayIcon={app}\Delo.exe
 LicenseFile=..\..\LICENSE
 SetupIconFile=..\native\Delo.ico
-AppMutex=Local\Delo.Widget
 CloseApplications=no
 RestartApplications=no
 SetupLogging=yes
@@ -41,6 +40,9 @@ en.DataNotice=Tasks are stored separately from the app. Updating or uninstalling
 ru.LaunchDelo=Запустить Delo
 uk.LaunchDelo=Запустити Delo
 en.LaunchDelo=Launch Delo
+ru.CloseFailed=Не удалось закрыть Delo. Закройте его через меню значка в трее («Выход») и повторите.
+uk.CloseFailed=Не вдалося закрити Delo. Закрийте його через меню значка в треї («Вихід») і повторіть.
+en.CloseFailed=Delo could not be closed. Exit it from the tray icon menu and try again.
 
 [Files]
 Source: "..\bin\Delo.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -73,6 +75,55 @@ Name: "{group}\Delo"; Filename: "{app}\Delo.exe"
 Filename: "{app}\Delo.exe"; Description: "{cm:LaunchDelo}"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
+// A running Delo is closed the way Windows closes it at sign-out: the session-end query makes
+// the widget pause its timers and save, and the session end then quits it. Every released
+// version handles these two messages, so an update from any of them closes cleanly. Only the
+// widget that holds the app mutex counts as running; it is started again after an update.
+const
+  DeloMutex = 'Local\Delo.Widget';
+  DeloControl = 'Delo.Control';
+  WM_QUERYENDSESSION = $0011;
+  WM_ENDSESSION = $0016;
+var
+  WasRunning: Boolean;
+
+function IsWindow(Wnd: HWND): Integer; external 'IsWindow@user32.dll stdcall';
+
+function CloseDelo: Boolean;
+var Wnd: HWND; Round, Step: Integer;
+begin
+  for Round := 1 to 10 do begin
+    if not CheckForMutexes(DeloMutex) then break;
+    Wnd := FindWindowByWindowName(DeloControl);
+    if Wnd = 0 then break;
+    PostMessage(Wnd, WM_QUERYENDSESSION, 0, 0);
+    Sleep(3000);
+    PostMessage(Wnd, WM_ENDSESSION, 1, 0);
+    for Step := 1 to 75 do begin
+      if IsWindow(Wnd) = 0 then break;
+      Sleep(200);
+    end;
+  end;
+  for Step := 1 to 50 do begin
+    if not CheckForMutexes(DeloMutex) then break;
+    Sleep(200);
+  end;
+  Result := not CheckForMutexes(DeloMutex);
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  Result := CloseDelo;
+  if not Result then SuppressibleMsgBox(CustomMessage('CloseFailed'), mbError, MB_OK, IDOK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var Code: Integer;
+begin
+  if (CurStep = ssPostInstall) and WasRunning then
+    ExecAsOriginalUser(ExpandConstant('{app}\Delo.exe'), '', '', SW_SHOWNORMAL, ewNoWait, Code);
+end;
+
 function HasRuntimeAt(Root: Integer): Boolean;
 var Version: String;
 begin
@@ -89,6 +140,11 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code: Integer;
 begin
   Result := '';
+  WasRunning := CheckForMutexes(DeloMutex);
+  if WasRunning and not CloseDelo then begin
+    Result := CustomMessage('CloseFailed');
+    exit;
+  end;
   if HasRuntime then exit;
 #ifdef Offline
   ExtractTemporaryFile('MicrosoftEdgeWebView2RuntimeInstallerX64.exe');

@@ -14,7 +14,7 @@
  await clickReady(row.querySelector('.timer'));await wait(150);fill('Draft during checkpoint');
  const expected=appearance(),changes=[];let transitions=0;
  const observer=new MutationObserver(()=>{transitions++;const value=appearance();if(value!==expected)changes.push(value);});observer.observe(send,{attributes:true,attributeFilter:['disabled']});
- await wait(6200);observer.disconnect();
+ await wait(16200);observer.disconnect();
  const loaded=await host.request('load'),task=loaded.state.tasks.find(t=>t.title===title);
  check('real timer checkpoint is persisted',task?.workState==='running'&&task.elapsedMs>0,{elapsedMs:task?.elapsedMs});
  check('send appearance stays stable across checkpoint locks',transitions>=2&&changes.length===0&&input.value==='Draft during checkpoint',{transitions,changes});

@@ -9,11 +9,16 @@
 #include <WebView2.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Data.Json.h>
+#include <atomic>
 #include <cmath>
+#include <deque>
+#include <future>
 #include <memory>
 #include <vector>
 #include <sstream>
 #include "Store.h"
+#include "Trace.h"
+#include "Worker.h"
 #include "Hotkey.h"
 #include "GlassRenderer.h"
 #include "ScreenshotKeys.h"
@@ -24,7 +29,7 @@ using Microsoft::WRL::Callback;
 using namespace winrt;
 using namespace winrt::Windows::Data::Json;
 namespace fs=std::filesystem;
-constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2;
+constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2, StoreDone=WM_APP+3, NativeSaveFailed=WM_APP+4;
 constexpr wchar_t ClassName[]=L"Delo.Widget.Host";
 constexpr int QuickHeightDip=83;
 struct View {
@@ -42,15 +47,23 @@ void CancelVoice(View* view=nullptr){if(voice&&(!view||voiceView==view))voice->C
 bool demoMode{};
 bool pinned{},exiting{},harness{},mainHiddenForQuick{},ignoreTrayButtonUp{},shortcutRecording{};UINT taskbarCreated{};HPOWERNOTIFY powerNotify{};
 std::uint64_t powerSuspends{},powerResumes{},dragRequests{},quickDismissals{},traySingleClicks{},trayDoubleClicks{};
-std::ofstream trace;
-void Log(std::string const& kind,std::string const& value){if(!trace)return;JsonObject r;SYSTEMTIME now{};GetLocalTime(&now);wchar_t when[32]{};swprintf_s(when,L"%04u-%02u-%02uT%02u:%02u:%02u.%03u",now.wYear,now.wMonth,now.wDay,now.wHour,now.wMinute,now.wSecond,now.wMilliseconds);r.Insert(L"time",JsonValue::CreateStringValue(when));r.Insert(L"event",JsonValue::CreateStringValue(to_hstring(kind)));r.Insert(L"value",JsonValue::CreateStringValue(to_hstring(value)));trace<<to_string(r.Stringify())<<'\n';trace.flush();}
+delo::TraceLog trace;
+// File writes run here, in order, never on the window thread (N06).
+std::unique_ptr<delo::Worker> storeWorker;std::atomic<int> storeDelayMs{0};
+void Log(std::string const& kind,std::string const& value){if(!trace)return;JsonObject r;SYSTEMTIME now{};GetLocalTime(&now);wchar_t when[32]{};swprintf_s(when,L"%04u-%02u-%02uT%02u:%02u:%02u.%03u",now.wYear,now.wMonth,now.wDay,now.wHour,now.wMinute,now.wSecond,now.wMilliseconds);r.Insert(L"time",JsonValue::CreateStringValue(when));r.Insert(L"event",JsonValue::CreateStringValue(to_hstring(kind)));r.Insert(L"value",JsonValue::CreateStringValue(to_hstring(value)));trace.Write(to_string(r.Stringify()));}
 JsonValue Number(double n){return JsonValue::CreateNumberValue(n);}JsonValue Text(std::wstring const& s){return JsonValue::CreateStringValue(s);}
 JsonValue Bool(bool b){return JsonValue::CreateBooleanValue(b);}
 double MonotonicMs(){ULONGLONG ticks{};QueryUnbiasedInterruptTimePrecise(&ticks);return double(ticks)/10000.0;}
 void Send(View& v,JsonObject const& obj){if(v.web)v.web->PostWebMessageAsJson(obj.Stringify().c_str());}
 void Event(View& v,wchar_t const* name,JsonObject const& payload={}){JsonObject obj;obj.Insert(L"event",Text(name));obj.Insert(L"payload",payload);Send(v,obj);}
 void Broadcast(wchar_t const* name,JsonObject const& payload={}){Event(mainView,name,payload);Event(quickView,name,payload);}
-void SaveNative(){nativeSettings.Insert(L"pinned",Bool(pinned));delo::AtomicWrite(dataRoot/L"window.json",to_string(nativeSettings.Stringify()));}
+// window.json goes through the same worker as the task data so writes land in the order they
+// were made. Position and pin are saved on every move and are not waited for; a failure is
+// logged, as before. Settings whose failure is rolled back (autostart, shortcuts) still wait
+// for their own write, which is rare and user-initiated.
+std::string NativeBytes(){nativeSettings.Insert(L"pinned",Bool(pinned));return to_string(nativeSettings.Stringify());}
+void SaveNativeLater(){auto bytes=NativeBytes();auto path=dataRoot/L"window.json";storeWorker->Post([bytes,path]{try{delo::AtomicWrite(path,bytes);}catch(std::exception const& e){auto* message=new std::string(e.what());if(!PostMessageW(control,NativeSaveFailed,0,reinterpret_cast<LPARAM>(message)))delete message;}});}
+void SaveNative(){auto bytes=NativeBytes();auto path=dataRoot/L"window.json";if(!storeWorker){delo::AtomicWrite(path,bytes);return;}auto done=std::make_shared<std::promise<void>>();auto result=done->get_future();storeWorker->Post([bytes,path,done]{try{delo::AtomicWrite(path,bytes);done->set_value();}catch(...){done->set_exception(std::current_exception());}});result.get();}
 BOOL CALLBACK FindDesktop(HWND h,LPARAM){if(FindWindowExW(h,nullptr,L"SHELLDLL_DefView",nullptr)){desktopOwner=h;return FALSE;}return TRUE;}
 HWND Desktop(){desktopOwner=nullptr;EnumWindows(FindDesktop,0);if(!desktopOwner){auto progman=FindWindowW(L"Progman",nullptr);DWORD_PTR out{};if(progman)SendMessageTimeoutW(progman,0x052c,0,0,SMTO_ABORTIFHUNG,1000,&out);EnumWindows(FindDesktop,0);}return desktopOwner;}
 // sink=false keeps an unpinned window where it is in the ordinary layer; it is only for the
@@ -137,6 +150,39 @@ void SetDemoMode(bool on){
     demoMode=on;UpdateTrayTip();JsonObject changed;changed.Insert(L"on",Bool(on));Broadcast(L"demo",changed);Log("demo_mode",on?"on":"off");
 }
 void Reply(View& v,IJsonValue const& id,bool ok,JsonObject const& result,std::string const& error={}){JsonObject response;response.Insert(L"id",id);response.Insert(L"ok",Bool(ok));if(ok)response.Insert(L"result",result);else response.Insert(L"error",JsonValue::CreateStringValue(to_hstring(error)));Send(v,response);}
+// Data operations run one at a time, in the order the pages sent them. A save is checked and
+// serialized on the window thread, written on the worker, and adopted and answered only once
+// the write is confirmed; a load or backup restore waits for a save in flight, so it always
+// sees the newest committed data. The window thread never waits for the disk (N06).
+struct StoreJob{View* v{};IJsonValue id{nullptr};std::wstring type;JsonObject payload{nullptr};JsonObject state{nullptr};std::string bytes,error;bool ok{};};
+std::deque<std::unique_ptr<StoreJob>> storeQueue;bool storeWriting{};
+void PumpStore();
+void FinishSave(StoreJob* raw){
+    std::unique_ptr<StoreJob> job(raw);storeWriting=false;
+    try{
+        if(!job->ok)throw std::runtime_error(job->error.empty()?std::string("Data write failed"):job->error);
+        auto revision=store->Commit(job->state);JsonObject result;result.Insert(L"revision",Number(double(revision)));
+        JsonObject changed;changed.Insert(L"state",store->State());changed.Insert(L"revision",Number(double(revision)));
+        Reply(*job->v,job->id,true,result);if(job->v!=&mainView)Event(mainView,L"stateChanged",changed);if(job->v!=&quickView)Event(quickView,L"stateChanged",changed);
+    }catch(std::exception const& e){Log("save_error",e.what());Reply(*job->v,job->id,false,{},e.what());}
+    PumpStore();
+}
+void StartStore(std::unique_ptr<StoreJob> job){
+    try{
+        JsonObject result;
+        if(job->type==L"load"){if(!storageError.empty())throw std::runtime_error(storageError);result.Insert(L"state",store->State()?store->State().as<IJsonValue>():JsonValue::CreateNullValue());result.Insert(L"revision",Number(double(store->Revision())));result.Insert(L"native",nativeSettings);result.Insert(L"demoMode",Bool(demoMode));result.Insert(L"monotonicMs",Number(MonotonicMs()));Reply(*job->v,job->id,true,result);return;}
+        if(job->type==L"restoreBackup"){store->RestoreBackup();storageError.clear();result.Insert(L"state",store->State());result.Insert(L"revision",Number(double(store->Revision())));Broadcast(L"stateChanged",result);Reply(*job->v,job->id,true,result);return;}
+        auto expected=job->payload.GetNamedNumber(L"revision",-1);if(expected<0)throw std::runtime_error("Missing revision");
+        job->state=job->payload.GetNamedObject(L"state");job->bytes=store->Prepare(job->state,uint64_t(expected));
+        // The worker touches only the bytes and the outcome fields; the WinRT parts of the job stay
+        // on this thread and come back with it in FinishSave.
+        auto* raw=job.get();auto path=store->Path();const int delay=harness?storeDelayMs.load():0;
+        storeWorker->Post([raw,path,delay]{if(delay>0)Sleep(DWORD(delay));try{delo::AtomicWrite(path,raw->bytes);raw->ok=true;}catch(std::exception const& e){raw->error=e.what();}catch(...){raw->error="Data write failed";}PostMessageW(control,StoreDone,0,reinterpret_cast<LPARAM>(raw));});
+        job.release();storeWriting=true;
+    }catch(hresult_error const& e){Reply(*job->v,job->id,false,{},to_string(e.message()));}catch(std::exception const& e){Reply(*job->v,job->id,false,{},e.what());}
+}
+void PumpStore(){while(!storeWriting&&!storeQueue.empty()){auto job=std::move(storeQueue.front());storeQueue.pop_front();StartStore(std::move(job));}}
+void QueueStore(View& v,IJsonValue const& id,std::wstring const& type,JsonObject const& payload){auto job=std::make_unique<StoreJob>();job->v=&v;job->id=id;job->type=type;job->payload=payload;storeQueue.push_back(std::move(job));PumpStore();}
 // The page stops waiting for a reply after 15 s. A request that sat that long before the host
 // thread got to it, or took that long to handle, can still take effect afterwards, and the page
 // then finds its revision stale. Recording both, with the time, says which of the two happened.
@@ -149,9 +195,7 @@ struct RequestTiming{
 };
 void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNullValue();RequestTiming requestTiming;try{auto request=JsonObject::Parse(json);id=request.GetNamedValue(L"id");auto type=request.GetNamedString(L"type");requestTiming.type=to_string(type);if(id.ValueType()==JsonValueType::String)requestTiming.sent=wcstod(id.GetString().c_str(),nullptr);auto payload=request.GetNamedObject(L"payload",JsonObject{});JsonObject result;
     if(type==L"clock"){result.Insert(L"monotonicMs",Number(MonotonicMs()));}
-    else if(type==L"load"){if(!storageError.empty())throw std::runtime_error(storageError);result.Insert(L"state",store->State()?store->State().as<IJsonValue>():JsonValue::CreateNullValue());result.Insert(L"revision",Number(double(store->Revision())));result.Insert(L"native",nativeSettings);result.Insert(L"demoMode",Bool(demoMode));result.Insert(L"monotonicMs",Number(MonotonicMs()));}
-    else if(type==L"save"){auto expected=payload.GetNamedNumber(L"revision",-1);if(expected<0)throw std::runtime_error("Missing revision");auto revision=store->Save(payload.GetNamedObject(L"state"),uint64_t(expected));result.Insert(L"revision",Number(double(revision)));JsonObject changed;changed.Insert(L"state",store->State());changed.Insert(L"revision",Number(double(revision)));Reply(v,id,true,result);if(&v!=&mainView)Event(mainView,L"stateChanged",changed);if(&v!=&quickView)Event(quickView,L"stateChanged",changed);return;}
-    else if(type==L"restoreBackup"){store->RestoreBackup();storageError.clear();result.Insert(L"state",store->State());result.Insert(L"revision",Number(double(store->Revision())));Broadcast(L"stateChanged",result);}
+    else if(type==L"load"||type==L"save"||type==L"restoreBackup"){QueueStore(v,id,std::wstring(type),payload);return;}
     else if(type==L"voice"){
         auto action=payload.GetNamedString(L"action"),session=payload.GetNamedString(L"session",L"");
         if(action==L"start"){
@@ -171,7 +215,7 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
     }
     else if(type==L"window"){
         auto action=payload.GetNamedString(L"action");
-        if(action==L"pin"){pinned=payload.GetNamedBoolean(L"pinned",!pinned);mainView.temporary=false;/* Unpinning from inside the widget must not bury the window the user just clicked. */const bool keep=!pinned&&GetForegroundWindow()==mainView.hwnd;ApplyMode(!keep);mainView.sinkOnDeactivate=keep;SaveNative();Broadcast(L"nativeChanged",nativeSettings);}
+        if(action==L"pin"){pinned=payload.GetNamedBoolean(L"pinned",!pinned);mainView.temporary=false;/* Unpinning from inside the widget must not bury the window the user just clicked. */const bool keep=!pinned&&GetForegroundWindow()==mainView.hwnd;ApplyMode(!keep);mainView.sinkOnDeactivate=keep;SaveNativeLater();Broadcast(L"nativeChanged",nativeSettings);}
         else if(action==L"hide"){if(v.quick)FinishQuick(false);else{mainView.temporary=false;ApplyMode();Hide(mainView);ReturnFocus(mainView);}}
         else if(action==L"show")ShowList();
         else if(action==L"recordShortcuts"&&!v.quick)RecordShortcuts(payload.GetNamedBoolean(L"enabled",false)&&GetForegroundWindow()==v.hwnd);
@@ -207,6 +251,7 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
             result.Insert(L"lastTrayQueryMs",Number(lightshotTray?lightshotTray->LastQueryMs():0));result.Insert(L"lastTrayQueryMatched",Bool(lightshotTray&&lightshotTray->LastQueryMatched()));
         }
         else if(action==L"materialShot"&&harness){auto target=payload.GetNamedString(L"path",L"");if(target.empty())throw std::runtime_error("materialShot requires a path");v.glass->SaveMaterial(std::wstring(target));result.Insert(L"written",Text(target.c_str()));}
+        else if(action==L"storeDelay"&&harness)storeDelayMs=int(payload.GetNamedNumber(L"ms",0));
         else if(action==L"demo"&&harness)SetDemoMode(payload.GetNamedBoolean(L"enabled",!demoMode));
         else if(action==L"freezeForScreenshot"&&harness)BeginScreenshot();
         else if(action==L"finishScreenshot"&&harness)FinishScreenshot();
@@ -272,7 +317,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
             else if(v->visible&&!v->gesture&&!v->captureFrozen){DismissQuick();return 0;}
         }
         if(message==WM_GETMINMAXINFO){auto info=reinterpret_cast<MINMAXINFO*>(l);auto dpi=GetDpiForWindow(hwnd);if(v->quick){auto height=MulDiv(QuickHeightDip,dpi,96);info->ptMinTrackSize={MulDiv(296,dpi,96),height};info->ptMaxTrackSize.y=height;}else info->ptMinTrackSize={MulDiv(320,dpi,96),MulDiv(360,dpi,96)};return 0;}
-        if(message==WM_EXITSIZEMOVE){KillTimer(hwnd,1);v->gesture=false;ClampWindow(*v);RECT r{};GetWindowRect(hwnd,&r);JsonObject bounds;bounds.Insert(L"x",Number(r.left));bounds.Insert(L"y",Number(r.top));bounds.Insert(L"width",Number(r.right-r.left));bounds.Insert(L"height",Number(r.bottom-r.top));nativeSettings.Insert(v->quick?L"quickPosition":L"bounds",bounds);try{SaveNative();}catch(std::exception const& e){Log("window_save_error",e.what());}Reposition(*v);return 0;}
+        if(message==WM_EXITSIZEMOVE){KillTimer(hwnd,1);v->gesture=false;ClampWindow(*v);RECT r{};GetWindowRect(hwnd,&r);JsonObject bounds;bounds.Insert(L"x",Number(r.left));bounds.Insert(L"y",Number(r.top));bounds.Insert(L"width",Number(r.right-r.left));bounds.Insert(L"height",Number(r.bottom-r.top));nativeSettings.Insert(v->quick?L"quickPosition":L"bounds",bounds);SaveNativeLater();Reposition(*v);return 0;}
         if(message==WM_CLOSE){if(v->quick)FinishQuick();else Hide(*v);return 0;}
         // With the non-client band gone, map sizing edges inside the client rect. Quick
         // capture has a fixed compact height, so its entire left/right edges resize only
@@ -317,6 +362,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         // A new press always starts a new gesture: a double click whose final button-up was
         // released away from the icon must not swallow the next genuine click.
         if(message==TrayMessage){if(l==WM_LBUTTONDOWN)ignoreTrayButtonUp=false;else if(l==WM_LBUTTONDBLCLK){ignoreTrayButtonUp=true;++trayDoubleClicks;}else if(l==WM_LBUTTONUP){if(ignoreTrayButtonUp)ignoreTrayButtonUp=false;else{++traySingleClicks;Quick();}}if(l==WM_RBUTTONUP||l==WM_CONTEXTMENU){auto language=store&&store->State()?store->State().GetNamedObject(L"settings",JsonObject{}).GetNamedString(L"language",L"ru"):hstring(L"ru");auto menu=CreatePopupMenu();AppendMenuW(menu,MF_STRING,1,TrayLabel(language.c_str(),1));AppendMenuW(menu,MF_STRING,2,TrayLabel(language.c_str(),2));AppendMenuW(menu,MF_STRING,4,TrayLabel(language.c_str(),4));AppendMenuW(menu,MF_STRING|(demoMode?MF_CHECKED:MF_UNCHECKED),5,TrayLabel(language.c_str(),5));AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,3,TrayLabel(language.c_str(),3));POINT p{};GetCursorPos(&p);SetForegroundWindow(control);auto cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,0,control,nullptr);DestroyMenu(menu);if(cmd==1)ShowList();if(cmd==2)Quick();if(cmd==3)RequestExit();if(cmd==5){try{SetDemoMode(!demoMode);}catch(hresult_error const& e){Log("demo_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}if(cmd==4){try{BeginScreenshot();}catch(hresult_error const& e){Log("screenshot_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}}return 0;}
+        if(message==StoreDone){FinishSave(reinterpret_cast<StoreJob*>(l));return 0;}
+        if(message==NativeSaveFailed){std::unique_ptr<std::string> text(reinterpret_cast<std::string*>(l));Log("window_save_error",*text);return 0;}
         if(message==WM_TIMER&&w==4){KillTimer(control,4);exiting=false;Focus(mainView);Event(mainView,L"exitFailed");Log("exit_cancelled","No save acknowledgement");return 0;}
         if(message==WM_TIMER&&w==5){try{FinishScreenshot();}catch(hresult_error const& e){Log("screenshot_restore_error",to_string(e.message()));SetTimer(control,5,1000,nullptr);}return 0;}
     }
@@ -334,7 +381,7 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
     wchar_t path[32768]{};GetModuleFileNameW(nullptr,path,32768);appRoot=fs::path(path).parent_path();harness=wcsstr(args,L"--harness")!=nullptr;
     PWSTR local{};check_hresult(SHGetKnownFolderPath(FOLDERID_LocalAppData,0,nullptr,&local));dataRoot=fs::path(local)/L"Delo";CoTaskMemFree(local);if(harness){dataRoot=appRoot/L"test-output";auto named=wcsstr(args,L"--harness=");if(named){std::wstring name(named+10);// The rest of the command line is not the name: shells routinely leave a trailing space, and another argument may follow. Take the token and nothing else, otherwise a stray space refuses the launch with only "Invalid harness session name" to show for it.
         if(auto end=name.find_first_of(L" \t\"");end!=std::wstring::npos)name.erase(end);
-        if(name.empty()||name.size()>64||name.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")!=std::wstring::npos)throw std::runtime_error("Invalid harness session name");dataRoot/=L"sessions";dataRoot/=name;}}fs::create_directories(dataRoot);trace.open(dataRoot/L"native.jsonl",std::ios::app);
+        if(name.empty()||name.size()>64||name.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")!=std::wstring::npos)throw std::runtime_error("Invalid harness session name");dataRoot/=L"sessions";dataRoot/=name;}}fs::create_directories(dataRoot);trace.Open(dataRoot/L"native.jsonl");storeWorker=std::make_unique<delo::Worker>();
     auto mutexName=harness?L"Local\\Delo.Widget.Harness":L"Local\\Delo.Widget";winrt::handle mutex{CreateMutexW(nullptr,FALSE,mutexName)};if(GetLastError()==ERROR_ALREADY_EXISTS){auto other=FindWindowW(ClassName,harness?L"Delo.Harness.Control":L"Delo.Control");if(other)PostMessageW(other,ShowMessage,0,0);return 0;}
     if(fs::exists(dataRoot/L"window.json")){try{nativeSettings=JsonObject::Parse(to_hstring(delo::ReadBytes(dataRoot/L"window.json")));}catch(...){Log("settings_error","Using defaults; original preserved");}}
     pinned=nativeSettings.GetNamedBoolean(L"pinned",false);nativeSettings.Insert(L"pinned",Bool(pinned));if(!nativeSettings.HasKey(L"autostart"))nativeSettings.Insert(L"autostart",Bool(false));if(!nativeSettings.HasKey(L"hotkeys")){JsonObject keys;keys.Insert(L"list",Text(L"Ctrl+Alt+Space"));keys.Insert(L"quick",Text(L"Ctrl+Alt+N"));nativeSettings.Insert(L"hotkeys",keys);}
@@ -383,6 +430,8 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
         if(GetTickCount64()-ownerCheck>2000){ownerCheck=GetTickCount64();if(!mainView.hwnd&&!exiting){CreateWindowFor(mainView);Log("window_recreated","true");}if(mainView.hwnd&&!pinned&&!mainView.temporary){auto owner=GetWindow(mainView.hwnd,GW_OWNER);if(!IsWindow(owner))ApplyMode();}}
         HANDLE handles[2]{};DWORD count{};for(auto* v:{&mainView,&quickView})if(v->visible&&v->glass&&v->glass->EventHandle())handles[count++]=v->glass->EventHandle();MsgWaitForMultipleObjectsEx(count,handles,50,QS_ALLINPUT,MWMO_INPUTAVAILABLE);
     }
+    // Let writes already queued land before the process goes away.
+    if(storeWorker&&!storeWorker->Close(std::chrono::seconds(10)))Log("store_close_timeout","10000");
     voice.reset();
     screenshotKeys.reset();
     lightshotTray.reset();
