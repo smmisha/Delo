@@ -15,7 +15,8 @@ function Run-Ui([string]$Name){
 }
 function Start-Harness {
  $p=Start-Process -FilePath (Join-Path $runtime 'Delo.exe') -ArgumentList "--harness=$SessionName" -WindowStyle Hidden -PassThru
- Start-Sleep -Seconds 2
+ # A fixed pause was too short when the list page took several seconds to load (damaged data).
+ for($i=0;$i -lt 120;$i++){if($p.HasExited){throw "Harness exited early ($($p.ExitCode))"};try{$j=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:9223/json/list' -TimeoutSec 1).Content;if(([regex]::Matches($j,'delo.local/ui/')).Count -ge 2){break}}catch{};Start-Sleep -Milliseconds 250}
  return $p
 }
 function Close-Harness($p){

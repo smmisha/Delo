@@ -75,33 +75,53 @@ Name: "{group}\Delo"; Filename: "{app}\Delo.exe"
 Filename: "{app}\Delo.exe"; Description: "{cm:LaunchDelo}"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
-// A running Delo is closed the way Windows closes it at sign-out: the session-end query makes
-// the widget pause its timers and save, and the session end then quits it. Every released
-// version handles these two messages, so an update from any of them closes cleanly. Only the
-// widget that holds the app mutex counts as running; it is started again after an update.
+// A running Delo is asked to leave the ordinary way: it pauses its timers, saves, and quits only
+// once that save is acknowledged, however long the disk takes. It answers the request, so Setup
+// knows to wait for the exit. A version from before this request (0.1.9 and older) does not
+// answer; it is closed the way Windows closes it at sign-out instead: the session-end query
+// makes it pause and save, and the session end quits it. Only the widget that holds the app
+// mutex counts as running; it is started again after an update.
 const
   DeloMutex = 'Local\Delo.Widget';
   DeloControl = 'Delo.Control';
   WM_QUERYENDSESSION = $0011;
   WM_ENDSESSION = $0016;
+  SMTO_ABORTIFHUNG = $0002;
+  RequestExitAccepted = $44454C4F;
 var
   WasRunning: Boolean;
 
 function IsWindow(Wnd: HWND): Integer; external 'IsWindow@user32.dll stdcall';
+function RegisterWindowMessage(Name: String): Cardinal; external 'RegisterWindowMessageW@user32.dll stdcall';
+function SendMessageTimeout(Wnd: HWND; Msg: Cardinal; WParam, LParam: Longint; Flags, Timeout: Cardinal; var Answer: Int64): Longint; external 'SendMessageTimeoutW@user32.dll stdcall';
+
+function WaitGone(Wnd: HWND; Steps: Integer): Boolean;
+var Step: Integer;
+begin
+  for Step := 1 to Steps do begin
+    if IsWindow(Wnd) = 0 then break;
+    Sleep(200);
+  end;
+  Result := IsWindow(Wnd) = 0;
+end;
 
 function CloseDelo: Boolean;
-var Wnd: HWND; Round, Step: Integer;
+var Wnd: HWND; Round, Step: Integer; Answer: Int64; RequestExit: Cardinal;
 begin
+  RequestExit := RegisterWindowMessage('Delo.RequestExit');
   for Round := 1 to 10 do begin
     if not CheckForMutexes(DeloMutex) then break;
     Wnd := FindWindowByWindowName(DeloControl);
     if Wnd = 0 then break;
-    PostMessage(Wnd, WM_QUERYENDSESSION, 0, 0);
-    Sleep(3000);
-    PostMessage(Wnd, WM_ENDSESSION, 1, 0);
-    for Step := 1 to 75 do begin
-      if IsWindow(Wnd) = 0 then break;
-      Sleep(200);
+    Answer := 0;
+    if (SendMessageTimeout(Wnd, RequestExit, 0, 0, SMTO_ABORTIFHUNG, 5000, Answer) <> 0) and (Answer = RequestExitAccepted) then
+      // The app gives up its own exit after 20 s if the save cannot be acknowledged.
+      WaitGone(Wnd, 150)
+    else begin
+      PostMessage(Wnd, WM_QUERYENDSESSION, 0, 0);
+      Sleep(3000);
+      PostMessage(Wnd, WM_ENDSESSION, 1, 0);
+      WaitGone(Wnd, 75);
     end;
   end;
   for Step := 1 to 50 do begin

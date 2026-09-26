@@ -30,6 +30,7 @@ using namespace winrt;
 using namespace winrt::Windows::Data::Json;
 namespace fs=std::filesystem;
 constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2, StoreDone=WM_APP+3, NativeSaveFailed=WM_APP+4;
+const UINT RequestExitMessage=RegisterWindowMessageW(L"Delo.RequestExit");constexpr LRESULT RequestExitAccepted=0x44454C4F;
 constexpr wchar_t ClassName[]=L"Delo.Widget.Host";
 constexpr int QuickHeightDip=83;
 struct View {
@@ -154,28 +155,44 @@ void Reply(View& v,IJsonValue const& id,bool ok,JsonObject const& result,std::st
 // serialized on the window thread, written on the worker, and adopted and answered only once
 // the write is confirmed; a load or backup restore waits for a save in flight, so it always
 // sees the newest committed data. The window thread never waits for the disk (N06).
-struct StoreJob{View* v{};IJsonValue id{nullptr};std::wstring type;JsonObject payload{nullptr};JsonObject state{nullptr};std::string bytes,error;bool ok{};};
+struct StoreJob{View* v{};IJsonValue id{nullptr};std::wstring type;JsonObject payload{nullptr};JsonObject state{nullptr};std::string bytes,error;bool ok{};int phase{};delo::Store::Restore restore;};
 std::deque<std::unique_ptr<StoreJob>> storeQueue;bool storeWriting{};
 void PumpStore();
-void FinishSave(StoreJob* raw){
-    std::unique_ptr<StoreJob> job(raw);storeWriting=false;
+void FinishStore(StoreJob* raw){
+    std::unique_ptr<StoreJob> job(raw);
     try{
         if(!job->ok)throw std::runtime_error(job->error.empty()?std::string("Data write failed"):job->error);
-        auto revision=store->Commit(job->state);JsonObject result;result.Insert(L"revision",Number(double(revision)));
-        JsonObject changed;changed.Insert(L"state",store->State());changed.Insert(L"revision",Number(double(revision)));
-        Reply(*job->v,job->id,true,result);if(job->v!=&mainView)Event(mainView,L"stateChanged",changed);if(job->v!=&quickView)Event(quickView,L"stateChanged",changed);
-    }catch(std::exception const& e){Log("save_error",e.what());Reply(*job->v,job->id,false,{},e.what());}
-    PumpStore();
+        if(job->type==L"restoreBackup"&&job->phase==0){
+            // The backup has been read. It is validated and the restored file built here; keeping the
+            // damaged file and writing the restored one go back to the worker. The queue stays busy.
+            job->restore=store->PrepareRestore(job->bytes);job->phase=1;job->ok=false;job->error.clear();
+            auto* next=job.get();auto path=store->Path();
+            storeWorker->Post([next,path]{try{delo::Store::PreserveDamaged(path);delo::AtomicWrite(path,next->restore.bytes,false);next->ok=true;}catch(std::exception const& e){next->error=e.what();}catch(...){next->error="Data write failed";}PostMessageW(control,StoreDone,0,reinterpret_cast<LPARAM>(next));});
+            job.release();return;
+        }
+        JsonObject result;
+        if(job->type==L"restoreBackup"){
+            store->CommitRestore(job->restore);storageError.clear();
+            result.Insert(L"state",store->State());result.Insert(L"revision",Number(double(store->Revision())));
+            Broadcast(L"stateChanged",result);Reply(*job->v,job->id,true,result);
+        }else{
+            auto revision=store->Commit(job->state);result.Insert(L"revision",Number(double(revision)));
+            JsonObject changed;changed.Insert(L"state",store->State());changed.Insert(L"revision",Number(double(revision)));
+            Reply(*job->v,job->id,true,result);if(job->v!=&mainView)Event(mainView,L"stateChanged",changed);if(job->v!=&quickView)Event(quickView,L"stateChanged",changed);
+        }
+    }catch(hresult_error const& e){Log("save_error",to_string(e.message()));Reply(*job->v,job->id,false,{},to_string(e.message()));}
+    catch(std::exception const& e){Log("save_error",e.what());Reply(*job->v,job->id,false,{},e.what());}
+    storeWriting=false;PumpStore();
 }
 void StartStore(std::unique_ptr<StoreJob> job){
     try{
         JsonObject result;
         if(job->type==L"load"){if(!storageError.empty())throw std::runtime_error(storageError);result.Insert(L"state",store->State()?store->State().as<IJsonValue>():JsonValue::CreateNullValue());result.Insert(L"revision",Number(double(store->Revision())));result.Insert(L"native",nativeSettings);result.Insert(L"demoMode",Bool(demoMode));result.Insert(L"monotonicMs",Number(MonotonicMs()));Reply(*job->v,job->id,true,result);return;}
-        if(job->type==L"restoreBackup"){store->RestoreBackup();storageError.clear();result.Insert(L"state",store->State());result.Insert(L"revision",Number(double(store->Revision())));Broadcast(L"stateChanged",result);Reply(*job->v,job->id,true,result);return;}
+        if(job->type==L"restoreBackup"){auto* raw=job.get();auto backup=store->BackupPath();storeWorker->Post([raw,backup]{try{raw->bytes=delo::ReadBytes(backup);raw->ok=true;}catch(std::exception const& e){raw->error=e.what();}catch(...){raw->error="Cannot read the backup";}PostMessageW(control,StoreDone,0,reinterpret_cast<LPARAM>(raw));});job.release();storeWriting=true;return;}
         auto expected=job->payload.GetNamedNumber(L"revision",-1);if(expected<0)throw std::runtime_error("Missing revision");
         job->state=job->payload.GetNamedObject(L"state");job->bytes=store->Prepare(job->state,uint64_t(expected));
         // The worker touches only the bytes and the outcome fields; the WinRT parts of the job stay
-        // on this thread and come back with it in FinishSave.
+        // on this thread and come back with it in FinishStore.
         auto* raw=job.get();auto path=store->Path();const int delay=harness?storeDelayMs.load():0;
         storeWorker->Post([raw,path,delay]{if(delay>0)Sleep(DWORD(delay));try{delo::AtomicWrite(path,raw->bytes);raw->ok=true;}catch(std::exception const& e){raw->error=e.what();}catch(...){raw->error="Data write failed";}PostMessageW(control,StoreDone,0,reinterpret_cast<LPARAM>(raw));});
         job.release();storeWriting=true;
@@ -362,7 +379,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         // A new press always starts a new gesture: a double click whose final button-up was
         // released away from the icon must not swallow the next genuine click.
         if(message==TrayMessage){if(l==WM_LBUTTONDOWN)ignoreTrayButtonUp=false;else if(l==WM_LBUTTONDBLCLK){ignoreTrayButtonUp=true;++trayDoubleClicks;}else if(l==WM_LBUTTONUP){if(ignoreTrayButtonUp)ignoreTrayButtonUp=false;else{++traySingleClicks;Quick();}}if(l==WM_RBUTTONUP||l==WM_CONTEXTMENU){auto language=store&&store->State()?store->State().GetNamedObject(L"settings",JsonObject{}).GetNamedString(L"language",L"ru"):hstring(L"ru");auto menu=CreatePopupMenu();AppendMenuW(menu,MF_STRING,1,TrayLabel(language.c_str(),1));AppendMenuW(menu,MF_STRING,2,TrayLabel(language.c_str(),2));AppendMenuW(menu,MF_STRING,4,TrayLabel(language.c_str(),4));AppendMenuW(menu,MF_STRING|(demoMode?MF_CHECKED:MF_UNCHECKED),5,TrayLabel(language.c_str(),5));AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,3,TrayLabel(language.c_str(),3));POINT p{};GetCursorPos(&p);SetForegroundWindow(control);auto cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,0,control,nullptr);DestroyMenu(menu);if(cmd==1)ShowList();if(cmd==2)Quick();if(cmd==3)RequestExit();if(cmd==5){try{SetDemoMode(!demoMode);}catch(hresult_error const& e){Log("demo_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}if(cmd==4){try{BeginScreenshot();}catch(hresult_error const& e){Log("screenshot_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}}return 0;}
-        if(message==StoreDone){FinishSave(reinterpret_cast<StoreJob*>(l));return 0;}
+        if(message==StoreDone){FinishStore(reinterpret_cast<StoreJob*>(l));return 0;}
+        // The installer asks a running Delo to leave the ordinary way: the pages pause their timers and
+        // save, and the app quits only after that save is acknowledged. The reply tells the installer
+        // the request was understood, so it waits for the exit instead of forcing a session end.
+        if(RequestExitMessage&&message==RequestExitMessage){RequestExit();return RequestExitAccepted;}
         if(message==NativeSaveFailed){std::unique_ptr<std::string> text(reinterpret_cast<std::string*>(l));Log("window_save_error",*text);return 0;}
         if(message==WM_TIMER&&w==4){KillTimer(control,4);exiting=false;Focus(mainView);Event(mainView,L"exitFailed");Log("exit_cancelled","No save acknowledgement");return 0;}
         if(message==WM_TIMER&&w==5){try{FinishScreenshot();}catch(hresult_error const& e){Log("screenshot_restore_error",to_string(e.message()));SetTimer(control,5,1000,nullptr);}return 0;}

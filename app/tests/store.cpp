@@ -49,6 +49,12 @@ void TestSplitSave(std::filesystem::path const& dir){
     delo::Store reread(dir/L"split.json");reread.Load();Require(reread.Revision()==1,"prepared bytes carry the next revision");
     bool conflict=false;try{store.Prepare(state,0);}catch(std::exception const& e){conflict=std::string(e.what())=="conflict";}
     Require(conflict,"prepare refuses a stale revision");
+    // Restoration is split the same way: preparing it changes nothing.
+    delo::AtomicWrite(store.BackupPath(),bytes,false);auto current=delo::ReadBytes(store.Path());
+    auto restored=store.PrepareRestore(delo::ReadBytes(store.BackupPath()));
+    Require(restored.revision==2&&store.Revision()==1&&delo::ReadBytes(store.Path())==current,"prepare restore changes nothing");
+    delo::Store::PreserveDamaged(store.Path());delo::AtomicWrite(store.Path(),restored.bytes,false);store.CommitRestore(restored);
+    delo::Store reloaded(store.Path());reloaded.Load();Require(store.Revision()==2&&reloaded.Revision()==2,"committed restore matches the file");
 }
 // Writes run in the order they were posted, off the calling thread, and Close lets queued work
 // finish before returning.
@@ -58,7 +64,11 @@ void TestWorker(){
      Require(worker.Close(std::chrono::seconds(5)),"close waits for queued writes");}
     bool ordered=order.size()==20;for(int i=0;ordered&&i<20;++i)ordered=order[i]==i;
     Require(ordered,"writes keep their order");Require(thread!=0&&thread!=GetCurrentThreadId(),"writes run off the calling thread");
-    delo::Worker slow;slow.Post([]{Sleep(400);});Require(!slow.Close(std::chrono::milliseconds(50)),"close reports a write still running");
+    // A write that outlives Close finishes on its own after the Worker is gone; its thread must
+    // not reach into the destroyed Worker (it used to).
+    auto finished=std::make_shared<std::atomic<bool>>(false);
+    {delo::Worker slow;slow.Post([finished]{Sleep(300);*finished=true;});Require(!slow.Close(std::chrono::milliseconds(50)),"close reports a write still running");}
+    Sleep(700);Require(*finished,"a write left running finishes after its worker is destroyed");
 }
 // The diagnostic log keeps two files at most.
 void TestTraceRotation(std::filesystem::path const& dir){
