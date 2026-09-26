@@ -1,4 +1,5 @@
 #include "GlassRenderer.h"
+#include "Dpi.h"
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -277,7 +278,7 @@ struct GlassRenderer::Impl {
     // every size change, not only when the renderer is built.
     void ApplyGeometry() {
         if(!gpu)return;
-        auto scale=float(GetDpiForWindow(host))/96.f;
+        auto scale=float(MonitorDpi(host))/96.f;
         gpu->params.geometry[2]=std::min(36.f*scale,float(std::min(width,height))/2.f-8.f);
         gpu->params.geometry[3]=24.f*scale;gpu->params.state[3]=14.f*scale;
     }
