@@ -7,6 +7,7 @@
 #include <dwmapi.h>
 #include <wrl.h>
 #include <WebView2.h>
+#include <WebView2EnvironmentOptions.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Data.Json.h>
 #include <atomic>
@@ -466,13 +467,16 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
         // so it is set after the file is written and never saved.
         nativeSettings.Insert(L"hotkeyError",JsonValue::CreateStringValue(to_hstring(e.what())));
     }
-    if(harness)SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",L"--remote-debugging-port=9223 --remote-debugging-address=127.0.0.1");
     quickView.quick=true;CreateWindowFor(mainView);CreateWindowFor(quickView);
     try{lightshotTray=std::make_unique<delo::LightshotTray>(control,delo::ScreenshotKeys::PrepareMessage);}
     catch(std::exception const& e){Log("lightshot_tray_init_error",e.what());}
     try{screenshotKeys=std::make_unique<delo::ScreenshotKeys>(control,lightshotTray.get());auto keys=screenshotKeys->GetCounters();if(!keys.installed)Log("screenshot_keys_install_error",std::to_string(keys.installError));if(lightshotTray&&!keys.mouseInstalled)Log("screenshot_mouse_install_error",std::to_string(keys.mouseInstallError));}
     catch(std::exception const& e){Log("screenshot_keys_install_error",e.what());}
-    check_hresult(CreateCoreWebView2EnvironmentWithOptions(nullptr,(dataRoot/L"WebView2").c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{if(FAILED(hr)){MessageBoxW(mainView.hwnd,L"Install Microsoft Edge WebView2 Runtime to run Delo.",L"Delo",MB_ICONERROR);PostQuitMessage(1);return S_OK;}environment.copy_from(env);CreateWebView(mainView);CreateWebView(quickView);return S_OK;}).Get()));
+    // Harness sessions open DevTools for the tests. The arguments go through the environment options:
+    // the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS variable is ignored on some machines (Windows Sandbox).
+    Microsoft::WRL::ComPtr<CoreWebView2EnvironmentOptions> options;
+    if(harness){options=Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();check_hresult(options->put_AdditionalBrowserArguments(L"--remote-debugging-port=9223 --remote-debugging-address=127.0.0.1"));}
+    check_hresult(CreateCoreWebView2EnvironmentWithOptions(nullptr,(dataRoot/L"WebView2").c_str(),options.Get(),Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{if(FAILED(hr)){MessageBoxW(mainView.hwnd,L"Install Microsoft Edge WebView2 Runtime to run Delo.",L"Delo",MB_ICONERROR);PostQuitMessage(1);return S_OK;}environment.copy_from(env);CreateWebView(mainView);CreateWebView(quickView);return S_OK;}).Get()));
     auto ownerCheck=GetTickCount64();bool running=true;int exitCode{};
     while(running){MSG msg{};while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){if(msg.message==WM_QUIT){running=false;exitCode=int(msg.wParam);break;}TranslateMessage(&msg);DispatchMessageW(&msg);}if(!running)break;
         for(auto* v:{&mainView,&quickView}){if(v->hwnd&&v->visible&&v->glass&&!v->captureFrozen){v->glass->Tick();auto healthy=v->glass->Healthy();if(const auto errors=v->glass->GetCounters().errors;errors>v->lastErrors){v->lastErrors=errors;Log("glass_error",std::string(v->quick?"quick ":"main ")+v->glass->LastError());}if(healthy!=v->lastHealthy){v->lastHealthy=healthy;JsonObject p;p.Insert(L"available",Bool(healthy));Event(*v,L"material",p);InvalidateRect(v->hwnd,nullptr,TRUE);}}}

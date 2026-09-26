@@ -1,15 +1,19 @@
 # The default package carries the evergreen bootstrapper and therefore needs the
 # network during install; -Offline tests the embedded-runtime build with the
 # network switched off, which is the case that build exists for.
+# -From installs that older version first and updates it to -Version while it runs.
+# -Id runs the test in a sandbox that is already open (wsb list) instead of starting one.
 param(
   [ValidatePattern('^\d+\.\d+\.\d+(?:\.\d+)?$')][string]$Version='0.1.11',
+  [ValidatePattern('^(\d+\.\d+\.\d+)?$')][string]$From,
+  [string]$Id,
   [switch]$Offline,
   [ValidateRange(1,3600)][int]$StartupTimeoutSeconds=120,
   [ValidateRange(1,7200)][int]$TestTimeoutSeconds=900
 )
 $ErrorActionPreference='Stop'
 $sandbox=(Get-Command WindowsSandbox.exe -ErrorAction SilentlyContinue).Source
-if(-not$sandbox){
+if(-not$sandbox -and -not$Id){
   try{$feature=Get-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM}
   catch{throw 'Windows Sandbox executable is unavailable. Check that the optional feature is enabled and restart Windows.'}
   if($feature.State-ne'Enabled'){throw 'Windows Sandbox is not enabled.'}
@@ -21,18 +25,32 @@ $runId=(Get-Date -Format 'yyyyMMdd-HHmmss-fff')+'-'+[Guid]::NewGuid().ToString('
 $stage=Join-Path $PSScriptRoot "..\test-output\windows-sandbox-$Version\$runId"
 New-Item -ItemType Directory -Path $stage -Force|Out-Null
 Copy-Item -LiteralPath $package -Destination (Join-Path $stage ([IO.Path]::GetFileName($package))) -Force
+if($From){
+  $old=Join-Path $PSScriptRoot "..\dist\Delo-$From-windows-x64-setup.exe"
+  if(-not(Test-Path -LiteralPath $old)){throw "Installer not found: $old"}
+  Copy-Item -LiteralPath $old -Destination (Join-Path $stage ([IO.Path]::GetFileName($old))) -Force
+}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sandbox-guest.ps1') -Destination (Join-Path $stage 'sandbox-guest.ps1') -Force
+$guest="powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\DeloTest\sandbox-guest.ps1 -Version $Version"+$(if($From){" -From $From"}else{''})
+if($Id){
+  # The open sandbox keeps its own network setting; -Offline needs a fresh one.
+  if($Offline){throw '-Offline starts its own sandbox; omit -Id.'}
+  & wsb share --id $Id --host-path (Resolve-Path $stage).Path --sandbox-path 'C:\DeloTest' --allow-write
+  if($LASTEXITCODE -ne 0){throw "wsb share failed ($LASTEXITCODE)"}
+  Start-Process -FilePath 'wsb' -ArgumentList @('exec','--id',$Id,'--run-as','ExistingLogin','--command',('"{0}"' -f $guest)) -WindowStyle Hidden
+}else{
 $networking=if($Offline){'Disable'}else{'Default'}
 $escaped=[Security.SecurityElement]::Escape((Resolve-Path $stage).Path)
 $config=@"
 <Configuration>
   <MappedFolders><MappedFolder><HostFolder>$escaped</HostFolder><SandboxFolder>C:\DeloTest</SandboxFolder><ReadOnly>false</ReadOnly></MappedFolder></MappedFolders>
   <Networking>$networking</Networking><ClipboardRedirection>Disable</ClipboardRedirection><PrinterRedirection>Disable</PrinterRedirection><MemoryInMB>4096</MemoryInMB>
-  <LogonCommand><Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\DeloTest\sandbox-guest.ps1 -Version $Version</Command></LogonCommand>
+  <LogonCommand><Command>$guest</Command></LogonCommand>
 </Configuration>
 "@
 $configPath=Join-Path $stage 'Delo-test.wsb';[IO.File]::WriteAllText($configPath,$config,(New-Object Text.UTF8Encoding($false)))
 Start-Process -FilePath $sandbox -ArgumentList ('"{0}"' -f $configPath) -WindowStyle Hidden
+}
 # A launcher/session process does not prove that the VM reached LogonCommand.
 # A unique mapped directory prevents results from an earlier run being accepted.
 $startedPath=Join-Path $stage 'guest-started.json'
