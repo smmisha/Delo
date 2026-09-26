@@ -11,7 +11,7 @@ Requirements: Windows 11 x64, Visual Studio Build Tools with Desktop development
 ```powershell
 cd app
 ./setup.ps1
-./build.ps1 -Version 0.1.9
+./build.ps1 -Version 0.1.10
 node --test tests/*.test.mjs
 ./test-store.ps1
 ./test-renderer.ps1
@@ -26,7 +26,7 @@ The Inno Setup package installs per user into `%LOCALAPPDATA%\Programs\Delo` and
 ```powershell
 cd app
 ./setup-distribution.ps1
-./package.ps1 -Version 0.1.9
+./package.ps1 -Version 0.1.10
 ```
 
 The installer and a matching SHA-256 sidecar are written to `app/dist`. Build outputs, restored dependencies, test sessions, and user data are excluded from Git.
