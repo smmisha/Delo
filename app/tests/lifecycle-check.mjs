@@ -3,7 +3,7 @@
 // a monitor connected or removed or an Explorer restart (V02). Checks the harness widget and
 // the user's own installed widget. Usage:
 //   node lifecycle-check.mjs baseline            before the first event
-//   node lifecycle-check.mjs <mode> <label>      after it; mode: sleep | scale | monitor | explorer
+//   node lifecycle-check.mjs <mode> <label>      after it; mode: sleep | scale | monitor | explorer | desktop
 // Screenshots can show the user's desktop through the glass, so they stay in test-output.
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -11,7 +11,7 @@ import {execFileSync} from 'node:child_process';
 import {connect,wait,screenshot} from './audit-harness.mjs';
 
 const [mode='baseline',label=mode,outArg]=process.argv.slice(2);
-if(!['baseline','sleep','scale','monitor','explorer'].includes(mode))throw Error(`Unknown mode ${mode}`);
+if(!['baseline','sleep','scale','monitor','explorer','desktop'].includes(mode))throw Error(`Unknown mode ${mode}`);
 const out=path.resolve(outArg||'test-output/lifecycle');await fs.mkdir(out,{recursive:true});
 const TITLE='Lifecycle timer';
 const main=await connect(),checks=[];
