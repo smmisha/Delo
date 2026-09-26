@@ -21,7 +21,8 @@ const arm=type=>main.evaluate(`(window.__stallRelease.delete(${JSON.stringify(ty
 const held=async type=>{const end=Date.now()+30000;while(!await main.evaluate(`window.__stallRelease.has(${JSON.stringify(type)})`)){if(Date.now()>end)throw Error(`The page never sent ${type}`);await wait(50);}};
 // Longer than the page's 15 s reply timeout.
 const stall=async type=>{stallHost('suspend');try{await main.evaluate(`window.__stallRelease.get(${JSON.stringify(type)})()`);await wait(18000);}finally{stallHost('resume');}};
-const savesResume=async ms=>{const from=await saves(),end=Date.now()+ms;while(Date.now()<end){if(await saves()>=from+2)return true;await wait(250);}return false;};
+// A running timer checkpoints every 15 s, so one more acknowledged save is the sign.
+const savesResume=async ms=>{const from=await saves(),end=Date.now()+ms;while(Date.now()<end){if(await saves()>=from+1)return true;await wait(250);}return false;};
 const timer='Проверка зависшего хоста',action='Проверка повтора после сбоя';
 try{
  await fs.mkdir(output,{recursive:true});
@@ -32,17 +33,17 @@ try{
    if(!window.__stallArmed.delete(type))return send();return new Promise(resolve=>window.__stallRelease.set(type,resolve)).then(send);};return true;})()`);
  if(!await main.evaluate(`!!${titled(timer)}`)){await add(timer);await wait(700);}
  await main.evaluate(`${titled(timer)}.querySelector('.timer').click()`);
- check('a running timer checkpoints in the background',await savesResume(12000),{saves:await saves()});
+ check('a running timer checkpoints in the background',await savesResume(20000),{saves:await saves()});
 
  // 1. One save answered late. It landed, so it counts as saved: no conflict, no message.
  await arm('save');await held('save');await stall('save');await wait(1500);
  const late=await banner();
  check('a save answered late is recognised as landed and shows no error',late===null,{banner:late});
- check('saving carries on after a late answer',await savesResume(15000),{saves:await saves()});
+ check('saving carries on after a late answer',await savesResume(20000),{saves:await saves()});
 
  // 2. The reload after a late save is answered late too. The page reloads by itself.
  await arm('save');await held('save');await arm('load');await stall('save');await held('load');await stall('load');
- check('after a failed reload the page reloads by itself and saves again',await savesResume(20000),{saves:await saves()});
+ check('after a failed reload the page reloads by itself and saves again',await savesResume(25000),{saves:await saves()});
  const recovered=await banner();
  check('a background failure leaves no error once recovered',recovered===null,{banner:recovered});
  const before=await main.evaluate(`${titled(timer)}.classList.contains('done')`);

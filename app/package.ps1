@@ -1,4 +1,4 @@
-param([string]$Version='0.1.9',[string]$Compiler,[switch]$Offline)
+param([string]$Version='0.1.10',[string]$Compiler,[switch]$Offline)
 $ErrorActionPreference='Stop'
 if($Version -notmatch '^\d+\.\d+\.\d+$'){throw 'Version must be major.minor.patch'}
 if(-not $Compiler){$Compiler=Join-Path $PSScriptRoot 'vendor/inno/ISCC.exe'}

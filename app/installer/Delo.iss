@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.1.9"
+  #define AppVersion "0.1.10"
 #endif
 [Setup]
 AppId={{CE9AAB6D-03AE-43FB-A87E-48BF58868D12}
@@ -21,7 +21,6 @@ OutputBaseFilename=Delo-{#AppVersion}-windows-x64-setup
 UninstallDisplayIcon={app}\Delo.exe
 LicenseFile=..\..\LICENSE
 SetupIconFile=..\native\Delo.ico
-AppMutex=Local\Delo.Widget
 CloseApplications=no
 RestartApplications=no
 SetupLogging=yes
@@ -41,6 +40,9 @@ en.DataNotice=Tasks are stored separately from the app. Updating or uninstalling
 ru.LaunchDelo=Запустить Delo
 uk.LaunchDelo=Запустити Delo
 en.LaunchDelo=Launch Delo
+ru.CloseFailed=Не удалось закрыть Delo. Закройте его через меню значка в трее («Выход») и повторите.
+uk.CloseFailed=Не вдалося закрити Delo. Закрийте його через меню значка в треї («Вихід») і повторіть.
+en.CloseFailed=Delo could not be closed. Exit it from the tray icon menu and try again.
 
 [Files]
 Source: "..\bin\Delo.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -73,6 +75,75 @@ Name: "{group}\Delo"; Filename: "{app}\Delo.exe"
 Filename: "{app}\Delo.exe"; Description: "{cm:LaunchDelo}"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
+// A running Delo is asked to leave the ordinary way: it pauses its timers, saves, and quits only
+// once that save is acknowledged, however long the disk takes. It answers the request, so Setup
+// knows to wait for the exit. A version from before this request (0.1.9 and older) does not
+// answer; it is closed the way Windows closes it at sign-out instead: the session-end query
+// makes it pause and save, and the session end quits it. Only the widget that holds the app
+// mutex counts as running; it is started again after an update.
+const
+  DeloMutex = 'Local\Delo.Widget';
+  DeloControl = 'Delo.Control';
+  WM_QUERYENDSESSION = $0011;
+  WM_ENDSESSION = $0016;
+  SMTO_ABORTIFHUNG = $0002;
+  RequestExitAccepted = $44454C4F;
+var
+  WasRunning: Boolean;
+
+function IsWindow(Wnd: HWND): Integer; external 'IsWindow@user32.dll stdcall';
+function RegisterWindowMessage(Name: String): Cardinal; external 'RegisterWindowMessageW@user32.dll stdcall';
+function SendMessageTimeout(Wnd: HWND; Msg: Cardinal; WParam, LParam: Longint; Flags, Timeout: Cardinal; var Answer: Int64): Longint; external 'SendMessageTimeoutW@user32.dll stdcall';
+
+function WaitGone(Wnd: HWND; Steps: Integer): Boolean;
+var Step: Integer;
+begin
+  for Step := 1 to Steps do begin
+    if IsWindow(Wnd) = 0 then break;
+    Sleep(200);
+  end;
+  Result := IsWindow(Wnd) = 0;
+end;
+
+function CloseDelo: Boolean;
+var Wnd: HWND; Round, Step: Integer; Answer: Int64; RequestExit: Cardinal;
+begin
+  RequestExit := RegisterWindowMessage('Delo.RequestExit');
+  for Round := 1 to 10 do begin
+    if not CheckForMutexes(DeloMutex) then break;
+    Wnd := FindWindowByWindowName(DeloControl);
+    if Wnd = 0 then break;
+    Answer := 0;
+    if (SendMessageTimeout(Wnd, RequestExit, 0, 0, SMTO_ABORTIFHUNG, 5000, Answer) <> 0) and (Answer = RequestExitAccepted) then
+      // The app gives up its own exit after 20 s if the save cannot be acknowledged.
+      WaitGone(Wnd, 150)
+    else begin
+      PostMessage(Wnd, WM_QUERYENDSESSION, 0, 0);
+      Sleep(3000);
+      PostMessage(Wnd, WM_ENDSESSION, 1, 0);
+      WaitGone(Wnd, 75);
+    end;
+  end;
+  for Step := 1 to 50 do begin
+    if not CheckForMutexes(DeloMutex) then break;
+    Sleep(200);
+  end;
+  Result := not CheckForMutexes(DeloMutex);
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  Result := CloseDelo;
+  if not Result then SuppressibleMsgBox(CustomMessage('CloseFailed'), mbError, MB_OK, IDOK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var Code: Integer;
+begin
+  if (CurStep = ssPostInstall) and WasRunning then
+    ExecAsOriginalUser(ExpandConstant('{app}\Delo.exe'), '', '', SW_SHOWNORMAL, ewNoWait, Code);
+end;
+
 function HasRuntimeAt(Root: Integer): Boolean;
 var Version: String;
 begin
@@ -89,6 +160,11 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code: Integer;
 begin
   Result := '';
+  WasRunning := CheckForMutexes(DeloMutex);
+  if WasRunning and not CloseDelo then begin
+    Result := CustomMessage('CloseFailed');
+    exit;
+  end;
   if HasRuntime then exit;
 #ifdef Offline
   ExtractTemporaryFile('MicrosoftEdgeWebView2RuntimeInstallerX64.exe');
