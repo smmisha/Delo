@@ -57,7 +57,7 @@
 | V09 | PASS | Undo/trash 12 live PASS плюс restart/retention unit boundaries. |
 | V10 | PARTIAL | Themes, Liquid Glass settings, dropdown contrast, icon alignment, custom tooltip/confirmation, hotkey recording, 2 × 2 settings grid, stable send arrow, languages, keyboard, reduced motion, idle, rapid actions и responsive размеры 320 × 360 / 296 × 71 проверены; физические DPI/monitor scenarios остаются. |
 | V11 | PASS | Write failures, restart, update and explicit backup recovery проверены. Первый sleep-run нашёл crash; fix прошёл реальный сон и relaunch. |
-| V12 | PARTIAL | Пакет 0.1.5 SHA-256 `054CD96FC15A1343C715BC8A1E1A50F50F97B2CFCF5D507EF94F163126F99C80`: отдельная установка, совпадение EXE, оконный harness 12/12 и uninstall PASS. Полный цикл данных подтверждён на неизменившемся installer 0.1.4. Windows Sandbox не дошла до LogonCommand, поэтому clean Windows/missing-runtime остаётся UNVERIFIED. |
+| V12 | PARTIAL | Пакет 0.1.5 SHA-256 `054CD96FC15A1343C715BC8A1E1A50F50F97B2CFCF5D507EF94F163126F99C80`: отдельная установка, совпадение EXE, оконный harness 12/12 и uninstall PASS. Полный цикл данных подтверждён на неизменившемся installer 0.1.4. Windows Sandbox не дошла до LogonCommand, поэтому clean Windows/missing-runtime остаётся UNVERIFIED. Обновление 27 сентября: в Windows Sandbox (Windows 11 10.0.26100) PASS установка 0.1.10, обновление до 0.1.11 при работающем виджете, создание задачи, перезапуск и удаление с сохранением данных, а также чистая установка 0.1.11 ([APP-LIFECYCLE.md](APP-LIFECYCLE.md)). Missing-runtime остаётся UNVERIFIED: в песочнице WebView2 уже есть. |
 
 ## Внешние действия для закрытия
 
