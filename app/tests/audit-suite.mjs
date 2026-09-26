@@ -3,7 +3,7 @@ const out=path.resolve(process.argv[2]||'app/test-output/sessions/audit-20260911
 try{
  await quick.host('quickDone');await main.host('show');await main.host('pin',{pinned:true});
  for(const [page,width,height] of [[main,420,620],[quick,414,83]]){const d=await page.host('diagnostics'),scale=d.width/(await page.evaluate('innerWidth'));native(d.window,'resize',{Width:Math.round(width*scale),Height:Math.round(height*scale)});}
- for(const name of ['ui-dialogs','ui-glass-settings','ui-hotkey-recorder','ui-input','ui-menu','ui-locales','ui-undo','ui-focus','ui-reduced','ui-background-input','ui-idle','ui-quick','ui-hide-once']){
+ for(const name of ['ui-dialogs','ui-glass-settings','ui-hotkey-recorder','ui-input','ui-menu','ui-locales','ui-undo','ui-focus','ui-reduced','ui-background-input','ui-idle','ui-quick','ui-hide-once','ui-pin']){
   const page=name==='ui-quick'?quick:main;
   try{await main.evaluate(`(async()=>{document.activeElement?.blur();const end=Date.now()+5000;while(document.querySelector('#widget').getAttribute('aria-busy')==='true'&&Date.now()<end)await new Promise(r=>setTimeout(r,25));if(document.querySelector('#widget').getAttribute('aria-busy')==='true')throw Error('Previous scenario did not finish saving');document.querySelectorAll('dialog[open]').forEach(d=>d.close());if(document.querySelector('#app-menu').matches(':popover-open'))document.querySelector('#settings-open').click();if(document.querySelector('#task-menu').matches(':popover-open'))document.querySelector('#task-menu').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));return true;})()`);await wait(30);
   // The glass follows whatever moves behind the widget, so "no presents while idle" only

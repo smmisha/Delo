@@ -66,7 +66,10 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     case 'pause': unfinished();freeze(t,monotonic);break;
     case 'stop': unfinished();freeze(t,monotonic);t.workState='idle';break;
     case 'work': unfinished();freeze(t,monotonic);t.workState='working';break;
-    case 'complete': active();if(t.completedAt!==null)break;freeze(t,monotonic);t.workState='idle';t.completedAt=now;t.completedDayEnd=dayEnd(now,timeZone);t.award=t.due&&now>=t.due.at?2:5;event(s,t,'complete',now,t.award);break;
+    // F06. pinnedAt is optional: data without it loads as unpinned, and older versions keep it as is.
+    case 'pin': unfinished();if(t.pinnedAt==null)t.pinnedAt=now;break;
+    case 'unpin': required();delete t.pinnedAt;break;
+    case 'complete': active();if(t.completedAt!==null)break;freeze(t,monotonic);t.workState='idle';t.completedAt=now;t.completedDayEnd=dayEnd(now,timeZone);t.award=t.due&&now>=t.due.at?2:5;delete t.pinnedAt;event(s,t,'complete',now,t.award);break;
     case 'uncomplete': {
       active();if(t.completedAt===null)break;
       const last=s.events.findLast(e=>e.taskId===t.id&&(e.kind==='complete'||e.kind==='uncomplete'));
@@ -90,7 +93,7 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
       s.events.forEach((event,index)=>{event.id=index+1;});
       break;
     }
-    case 'restore': required();if(!['archive','trash'].includes(t.lifecycle))fail('Not restorable');t.lifecycle='active';t.deletedAt=null;t.archiveAnchor=now;t.undoRemaining=null;if(t.completedAt!==null)t.completedDayEnd=dayEnd(now,timeZone);break;
+    case 'restore': required();if(!['archive','trash'].includes(t.lifecycle))fail('Not restorable');t.lifecycle='active';t.deletedAt=null;t.archiveAnchor=now;t.undoRemaining=null;delete t.pinnedAt;if(t.completedAt!==null)t.completedDayEnd=dayEnd(now,timeZone);break;
     case 'settings': for(const key of Object.keys(command.patch))if(!(key in DEFAULT_SETTINGS))fail('Unknown setting');Object.assign(s.settings,command.patch);settingsCheck(s.settings);break;
     case 'suspend': for(const t of s.tasks)freeze(t,monotonic);break;
     case 'checkpoint': for(const t of s.tasks)if(t.workState==='running'){t.elapsedMs=elapsed(t,monotonic);t.timerAnchor=monotonic;}break;
@@ -100,16 +103,16 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
   process(s,now,monotonic); return s;
 }
 export function groups(state,{now,timeZone='UTC'}) {
-  const result=['late','today','upcoming','any','done'].map(key=>({key,tasks:[]}));
-  for(const t of state.tasks.filter(t=>t.lifecycle==='active')) {const key=t.completedAt!==null?'done':!t.due?'any':now>=t.due.at?'late':t.due.date===dateKey(now,t.due.timeZone||timeZone)?'today':'upcoming';result.find(g=>g.key===key).tasks.push(t);}
-  for(const g of result)g.tasks.sort((a,b)=>g.key==='done'?a.completedAt-b.completedAt||a.id.localeCompare(b.id):(a.due?.at??0)-(b.due?.at??0)||a.createdAt-b.createdAt||a.id.localeCompare(b.id));
+  const result=['pinned','late','today','upcoming','any','done'].map(key=>({key,tasks:[]}));
+  for(const t of state.tasks.filter(t=>t.lifecycle==='active')) {const key=t.completedAt!==null?'done':t.pinnedAt!=null?'pinned':!t.due?'any':now>=t.due.at?'late':t.due.date===dateKey(now,t.due.timeZone||timeZone)?'today':'upcoming';result.find(g=>g.key===key).tasks.push(t);}
+  for(const g of result)g.tasks.sort((a,b)=>g.key==='done'?a.completedAt-b.completedAt||a.id.localeCompare(b.id):g.key==='pinned'?a.pinnedAt-b.pinnedAt||a.id.localeCompare(b.id):(a.due?.at??0)-(b.due?.at??0)||a.createdAt-b.createdAt||a.id.localeCompare(b.id));
   return result.filter(g=>g.tasks.length);
 }
 export function validateState(s) {
   try {
     if(!s||s.schemaVersion!==1||!Array.isArray(s.tasks)||!Array.isArray(s.events)||!Number.isFinite(s.reputation))fail('Invalid database'); settingsCheck(s.settings);
     const ids=new Set();let running=0;
-    for(const t of s.tasks) {if(typeof t.id!=='string'||!t.id||ids.has(t.id))fail('Invalid task id');ids.add(t.id);title(t.title);if(!['active','archive','pending','trash'].includes(t.lifecycle)||!['idle','running','paused','working'].includes(t.workState))fail('Invalid task state');for(const k of ['createdAt','archiveAnchor','elapsedMs'])if(!Number.isFinite(t[k])||t[k]<0)fail('Invalid task time');if(t.due){const d=deadline(t.due);if(d.date!==t.due.date||d.time!==t.due.time||d.timeZone!==t.due.timeZone||d.at!==t.due.at)fail('Invalid deadline');}if(!t.penalties||typeof t.penalties.first!=='boolean'||typeof t.penalties.week!=='boolean')fail('Invalid penalties');if(![0,2,5].includes(t.award))fail('Invalid award');if(t.completedAt!==null&&(!Number.isFinite(t.completedAt)||!Number.isFinite(t.completedDayEnd)||t.award===0))fail('Invalid completion');if(t.workState==='running'){running++;if(!Number.isFinite(t.timerAnchor)||t.lifecycle!=='active'||t.completedAt!==null)fail('Invalid timer');}else if(t.timerAnchor!==null)fail('Invalid timer');if(['pending','trash'].includes(t.lifecycle)&&!Number.isFinite(t.deletedAt))fail('Invalid deletion');if(t.lifecycle==='pending'&&(!Number.isFinite(t.undoRemaining)||t.undoRemaining<0||t.undoRemaining>5000))fail('Invalid undo');}
+    for(const t of s.tasks) {if(typeof t.id!=='string'||!t.id||ids.has(t.id))fail('Invalid task id');ids.add(t.id);title(t.title);if(!['active','archive','pending','trash'].includes(t.lifecycle)||!['idle','running','paused','working'].includes(t.workState))fail('Invalid task state');for(const k of ['createdAt','archiveAnchor','elapsedMs'])if(!Number.isFinite(t[k])||t[k]<0)fail('Invalid task time');if(t.pinnedAt!=null&&(!Number.isFinite(t.pinnedAt)||t.pinnedAt<0))fail('Invalid task time');if(t.due){const d=deadline(t.due);if(d.date!==t.due.date||d.time!==t.due.time||d.timeZone!==t.due.timeZone||d.at!==t.due.at)fail('Invalid deadline');}if(!t.penalties||typeof t.penalties.first!=='boolean'||typeof t.penalties.week!=='boolean')fail('Invalid penalties');if(![0,2,5].includes(t.award))fail('Invalid award');if(t.completedAt!==null&&(!Number.isFinite(t.completedAt)||!Number.isFinite(t.completedDayEnd)||t.award===0))fail('Invalid completion');if(t.workState==='running'){running++;if(!Number.isFinite(t.timerAnchor)||t.lifecycle!=='active'||t.completedAt!==null)fail('Invalid timer');}else if(t.timerAnchor!==null)fail('Invalid timer');if(['pending','trash'].includes(t.lifecycle)&&!Number.isFinite(t.deletedAt))fail('Invalid deletion');if(t.lifecycle==='pending'&&(!Number.isFinite(t.undoRemaining)||t.undoRemaining<0||t.undoRemaining>5000))fail('Invalid undo');}
     if(running>1)fail('Multiple timers');let sum=0;const penalties=new Set();for(let i=0;i<s.events.length;i++){const e=s.events[i];if(e.id!==i+1||typeof e.taskId!=='string'||!Number.isFinite(e.at)||!({first:[-2],week:[-1],complete:[2,5],uncomplete:[-2,-5]}[e.kind]?.includes(e.delta)))fail('Invalid event');if(['first','week'].includes(e.kind)){const key=e.taskId+':'+e.kind;if(penalties.has(key))fail('Repeated penalty');penalties.add(key);}sum+=e.delta;}if(sum!==s.reputation)fail('Reputation ledger mismatch');for(const t of s.tasks){for(const k of ['first','week'])if(penalties.has(t.id+':'+k)&&!t.penalties[k])fail('Penalty ledger mismatch');if(t.completedAt===null&&(t.award!==0||t.completedDayEnd!==null))fail('Invalid completion');}return {valid:true};
   } catch(error) {return {valid:false,error:error.message};}
 }
