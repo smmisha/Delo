@@ -7,6 +7,7 @@
 #include <dwmapi.h>
 #include <wrl.h>
 #include <WebView2.h>
+#include <WebView2EnvironmentOptions.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Data.Json.h>
 #include <atomic>
@@ -19,6 +20,7 @@
 #include "Store.h"
 #include "Trace.h"
 #include "Worker.h"
+#include "Dpi.h"
 #include "Hotkey.h"
 #include "GlassRenderer.h"
 #include "ScreenshotKeys.h"
@@ -37,6 +39,9 @@ struct View {
     HWND hwnd{};bool quick{},temporary{},visible{true},captureFrozen{},gesture{},sinkOnDeactivate{};HWND previous{};
     com_ptr<ICoreWebView2Controller> controller;com_ptr<ICoreWebView2> web;
     std::unique_ptr<delo::GlassRenderer> glass;bool lastHealthy{true};
+    // dpi: the scale the window is laid out for. dipWidth/dipHeight: the size the user chose, in DIPs;
+    // a scale change that has to clamp the window to the screen does not change it.
+    UINT dpi{};double dipWidth{},dipHeight{};SIZE gestureSize{};std::uint64_t lastErrors{};
 };
 HINSTANCE appInstance;HWND control{};View mainView,quickView;HWND desktopOwner{};
 std::unique_ptr<delo::LightshotTray> lightshotTray;
@@ -73,6 +78,24 @@ void ApplyMode(bool sink=true){if(!mainView.hwnd)return;if(sink)mainView.sinkOnD
 void ClampWindow(View& v){RECT r{};GetWindowRect(v.hwnd,&r);auto mon=MonitorFromRect(&r,MONITOR_DEFAULTTONEAREST);MONITORINFO mi{sizeof(mi)};GetMonitorInfoW(mon,&mi);int width=std::min(r.right-r.left,mi.rcWork.right-mi.rcWork.left),height=std::min(r.bottom-r.top,mi.rcWork.bottom-mi.rcWork.top);int x=std::clamp(r.left,mi.rcWork.left,mi.rcWork.right-width),y=std::clamp(r.top,mi.rcWork.top,mi.rcWork.bottom-height);SetWindowPos(v.hwnd,nullptr,x,y,width,height,SWP_NOZORDER|SWP_NOACTIVATE);}
 void Bounds(View& v){if(v.controller){RECT r{};GetClientRect(v.hwnd,&r);v.controller->put_Bounds(r);v.controller->NotifyParentWindowPositionChanged();}}
 void Layout(View& v){Bounds(v);if(v.glass)v.glass->Resize();}
+// Window bounds are kept in physical pixels together with the scale they were measured at, so a
+// later start at another scale can keep the widget's size in DIPs.
+void RememberBounds(View& v){RECT r{};GetWindowRect(v.hwnd,&r);JsonObject bounds;bounds.Insert(L"x",Number(r.left));bounds.Insert(L"y",Number(r.top));bounds.Insert(L"width",Number(r.right-r.left));bounds.Insert(L"height",Number(r.bottom-r.top));bounds.Insert(L"dpi",Number(v.dpi?v.dpi:delo::MonitorDpi(v.hwnd)));if(v.dipWidth>0){bounds.Insert(L"dipWidth",Number(v.dipWidth));bounds.Insert(L"dipHeight",Number(v.dipHeight));}nativeSettings.Insert(v.quick?L"quickPosition":L"bounds",bounds);SaveNativeLater();}
+// Windows does not always tell a window that the display scale changed (see Dpi.h), so each window
+// compares the scale it was laid out for with its monitor's, on WM_DPICHANGED, on display and
+// setting changes and every two seconds, and resizes to the size the user chose, in DIPs. The quick
+// capsule keeps its fixed height. Scaling is anchored at the top-left corner and clamped to the
+// work area; the chosen size survives the clamp, so returning to the old scale restores it.
+void SyncDpi(View& v,char const* reason){
+    if(!v.hwnd)return;const auto now=delo::MonitorDpi(v.hwnd);
+    if(!v.dpi){v.dpi=now;return;}
+    if(now==v.dpi)return;
+    RECT r{};GetWindowRect(v.hwnd,&r);
+    if(v.dipWidth<=0){v.dipWidth=(r.right-r.left)*96.0/v.dpi;v.dipHeight=(r.bottom-r.top)*96.0/v.dpi;}
+    const int width=int(v.dipWidth*now/96.0+0.5),height=v.quick?MulDiv(QuickHeightDip,int(now),96):int(v.dipHeight*now/96.0+0.5);
+    Log("dpi_changed",std::string(v.quick?"quick ":"main ")+std::to_string(v.dpi)+"->"+std::to_string(now)+" "+reason);
+    v.dpi=now;SetWindowPos(v.hwnd,nullptr,r.left,r.top,width,height,SWP_NOZORDER|SWP_NOACTIVATE);ClampWindow(v);Layout(v);RememberBounds(v);
+}
 // Layout synchronously resizes and redraws the material as well as WebView2.
 void Reposition(View& v){Layout(v);}
 void Hide(View& v){CancelVoice(&v);v.visible=false;ShowWindow(v.hwnd,SW_HIDE);if(v.controller)v.controller->put_IsVisible(FALSE);JsonObject p;p.Insert(L"visible",Bool(false));Event(v,L"visibility",p);}
@@ -313,7 +336,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         // The outer render loop cannot run inside Windows' modal move/size loop.
         // New WGC frames and geometry changes drive rendering. The slow timer only
         // retries a failed renderer while the normal outer loop is blocked.
-        if(message==WM_ENTERSIZEMOVE){v->gesture=true;SetTimer(hwnd,1,250,nullptr);return 0;}
+        if(message==WM_ENTERSIZEMOVE){v->gesture=true;{RECT start{};GetWindowRect(hwnd,&start);v->gestureSize={start.right-start.left,start.bottom-start.top};}SetTimer(hwnd,1,250,nullptr);return 0;}
         if(message==WM_TIMER&&w==1){if(v->gesture&&v->glass&&!v->captureFrozen&&!v->glass->Healthy())v->glass->Tick();return 0;}
         // WM_MOVE/WM_SIZE already submit the freshest crop while Windows owns the
         // interactive loop. Processing an additional capture callback between two
@@ -328,18 +351,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
             else if(v->gesture&&v->glass&&!v->captureFrozen)v->glass->Tick();
             return 0;
         }
-        if(message==WM_DPICHANGED){auto r=reinterpret_cast<RECT*>(l);SetWindowPos(hwnd,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);Layout(*v);return 0;}
+        // The suggested rectangle is computed from the window's own DPI, which can be stale; the
+        // window is resized from the scale it was actually laid out for instead.
+        if(message==WM_DPICHANGED){SyncDpi(*v,"dpichanged");return 0;}
         if(message==WM_ACTIVATE&&LOWORD(w)==WA_INACTIVE){
             if(!v->quick){RecordShortcuts(false);if(!pinned&&(v->temporary||v->sinkOnDeactivate)&&v->visible&&!v->gesture&&!v->captureFrozen){v->temporary=false;ApplyMode();}}
             else if(v->visible&&!v->gesture&&!v->captureFrozen){DismissQuick();return 0;}
         }
-        if(message==WM_GETMINMAXINFO){auto info=reinterpret_cast<MINMAXINFO*>(l);auto dpi=GetDpiForWindow(hwnd);if(v->quick){auto height=MulDiv(QuickHeightDip,dpi,96);info->ptMinTrackSize={MulDiv(296,dpi,96),height};info->ptMaxTrackSize.y=height;}else info->ptMinTrackSize={MulDiv(320,dpi,96),MulDiv(360,dpi,96)};return 0;}
-        if(message==WM_EXITSIZEMOVE){KillTimer(hwnd,1);v->gesture=false;ClampWindow(*v);RECT r{};GetWindowRect(hwnd,&r);JsonObject bounds;bounds.Insert(L"x",Number(r.left));bounds.Insert(L"y",Number(r.top));bounds.Insert(L"width",Number(r.right-r.left));bounds.Insert(L"height",Number(r.bottom-r.top));nativeSettings.Insert(v->quick?L"quickPosition":L"bounds",bounds);SaveNativeLater();Reposition(*v);return 0;}
+        if(message==WM_GETMINMAXINFO){auto info=reinterpret_cast<MINMAXINFO*>(l);auto dpi=delo::MonitorDpi(hwnd);if(v->quick){auto height=MulDiv(QuickHeightDip,dpi,96);info->ptMinTrackSize={MulDiv(296,dpi,96),height};info->ptMaxTrackSize.y=height;}else info->ptMinTrackSize={MulDiv(320,dpi,96),MulDiv(360,dpi,96)};return 0;}
+        if(message==WM_EXITSIZEMOVE){KillTimer(hwnd,1);v->gesture=false;ClampWindow(*v);/* Only a resize changes the chosen size; moving a window that a scale change had to clamp keeps it. */{RECT chosen{};GetWindowRect(hwnd,&chosen);if(chosen.right-chosen.left!=v->gestureSize.cx||chosen.bottom-chosen.top!=v->gestureSize.cy){const auto dpi=v->dpi?v->dpi:delo::MonitorDpi(hwnd);v->dipWidth=(chosen.right-chosen.left)*96.0/dpi;v->dipHeight=(chosen.bottom-chosen.top)*96.0/dpi;}}RememberBounds(*v);Reposition(*v);return 0;}
         if(message==WM_CLOSE){if(v->quick)FinishQuick();else Hide(*v);return 0;}
         // With the non-client band gone, map sizing edges inside the client rect. Quick
         // capture has a fixed compact height, so its entire left/right edges resize only
         // horizontally, including the corners.
-        if(message==WM_NCHITTEST){auto hit=DefWindowProcW(hwnd,message,w,l);if(hit==HTCLIENT){POINT p{GET_X_LPARAM(l),GET_Y_LPARAM(l)};ScreenToClient(hwnd,&p);RECT r{};GetClientRect(hwnd,&r);auto dpi=GetDpiForWindow(hwnd);int edge=MulDiv(v->quick?4:10,dpi,96),corner=MulDiv(24,dpi,96);bool left=p.x<edge,right=p.x>=r.right-edge;if(v->quick){if(left)return HTLEFT;if(right)return HTRIGHT;return hit;}bool top=p.y<edge,bottom=p.y>=r.bottom-edge,cornerLeft=p.x<corner,cornerRight=p.x>=r.right-corner,cornerTop=p.y<corner,cornerBottom=p.y>=r.bottom-corner;if(cornerLeft&&cornerTop)return HTTOPLEFT;if(cornerRight&&cornerTop)return HTTOPRIGHT;if(cornerLeft&&cornerBottom)return HTBOTTOMLEFT;if(cornerRight&&cornerBottom)return HTBOTTOMRIGHT;if(left)return HTLEFT;if(right)return HTRIGHT;if(top)return HTTOP;if(bottom)return HTBOTTOM;}return hit;}
+        if(message==WM_NCHITTEST){auto hit=DefWindowProcW(hwnd,message,w,l);if(hit==HTCLIENT){POINT p{GET_X_LPARAM(l),GET_Y_LPARAM(l)};ScreenToClient(hwnd,&p);RECT r{};GetClientRect(hwnd,&r);auto dpi=delo::MonitorDpi(hwnd);int edge=MulDiv(v->quick?4:10,dpi,96),corner=MulDiv(24,dpi,96);bool left=p.x<edge,right=p.x>=r.right-edge;if(v->quick){if(left)return HTLEFT;if(right)return HTRIGHT;return hit;}bool top=p.y<edge,bottom=p.y>=r.bottom-edge,cornerLeft=p.x<corner,cornerRight=p.x>=r.right-corner,cornerTop=p.y<corner,cornerBottom=p.y>=r.bottom-corner;if(cornerLeft&&cornerTop)return HTTOPLEFT;if(cornerRight&&cornerTop)return HTTOPRIGHT;if(cornerLeft&&cornerBottom)return HTBOTTOMLEFT;if(cornerRight&&cornerBottom)return HTBOTTOMRIGHT;if(left)return HTLEFT;if(right)return HTRIGHT;if(top)return HTTOP;if(bottom)return HTBOTTOM;}return hit;}
         if(message==WM_DESTROY){v->glass.reset();if(v->controller)v->controller->Close();v->controller=nullptr;v->web=nullptr;v->hwnd=nullptr;return 0;}
     }
     if(hwnd==control){
@@ -372,7 +397,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         if(message==taskbarCreated){Tray();if(mainView.hwnd)ApplyMode();return 0;}
         if(message==ShowMessage){ShowList();return 0;}
         if(message==WM_HOTKEY){if(w==1)ShowList();else if(w==2)Quick();return 0;}
-        if(message==WM_DISPLAYCHANGE){if(mainView.hwnd)ClampWindow(mainView);if(quickView.hwnd)ClampWindow(quickView);if(mainView.glass)mainView.glass->Rebuild();if(quickView.glass)quickView.glass->Rebuild();return 0;}
+        if(message==WM_SETTINGCHANGE){SyncDpi(mainView,"settingchange");SyncDpi(quickView,"settingchange");}
+        if(message==WM_DISPLAYCHANGE){SyncDpi(mainView,"displaychange");SyncDpi(quickView,"displaychange");if(mainView.hwnd)ClampWindow(mainView);if(quickView.hwnd)ClampWindow(quickView);if(mainView.glass)mainView.glass->Rebuild();if(quickView.glass)quickView.glass->Rebuild();return 0;}
         if(message==WM_POWERBROADCAST||message==WM_WTSSESSION_CHANGE){bool suspend=(message==WM_POWERBROADCAST&&w==PBT_APMSUSPEND)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_LOCK);bool resume=(message==WM_POWERBROADCAST&&w==PBT_APMRESUMEAUTOMATIC)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_UNLOCK);if(suspend){++powerSuspends;Log("power_suspend",message==WM_POWERBROADCAST?"system":"session");Broadcast(L"suspend");if(mainView.glass)mainView.glass->Suspend(true);if(quickView.glass)quickView.glass->Suspend(true);}if(resume){++powerResumes;Log("power_resume",message==WM_POWERBROADCAST?"system":"session");if(!demoMode){if(mainView.glass)mainView.glass->Suspend(false);if(quickView.glass)quickView.glass->Suspend(false);}Broadcast(L"resume");}return TRUE;}
         if(message==WM_QUERYENDSESSION){Broadcast(L"suspend");return TRUE;}
         if(message==WM_ENDSESSION&&w){PostQuitMessage(0);return 0;}
@@ -390,8 +416,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
     }
     return DefWindowProcW(hwnd,message,w,l);
 }
-void CreateWindowFor(View& v){auto dpi=GetDpiForSystem();int width=MulDiv(v.quick?414:420,dpi,96),height=MulDiv(v.quick?QuickHeightDip:620,dpi,96);int x=100,y=120;auto key=v.quick?L"quickPosition":L"bounds";if(nativeSettings.HasKey(key)){auto b=nativeSettings.GetNamedObject(key);x=int(b.GetNamedNumber(L"x",x));y=int(b.GetNamedNumber(L"y",y));width=std::clamp(int(b.GetNamedNumber(L"width",width)),v.quick?296:320,2400);if(v.quick){auto savedHeight=int(b.GetNamedNumber(L"height",height));if(savedHeight!=height){y+=(savedHeight-height)/2;b.Insert(L"y",Number(y));b.Insert(L"height",Number(height));nativeSettings.Insert(key,b);try{SaveNative();}catch(std::exception const& e){Log("quick_height_save_error",e.what());}}}else height=std::clamp(int(b.GetNamedNumber(L"height",height)),360,2400);}
-    auto style=DWORD(WS_POPUP|WS_THICKFRAME);auto hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_NOREDIRECTIONBITMAP,ClassName,v.quick?L"Delo Quick":L"Delo",style,x,y,width,height,nullptr,nullptr,appInstance,&v);if(!hwnd)throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));
+void CreateWindowFor(View& v){int x=100,y=120;auto key=v.quick?L"quickPosition":L"bounds";JsonObject saved{nullptr};if(nativeSettings.HasKey(key)){saved=nativeSettings.GetNamedObject(key);x=int(saved.GetNamedNumber(L"x",x));y=int(saved.GetNamedNumber(L"y",y));}
+    // Sizes follow the monitor the window opens on. Bounds saved at another scale keep their size in
+    // DIPs; bounds saved before the scale was recorded are taken as they are.
+    const int dpi=int(delo::PointDpi(POINT{x,y}));int width=MulDiv(v.quick?414:420,dpi,96),height=MulDiv(v.quick?QuickHeightDip:620,dpi,96);if(saved){auto b=saved;const int savedDpi=int(b.GetNamedNumber(L"dpi",dpi));width=std::clamp(MulDiv(int(b.GetNamedNumber(L"width",width)),dpi,savedDpi),MulDiv(v.quick?296:320,dpi,96),2400*dpi/96);if(v.quick){auto savedHeight=int(b.GetNamedNumber(L"height",height));if(savedHeight!=height){y+=(savedHeight-height)/2;b.Insert(L"y",Number(y));b.Insert(L"height",Number(height));nativeSettings.Insert(key,b);try{SaveNative();}catch(std::exception const& e){Log("quick_height_save_error",e.what());}}}else height=std::clamp(MulDiv(int(b.GetNamedNumber(L"height",height)),dpi,savedDpi),MulDiv(360,dpi,96),2400*dpi/96);/* The size the user chose, when known, wins over bounds a scale change had to clamp. */if(b.HasKey(L"dipWidth")){width=std::clamp(int(b.GetNamedNumber(L"dipWidth")*dpi/96+0.5),MulDiv(v.quick?296:320,dpi,96),2400*dpi/96);if(!v.quick)height=std::clamp(int(b.GetNamedNumber(L"dipHeight")*dpi/96+0.5),MulDiv(360,dpi,96),2400*dpi/96);}}
+    auto style=DWORD(WS_POPUP|WS_THICKFRAME);auto hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_NOREDIRECTIONBITMAP,ClassName,v.quick?L"Delo Quick":L"Delo",style,x,y,width,height,nullptr,nullptr,appInstance,&v);if(!hwnd)throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));v.dpi=delo::MonitorDpi(hwnd);if(saved&&saved.HasKey(L"dipWidth")){v.dipWidth=saved.GetNamedNumber(L"dipWidth");v.dipHeight=saved.GetNamedNumber(L"dipHeight");}else{v.dipWidth=width*96.0/v.dpi;v.dipHeight=height*96.0/v.dpi;}
     // Windows 11 still strokes a 1px border outside the client area; DWMWA_COLOR_NONE
     // drops it so nothing squares off the rounded corners.
     {COLORREF borderNone=DWMWA_COLOR_NONE;DwmSetWindowAttribute(hwnd,DWMWA_BORDER_COLOR,&borderNone,sizeof(borderNone));}
@@ -438,17 +467,20 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
         // so it is set after the file is written and never saved.
         nativeSettings.Insert(L"hotkeyError",JsonValue::CreateStringValue(to_hstring(e.what())));
     }
-    if(harness)SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",L"--remote-debugging-port=9223 --remote-debugging-address=127.0.0.1");
     quickView.quick=true;CreateWindowFor(mainView);CreateWindowFor(quickView);
     try{lightshotTray=std::make_unique<delo::LightshotTray>(control,delo::ScreenshotKeys::PrepareMessage);}
     catch(std::exception const& e){Log("lightshot_tray_init_error",e.what());}
     try{screenshotKeys=std::make_unique<delo::ScreenshotKeys>(control,lightshotTray.get());auto keys=screenshotKeys->GetCounters();if(!keys.installed)Log("screenshot_keys_install_error",std::to_string(keys.installError));if(lightshotTray&&!keys.mouseInstalled)Log("screenshot_mouse_install_error",std::to_string(keys.mouseInstallError));}
     catch(std::exception const& e){Log("screenshot_keys_install_error",e.what());}
-    check_hresult(CreateCoreWebView2EnvironmentWithOptions(nullptr,(dataRoot/L"WebView2").c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{if(FAILED(hr)){MessageBoxW(mainView.hwnd,L"Install Microsoft Edge WebView2 Runtime to run Delo.",L"Delo",MB_ICONERROR);PostQuitMessage(1);return S_OK;}environment.copy_from(env);CreateWebView(mainView);CreateWebView(quickView);return S_OK;}).Get()));
+    // Harness sessions open DevTools for the tests. The arguments go through the environment options:
+    // the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS variable is ignored on some machines (Windows Sandbox).
+    Microsoft::WRL::ComPtr<CoreWebView2EnvironmentOptions> options;
+    if(harness){options=Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();check_hresult(options->put_AdditionalBrowserArguments(L"--remote-debugging-port=9223 --remote-debugging-address=127.0.0.1"));}
+    check_hresult(CreateCoreWebView2EnvironmentWithOptions(nullptr,(dataRoot/L"WebView2").c_str(),options.Get(),Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{if(FAILED(hr)){MessageBoxW(mainView.hwnd,L"Install Microsoft Edge WebView2 Runtime to run Delo.",L"Delo",MB_ICONERROR);PostQuitMessage(1);return S_OK;}environment.copy_from(env);CreateWebView(mainView);CreateWebView(quickView);return S_OK;}).Get()));
     auto ownerCheck=GetTickCount64();bool running=true;int exitCode{};
     while(running){MSG msg{};while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){if(msg.message==WM_QUIT){running=false;exitCode=int(msg.wParam);break;}TranslateMessage(&msg);DispatchMessageW(&msg);}if(!running)break;
-        for(auto* v:{&mainView,&quickView}){if(v->hwnd&&v->visible&&v->glass&&!v->captureFrozen){v->glass->Tick();auto healthy=v->glass->Healthy();if(healthy!=v->lastHealthy){v->lastHealthy=healthy;JsonObject p;p.Insert(L"available",Bool(healthy));Event(*v,L"material",p);InvalidateRect(v->hwnd,nullptr,TRUE);}}}
-        if(GetTickCount64()-ownerCheck>2000){ownerCheck=GetTickCount64();if(!mainView.hwnd&&!exiting){CreateWindowFor(mainView);Log("window_recreated","true");}if(mainView.hwnd&&!pinned&&!mainView.temporary){auto owner=GetWindow(mainView.hwnd,GW_OWNER);if(!IsWindow(owner))ApplyMode();}}
+        for(auto* v:{&mainView,&quickView}){if(v->hwnd&&v->visible&&v->glass&&!v->captureFrozen){v->glass->Tick();auto healthy=v->glass->Healthy();if(const auto errors=v->glass->GetCounters().errors;errors>v->lastErrors){v->lastErrors=errors;Log("glass_error",std::string(v->quick?"quick ":"main ")+v->glass->LastError());}if(healthy!=v->lastHealthy){v->lastHealthy=healthy;JsonObject p;p.Insert(L"available",Bool(healthy));Event(*v,L"material",p);InvalidateRect(v->hwnd,nullptr,TRUE);}}}
+        if(GetTickCount64()-ownerCheck>2000){ownerCheck=GetTickCount64();SyncDpi(mainView,"poll");SyncDpi(quickView,"poll");if(!mainView.hwnd&&!exiting){CreateWindowFor(mainView);Log("window_recreated","true");}if(mainView.hwnd&&!pinned&&!mainView.temporary){auto owner=GetWindow(mainView.hwnd,GW_OWNER);if(!IsWindow(owner))ApplyMode();}}
         HANDLE handles[2]{};DWORD count{};for(auto* v:{&mainView,&quickView})if(v->visible&&v->glass&&v->glass->EventHandle())handles[count++]=v->glass->EventHandle();MsgWaitForMultipleObjectsEx(count,handles,50,QS_ALLINPUT,MWMO_INPUTAVAILABLE);
     }
     // Let writes already queued land before the process goes away.
