@@ -84,3 +84,12 @@ body.reduced button:active{scale:1}
 #task-menu [data-action=archive]{position:relative;margin-top:7px;color:var(--archive)}
 #task-menu [data-action=archive]::before{content:'';position:absolute;left:12px;right:12px;top:-4px;height:1px;background:var(--line)}
 #app-menu{width:212px}
+
+/* F03: the away question replaces the stop button inside the same strip, so the row keeps
+   its height and the list does not move. */
+.idle-question .work-status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.idle-answer{height:26px;padding:0 10px;border-radius:13px;background:none;color:var(--work);font-size:12px;font-weight:600;flex-shrink:0}
+.idle-answer:hover{background:#ffffff40}
+.idle-subtract{background:var(--work);color:#fff}
+body.dark .idle-subtract{color:#1d1406}
+.idle-subtract:hover{background:var(--work);filter:brightness(1.12)}
