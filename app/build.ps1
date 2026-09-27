@@ -1,4 +1,5 @@
-param([Alias('Version')][string]$AppVersion='0.2.0',[string]$OutputDirectory)
+# -SkipVoice builds without copying the local Whisper runtime: CI compiles and tests, it does not package.
+param([Alias('Version')][string]$AppVersion='0.2.0',[string]$OutputDirectory,[switch]$SkipVoice)
 $ErrorActionPreference='Stop'
 if($AppVersion -notmatch '^(\d+)\.(\d+)\.(\d+)$'){throw 'Version must be major.minor.patch'}
 $major=[int]$Matches[1];$minor=[int]$Matches[2];$patch=[int]$Matches[3]
@@ -22,6 +23,7 @@ try {
  if($LASTEXITCODE -ne 0){throw 'Delo compilation failed'}
  Copy-Item -LiteralPath "$PSScriptRoot/native/Glass.hlsl" -Destination $out -Force
  foreach($folder in @('ui','core')){$target=Join-Path $out $folder;if(Test-Path -LiteralPath $target){Remove-Item -LiteralPath $target -Recurse -Force}Copy-Item -LiteralPath "$PSScriptRoot/$folder" -Destination $out -Recurse -Force}
+ if(-not $SkipVoice){
  $voice=Join-Path $PSScriptRoot 'vendor/voice'
  if(-not(Test-Path -LiteralPath (Join-Path $voice 'manifest.json'))){throw 'Run setup-voice.ps1 to restore the local Whisper runtime.'}
  foreach($item in (Get-Content -LiteralPath (Join-Path $voice 'manifest.json') -Raw | ConvertFrom-Json)){
@@ -29,4 +31,5 @@ try {
  }
  $voiceTarget=Join-Path $out 'voice';New-Item -ItemType Directory -Path $voiceTarget -Force | Out-Null
  Get-ChildItem -LiteralPath $voice -File | Copy-Item -Destination $voiceTarget -Force
+ }
 } finally {$env:PATH=$oldPath}

@@ -1,0 +1,44 @@
+# N10: every PR and every push to main builds the x64 widget and runs the unit and store
+# tests. Live harness tests need real windows and a desktop and stay local.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit:
+    name: JS unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: node --test
+        run: node --test app/tests/*.test.mjs
+  windows:
+    name: Windows x64 build and store tests
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: JS unit tests on Windows
+        run: node --test "app/tests/*.test.mjs"
+      - name: Restore WebView2 SDK
+        run: ./app/setup.ps1
+      - name: Build Delo.exe
+        run: ./app/build.ps1 -SkipVoice
+      - name: Store tests
+        run: ./app/test-store.ps1
