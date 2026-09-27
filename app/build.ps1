@@ -1,5 +1,5 @@
 # -SkipVoice builds without copying the local Whisper runtime: CI compiles and tests, it does not package.
-param([Alias('Version')][string]$AppVersion='0.2.0',[string]$OutputDirectory,[switch]$SkipVoice)
+param([Alias('Version')][string]$AppVersion='0.3.0',[string]$OutputDirectory,[switch]$SkipVoice)
 $ErrorActionPreference='Stop'
 if($AppVersion -notmatch '^(\d+)\.(\d+)\.(\d+)$'){throw 'Version must be major.minor.patch'}
 $major=[int]$Matches[1];$minor=[int]$Matches[2];$patch=[int]$Matches[3]
