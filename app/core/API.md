@@ -17,3 +17,5 @@ Defaults P1-P8 are implementation choices, not retrospectively user-approved spe
 `due-text.mjs` (T08): `parseDueText(text,{now,timeZone})` returns `null` or `{title,date,time,due,start}` for a deadline written at the end of the text in RU/UK/EN; `due` is `makeDeadline(date,time,timeZone)` and `title` is the text before it. Ambiguous tails return `null`. The UI previews the result and sends `create {title,due}` only if the user did not dismiss it.
 
 `search.mjs` (A05): `searchTerms(query)` folds case, ё/е and apostrophes and splits on whitespace; `matchesSearch(title,terms)` is true when every term occurs in the title. The archive and trash sheets filter their rows with it.
+
+F04: a task may carry `intervals`, `[wallClockStart, ms]` pairs appended when a running timer is frozen or checkpointed; adjacent runs extend the last pair. Their sum never exceeds `elapsedMs`; the difference is time measured before tracking. `timeStats(state,{now,monotonic,timeZone})` returns `{today,week,before,tasks}` with the live run included; `dayStart` and `weekStart` (Monday) give the local boundaries.

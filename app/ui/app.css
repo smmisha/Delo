@@ -441,3 +441,15 @@ body.dark #collection-search{border-color:#ffffff22;box-shadow:inset 0 1px 2px #
 #collection-search:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
 #collection-search[hidden]{display:none}
 #collection-search::-webkit-search-cancel-button{cursor:pointer}
+
+/* F04: the "Time" sheet, opened from the header menu like the archive. */
+.time-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:4px 0 12px}
+.time-total{display:flex;flex-direction:column;gap:3px;padding:10px 14px;border-radius:18px;background:var(--small-surface);box-shadow:inset 0 1px 1px #ffffff80}
+body.dark .time-total{box-shadow:inset 0 1px 1px #ffffff1c}
+.time-total span{font-size:12px;color:var(--muted)}
+.time-total b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.time-row{display:flex;flex-direction:column;gap:4px;padding:12px 0;border-top:1px solid var(--line)}
+.time-title{min-width:0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.time-row small{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#time-before{margin:0;padding-top:10px;border-top:1px solid var(--line)}
+#time-before[hidden]{display:none}
