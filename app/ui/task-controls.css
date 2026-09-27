@@ -86,7 +86,9 @@ body.reduced button:active{scale:1}
 #app-menu{width:212px}
 
 /* F03: the away question replaces the stop button inside the same strip, so the row keeps
-   its height and the list does not move. */
+   its height and the list does not move. The answers are shorter than the 36 px stop button,
+   so the strip holds the height the button gave it (42 px). */
+.work-strip.idle-question{min-height:42px}
 .idle-question .work-status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .idle-answer{height:26px;padding:0 10px;border-radius:13px;background:none;color:var(--work);font-size:12px;font-weight:600;flex-shrink:0}
 .idle-answer:hover{background:#ffffff40}
