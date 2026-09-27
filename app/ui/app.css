@@ -419,3 +419,17 @@ body.dark .engraving{color:rgba(0,0,0,.52);text-shadow:0 1px 0 rgba(255,255,255,
 /* body.dark .widget resets the background to transparent at higher specificity than
    .demo .widget, so the dark theme needs its own rule to get the matte at all. */
 body.dark.demo .widget{background:var(--menu-surface);box-shadow:inset 0 0 0 .8px #ffffff2e,inset 0 1px 1px #ffffff2e}
+
+/* T08: the recognized deadline sits on the capsule's top edge while typing, so the
+   field keeps its width and the task list does not move. The quick window has no room
+   above the capsule; there it takes the compact second line, like voice status. */
+#due-hint{position:absolute;left:calc(var(--control) + 6px);bottom:calc(100% - 10px);z-index:2;display:flex;align-items:center;gap:2px;max-width:calc(100% - 2*var(--control) - 12px);min-width:0;padding:2px 3px 2px 10px;border:1px solid #ffffff80;border-radius:999px;background:var(--popover);color:var(--ink);font-size:12px;font-weight:600;line-height:18px;box-shadow:inset 0 1px 1px #ffffffb0,0 3px 10px #17385318}
+body.dark #due-hint{border-color:#ffffff30;box-shadow:inset 0 1px 1px #ffffff2a,0 3px 10px #0004}
+#due-hint[hidden]{display:none}
+#due-hint-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+#due-hint-clear{display:grid;place-items:center;width:22px;height:22px;flex:0 0 22px;border-radius:50%;background:none;color:var(--muted)}
+#due-hint-clear:hover{background:var(--small-surface);color:var(--ink)}
+#due-hint-clear svg{width:13px;height:13px}
+.quick #due-hint{bottom:5px;left:calc(var(--control) + 8px);padding:0 0 0 2px;border:0;background:none;box-shadow:none;font-size:11px;line-height:14px;color:var(--muted)}
+.quick #due-hint-clear{width:16px;height:16px;flex-basis:16px}
+.quick .due-active #task-input{min-height:54px;padding-top:5px;padding-bottom:20px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
