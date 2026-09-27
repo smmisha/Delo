@@ -178,7 +178,7 @@ void Reply(View& v,IJsonValue const& id,bool ok,JsonObject const& result,std::st
 // serialized on the window thread, written on the worker, and adopted and answered only once
 // the write is confirmed; a load or backup restore waits for a save in flight, so it always
 // sees the newest committed data. The window thread never waits for the disk (N06).
-struct StoreJob{View* v{};IJsonValue id{nullptr};std::wstring type;JsonObject payload{nullptr};JsonObject state{nullptr};std::string bytes,error;bool ok{};int phase{};delo::Store::Restore restore;};
+struct StoreJob{View* v{};IJsonValue id{nullptr};std::wstring type;JsonObject payload{nullptr};JsonObject state{nullptr};std::string bytes,error;bool ok{};int phase{};delo::Store::Restore restore;bool keepCopy{};std::wstring copy;};
 std::deque<std::unique_ptr<StoreJob>> storeQueue;bool storeWriting{};
 void PumpStore();
 void FinishStore(StoreJob* raw){
@@ -200,6 +200,8 @@ void FinishStore(StoreJob* raw){
             Broadcast(L"stateChanged",result);Reply(*job->v,job->id,true,result);
         }else{
             auto revision=store->Commit(job->state);result.Insert(L"revision",Number(double(revision)));
+            // N12: an import replaces the data; the copy of what was there is named in the reply.
+            if(job->keepCopy){result.Insert(L"copy",JsonValue::CreateStringValue(job->copy));Log("import",to_string(job->copy));}
             JsonObject changed;changed.Insert(L"state",store->State());changed.Insert(L"revision",Number(double(revision)));
             Reply(*job->v,job->id,true,result);if(job->v!=&mainView)Event(mainView,L"stateChanged",changed);if(job->v!=&quickView)Event(quickView,L"stateChanged",changed);
         }
@@ -213,11 +215,11 @@ void StartStore(std::unique_ptr<StoreJob> job){
         if(job->type==L"load"){if(!storageError.empty())throw std::runtime_error(storageError);result.Insert(L"state",store->State()?store->State().as<IJsonValue>():JsonValue::CreateNullValue());result.Insert(L"revision",Number(double(store->Revision())));result.Insert(L"native",nativeSettings);result.Insert(L"demoMode",Bool(demoMode));result.Insert(L"monotonicMs",Number(MonotonicMs()));Reply(*job->v,job->id,true,result);return;}
         if(job->type==L"restoreBackup"){auto* raw=job.get();auto backup=store->BackupPath();storeWorker->Post([raw,backup]{try{raw->bytes=delo::ReadBytes(backup);raw->ok=true;}catch(std::exception const& e){raw->error=e.what();}catch(...){raw->error="Cannot read the backup";}PostMessageW(control,StoreDone,0,reinterpret_cast<LPARAM>(raw));});job.release();storeWriting=true;return;}
         auto expected=job->payload.GetNamedNumber(L"revision",-1);if(expected<0)throw std::runtime_error("Missing revision");
-        job->state=job->payload.GetNamedObject(L"state");job->bytes=store->Prepare(job->state,uint64_t(expected));
+        job->state=job->payload.GetNamedObject(L"state");job->bytes=store->Prepare(job->state,uint64_t(expected));job->keepCopy=job->payload.GetNamedBoolean(L"keepCopy",false);
         // The worker touches only the bytes and the outcome fields; the WinRT parts of the job stay
         // on this thread and come back with it in FinishStore.
         auto* raw=job.get();auto path=store->Path();const int delay=harness?storeDelayMs.load():0;
-        storeWorker->Post([raw,path,delay]{if(delay>0)Sleep(DWORD(delay));try{delo::AtomicWrite(path,raw->bytes);raw->ok=true;}catch(std::exception const& e){raw->error=e.what();}catch(...){raw->error="Data write failed";}PostMessageW(control,StoreDone,0,reinterpret_cast<LPARAM>(raw));});
+        storeWorker->Post([raw,path,delay]{if(delay>0)Sleep(DWORD(delay));try{if(raw->keepCopy)raw->copy=delo::Store::PreserveCopy(path,L"before-import");delo::AtomicWrite(path,raw->bytes);raw->ok=true;}catch(std::exception const& e){raw->error=e.what();}catch(...){raw->error="Data write failed";}PostMessageW(control,StoreDone,0,reinterpret_cast<LPARAM>(raw));});
         job.release();storeWriting=true;
     }catch(hresult_error const& e){Reply(*job->v,job->id,false,{},to_string(e.message()));}catch(std::exception const& e){Reply(*job->v,job->id,false,{},e.what());}
 }

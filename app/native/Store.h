@@ -80,7 +80,10 @@ public:
         root.Insert(L"revision",JsonValue::CreateNumberValue(double(restoredRevision)));
         return {winrt::to_string(root.Stringify()),root.GetNamedObject(L"state"),restoredRevision};
     }
-    static void PreserveDamaged(std::filesystem::path const& path){if(std::filesystem::exists(path)){auto corrupt=path;corrupt+=L".damaged-"+std::to_wstring(GetTickCount64());std::filesystem::copy_file(path,corrupt);}}
+    // Keeps a copy of the current data file next to it, as <file>.<tag>-<ticks>, and returns the
+    // copy's file name; nothing and an empty name when there is no file yet.
+    static std::wstring PreserveCopy(std::filesystem::path const& path,std::wstring const& tag){if(!std::filesystem::exists(path))return {};auto copy=path;copy+=L"."+tag+L"-"+std::to_wstring(GetTickCount64());std::filesystem::copy_file(path,copy);return copy.filename().wstring();}
+    static void PreserveDamaged(std::filesystem::path const& path){PreserveCopy(path,L"damaged");}
     void CommitRestore(Restore const& restored){blocked_=false;state_=restored.state;revision_=restored.revision;}
     void RestoreBackup(){auto restored=PrepareRestore(ReadBytes(BackupPath()));PreserveDamaged(path_);AtomicWrite(path_,restored.bytes,false);CommitRestore(restored);}
 };

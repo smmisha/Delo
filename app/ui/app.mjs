@@ -3,6 +3,7 @@ import {saveSettings} from './settings-transaction.mjs';
 import {createState,applyCommand,validateState,recoverState,makeDeadline,groups,elapsed,formatElapsed,dateKey,timeStats} from '../core/model.mjs';
 import {parseDueText} from '../core/due-text.mjs';
 import {searchTerms,matchesSearch} from '../core/search.mjs';
+import {exportData,exportName,parseImport,summarize} from '../core/transfer.mjs';
 import {HostBridge} from './bridge.mjs';
 import {translator,localeFor} from './i18n.mjs';
 import {notificationFor} from './notification-policy.mjs';
@@ -111,7 +112,7 @@ function closeDialog(dialog){dialog.close();const target=dialogFocus.get(dialog)
 $$('[data-close]').forEach(node=>node.addEventListener('click',()=>closeDialog(node.closest('dialog'))));$$('dialog:not(#confirmation)').forEach(dialog=>dialog.addEventListener('cancel',event=>{event.preventDefault();closeDialog(dialog);}));
 let confirmationResolve=null;
 function settleConfirmation(value){const resolve=confirmationResolve;confirmationResolve=null;const dialog=$('#confirmation');if(dialog.open)closeDialog(dialog);resolve?.(value);}
-function askConfirmation(messageKey,acceptKey){if(confirmationResolve)settleConfirmation(false);text($('#confirmation-message'),t(messageKey));text($('#confirmation-accept'),t(acceptKey));openDialog($('#confirmation'));queueMicrotask(()=>$('#confirmation-cancel').focus());return new Promise(resolve=>{confirmationResolve=resolve;});}
+function askConfirmation(messageKey,acceptKey,message=null){if(confirmationResolve)settleConfirmation(false);text($('#confirmation-message'),message??t(messageKey));text($('#confirmation-accept'),t(acceptKey));openDialog($('#confirmation'));queueMicrotask(()=>$('#confirmation-cancel').focus());return new Promise(resolve=>{confirmationResolve=resolve;});}
 $('#confirmation-cancel').addEventListener('click',()=>settleConfirmation(false));$('#confirmation-close').addEventListener('click',()=>settleConfirmation(false));$('#confirmation-accept').addEventListener('click',()=>settleConfirmation(true));$('#confirmation').addEventListener('cancel',event=>{event.preventDefault();settleConfirmation(false);});
 function openEditor(task=null,dateFocus=false){editorId=task?.id??null;editorZone=task?.due?.timeZone??context().timeZone;text($('#editor-title'),t(task?'edit':'newTask'));const typed=task?null:entryDue();$('#editor-input').value=task?.title??typed?.title??$('#task-input').value;$('#due-input').value=task?.due?.date??typed?.date??'';$('#time-input').value=task?.due?.time??typed?.time??'';$('#editor-error').hidden=true;updateDateControls();openDialog($('#editor'));(dateFocus?$('#due-input'):$('#editor-input')).focus();grow($('#editor-input'));}
 function updateDateControls(){if(!$('#due-input').value)$('#time-input').value='';text($('#zone-hint'),`${t('deadlineZone')}: ${editorZone||context().timeZone}`);const selected=$('#due-input').value;$$('[data-days]').forEach(button=>button.setAttribute('aria-pressed',String(selected===dateAfter(Number(button.dataset.days)))));$('#clear-date').setAttribute('aria-pressed',String(!selected));}
@@ -223,7 +224,7 @@ for(const edge of resizeEdges){
   $('#widget').append(grip);
 }
 function fillSettingsForm(){const form=$('#settings-form');for(const control of form.elements){if(!control.name)continue;const value=state.settings[control.name];if(control.type==='checkbox')control.checked=!!value;else control.value=String(value??'');}form.elements.autostart.checked=native.autostart??state.settings.autostart;form.elements.listShortcut.value=native.hotkeys?.list??state.settings.listShortcut;form.elements.quickShortcut.value=native.hotkeys?.quick??state.settings.quickShortcut;syncArchiveDays();}
-function openSettings(){fillSettingsForm();$('#settings-error').hidden=true;openDialog($('#settings'));}
+function openSettings(){fillSettingsForm();$('#settings-error').hidden=true;dataStatus('');openDialog($('#settings'));}
 // The retention selector only means anything while auto-archive runs. Leaving it live
 // with the mode off offered a setting that changed nothing.
 function syncArchiveDays(){const form=$('#settings-form'),off=form.elements.autoArchive.value==='off';setDisabled(form.elements.archiveDays,off);form.elements.archiveDays.closest('label').classList.toggle('inactive',off);}
@@ -286,6 +287,31 @@ function settingsChanged(event){
 }
 $('#settings-form').addEventListener('change',settingsChanged);
 $$('.shortcut-recorder').forEach(node=>node.addEventListener('blur',()=>{if($('#settings').open)applySettings();}));
+// N12: export writes the whole state to a file the user picks; import reads one back, shows
+// what it holds, and replaces the data only after confirmation. The host copies the current
+// data file before writing (keepCopy) and names the copy in its reply.
+const fill=(key,values)=>t(key).replace(/\{(\w+)\}/g,(match,name)=>values[name]??match);
+function dataStatus(message){const node=$('#data-status');text(node,message);node.hidden=!message;}
+async function exportFile(){
+  if(!state)return;const name=exportName(),body=exportData(state);dataStatus('');$('#settings-error').hidden=true;
+  try{
+    if(typeof showSaveFilePicker==='function'){try{const handle=await showSaveFilePicker({suggestedName:name,types:[{description:'Delo',accept:{'application/json':['.json']}}]});const writable=await handle.createWritable();await writable.write(body);await writable.close();dataStatus(fill('exported',{name:handle.name}));return;}catch(error){if(error?.name==='AbortError')return;}}
+    const url=URL.createObjectURL(new Blob([body],{type:'application/json'})),link=element('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);dataStatus(fill('exported',{name}));
+  }catch{text($('#settings-error'),t('exportError'));$('#settings-error').hidden=false;}
+}
+async function importFile(file){
+  dataStatus('');$('#settings-error').hidden=true;if(!file||!state)return;
+  let parsed;try{if(file.size>16*1024*1024)throw Error('importTooLarge');parsed=parseImport(await file.text(),state);}catch(error){const key=['importTooLarge','importUnsupported'].includes(error.message)?error.message:'importInvalid';text($('#settings-error'),t(key));$('#settings-error').hidden=false;return;}
+  const current=summarize(state),count=n=>fill('tasksCount',{n});
+  if(!await askConfirmation('importConfirm','importAccept',fill('importConfirm',{current:count(current.tasks),file:count(parsed.summary.tasks),score:parsed.summary.reputation})))return;
+  if(busy||!ready)return;setBusy(true);
+  try{syncClock(await host.request('clock'));const result=await host.request('save',{state:parsed.state,revision,keepCopy:true});state=parsed.state;revision=result?.revision??revision+1;latestExternal=null;render();fillSettingsForm();dataStatus(result?.copy?fill('imported',{name:result.copy}):t('importedFresh'));announce(t('saved'));}
+  catch(error){report(error,null,$('#settings-error'));if(/conflict|timeout/.test(String(error?.message)))await resync();}
+  finally{setBusy(false);}
+}
+$('#export-data').addEventListener('click',exportFile);
+$('#import-data').addEventListener('click',()=>{const input=$('#import-file');input.value='';input.click();});
+$('#import-file').addEventListener('change',event=>{event.stopPropagation();importFile(event.target.files?.[0]);});
 $('#settings-form').addEventListener('submit',async event=>{
   event.preventDefault();
   await applySettings({close:true});
