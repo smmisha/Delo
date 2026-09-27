@@ -1,6 +1,6 @@
 import {stateFromLoad} from './state-loader.mjs';
 import {saveSettings} from './settings-transaction.mjs';
-import {createState,applyCommand,validateState,recoverState,makeDeadline,groups,elapsed,formatElapsed,dateKey,timeStats,idleMinutes} from '../core/model.mjs';
+import {createState,applyCommand,validateState,recoverState,makeDeadline,groups,elapsed,formatElapsed,dateKey,timeStats,idleMinutes,dueReminders,timerToggle} from '../core/model.mjs';
 import {createIdleWatch} from '../core/idle.mjs';
 import {parseDueText} from '../core/due-text.mjs';
 import {searchTerms,matchesSearch} from '../core/search.mjs';
@@ -158,7 +158,7 @@ for(const input of $$('.shortcut-recorder')){
   input.addEventListener('focus',beginRecording);
   input.addEventListener('blur',()=>{
     input.classList.remove('recording');
-    input.placeholder='';
+    input.placeholder=input.dataset.optional!==undefined?t('shortcutOff'):'';
     if(!input.value&&recorded!==null)input.value=recorded;
     recorded=null;
     queueMicrotask(syncShortcutRecording);
@@ -166,6 +166,8 @@ for(const input of $$('.shortcut-recorder')){
   input.addEventListener('keydown',event=>{
     if(event.key==='Tab')return;
     event.preventDefault();event.stopPropagation();beginRecording();
+    // F05: the timer shortcut may be off; Backspace or Delete empties it for good.
+    if(input.dataset.optional!==undefined&&(event.key==='Backspace'||event.key==='Delete')){input.value='';recorded='';announce(t('shortcutOff'));return;}
     if(event.key==='Escape'){input.blur();return;}
     const shortcut=shortcutFromEvent(event);
     if(shortcut){input.value=shortcut;input.setCustomValidity('');announce(shortcut);}
@@ -225,7 +227,7 @@ for(const edge of resizeEdges){
   grip.addEventListener('pointerdown',event=>{if(event.button===0){event.preventDefault();event.stopPropagation();host.window('resize',{edge:{left:1,right:2,top:3,'top-left':4,'top-right':5,bottom:6,'bottom-left':7,'bottom-right':8}[edge]}).catch(error=>report(error));}});
   $('#widget').append(grip);
 }
-function fillSettingsForm(){const form=$('#settings-form');for(const control of form.elements){if(!control.name)continue;const value=state.settings[control.name];if(control.type==='checkbox')control.checked=!!value;else control.value=String(value??'');}form.elements.idleMinutes.value=String(idleMinutes(state.settings));form.elements.autostart.checked=native.autostart??state.settings.autostart;form.elements.listShortcut.value=native.hotkeys?.list??state.settings.listShortcut;form.elements.quickShortcut.value=native.hotkeys?.quick??state.settings.quickShortcut;syncArchiveDays();}
+function fillSettingsForm(){const form=$('#settings-form');for(const control of form.elements){if(!control.name)continue;const value=state.settings[control.name];if(control.type==='checkbox')control.checked=!!value;else control.value=String(value??'');}form.elements.idleMinutes.value=String(idleMinutes(state.settings));form.elements.remindMinutes.value=String(state.settings.remindMinutes??15);form.elements.checkUpdates.checked=!!state.settings.checkUpdates;form.elements.timerShortcut.value=native.timerKey??'';form.elements.timerShortcut.placeholder=t('shortcutOff');renderUpdate();if(native.timerKeyError){text($('#settings-error'),t('hotkeyError'));$('#settings-error').hidden=false;}form.elements.autostart.checked=native.autostart??state.settings.autostart;form.elements.listShortcut.value=native.hotkeys?.list??state.settings.listShortcut;form.elements.quickShortcut.value=native.hotkeys?.quick??state.settings.quickShortcut;syncArchiveDays();}
 function openSettings(){fillSettingsForm();$('#settings-error').hidden=true;dataStatus('');openDialog($('#settings'));}
 // The retention selector only means anything while auto-archive runs. Leaving it live
 // with the mode off offered a setting that changed nothing.
@@ -244,9 +246,12 @@ async function applySettings({close=false}={}){
   // it — one trailing pass re-reads the whole form, so nothing needs queueing.
   if(busy){settingsPending=true;return false;}
   const form=$('#settings-form'),patch={};
+  const timerInput=form.elements.timerShortcut;
+  if(timerInput.value!==(native.timerKey??'')&&!(document.activeElement===timerInput)){try{await host.window('timerHotkey',{key:timerInput.value});native={...native,timerKey:timerInput.value};delete native.timerKeyError;}catch(error){timerInput.value=native.timerKey??'';report(error,null,$('#settings-error'));}}
+  const updatesWere=!!state.settings.checkUpdates;
   for(const control of form.elements){
-    if(!control.name)continue;
-    let value=control.type==='checkbox'?control.checked:['archiveDays','idleMinutes'].includes(control.name)?Number(control.value):control.value;
+    if(!control.name||control.name==='timerShortcut')continue;
+    let value=control.type==='checkbox'?control.checked:['archiveDays','idleMinutes','remindMinutes'].includes(control.name)?Number(control.value):control.value;
     // A recorder sits empty from the moment it is armed until a combination is pressed.
     // Sending that blank would fail validation and take the whole patch down with it,
     // including the shortcut the user had just finished setting in the other field.
@@ -277,6 +282,7 @@ async function applySettings({close=false}={}){
     latestExternal=null;
     if(settingsPending){settingsPending=false;setTimeout(()=>applySettings(),0);}
   }
+  if(ok&&!!state.settings.checkUpdates!==updatesWere)checkUpdates(true);
   return ok;
 }
 function settingsChanged(event){
@@ -311,6 +317,18 @@ async function importFile(file){
   catch(error){report(error,null,$('#settings-error'));if(/conflict|timeout/.test(String(error?.message)))await resync();}
   finally{setBusy(false);}
 }
+// N13: the host asks GitHub at most once a day and otherwise returns its last answer, so the
+// page may ask on start and every hour. Turning the setting off makes the host forget it.
+let updateInfo=null,lastUpdateAsk=0;
+function renderUpdate(){const node=$('#update-status'),on=!!state?.settings.checkUpdates&&!!updateInfo?.latest;node.hidden=!on;if(!on)return;const version=String(updateInfo.newer?updateInfo.latest:updateInfo.current).replace(/^v/i,'');text($('#update-text'),fill(updateInfo.newer?'updateAvailable':'updateCurrent',{version}));$('#open-release').hidden=!updateInfo.newer;}
+async function checkUpdates(force=false){if(quick||!state)return;const enabled=!!state.settings.checkUpdates;if(!force&&(!enabled||Date.now()-lastUpdateAsk<3600000))return;lastUpdateAsk=Date.now();try{const result=await host.window('updates',{enabled});updateInfo=enabled?result:null;}catch{/* Offline or refused: nothing to show, nothing breaks (V26). */}renderUpdate();}
+$('#open-release').addEventListener('click',()=>host.window('openRelease').catch(()=>{}));
+// T07: reminders are marked in the data first, then shown, so each deadline is announced once
+// even with two windows; several at the same moment become one notification.
+function reminderText(list){const at=task=>task.due.time?fill('reminderAt',{time:task.due.time}):t('today').toLocaleLowerCase(locale);if(list.length===1)return {title:t('reminderTitle'),body:`${list[0].title} — ${at(list[0])}`};return {title:t('reminderTitle'),body:fill('reminderMany',{n:list.length,titles:list.map(task=>task.title).join(', ')})};}
+async function remind(){if(quick||busy||!ready||!state)return;const list=dueReminders(state,{now:Date.now()});if(!list.length)return;const message=reminderText(list);if(await mutate({type:'reminded',ids:list.map(task=>task.id)},{silent:true}))host.window('notify',{...message,kind:'reminder'}).catch(()=>{});}
+// F05: the host's timer shortcut arrives here even while the widget is hidden.
+host.addEventListener('timerToggle',async()=>{if(quick||!state||!ready)return;const command=timerToggle(state);if(!command)return;const task=state.tasks.find(item=>item.id===command.id);if(await mutate(command,{silent:true})){announce(fill(command.type==='pause'?'timerPaused':'timerResumed',{title:task.title}));if(state.settings.completionSound)tone(command.type==='pause'?[[587,0],[440,.08]]:[[440,0],[587,.08]]);}});
 $('#export-data').addEventListener('click',exportFile);
 $('#import-data').addEventListener('click',()=>{const input=$('#import-file');input.value='';input.click();});
 $('#import-file').addEventListener('change',event=>{event.stopPropagation();importFile(event.target.files?.[0]);});
@@ -402,7 +420,7 @@ host.addEventListener('stateChanged',event=>{const payload=event.detail;if(!payl
 host.addEventListener('nativeChanged',event=>{native={...event.detail};render();if(native.hotkeyError&&!quick)report(Error(native.hotkeyError));});host.addEventListener('visibility',event=>{nativeVisible=event.detail.visible;lastUndo=mono();renderUndo();if(nativeVisible&&quick)$('#task-input').focus();});host.addEventListener('focusQuick',()=>$('#task-input').focus());
 async function suspend(finalize=false){if(quick)return;while(busy)await new Promise(resolve=>setTimeout(resolve,25));if(resyncPending)await resync();const saved=await transaction([{type:'suspend'},...(finalize?[{type:'finalizeDeletes'}]:[])],{silent:true});/* A page that cannot reach its state holds nothing newer than the host's last save, so it must not keep the app from closing. */if(finalize)await host.window(saved||!ready?'exitReady':'cancelExit');}
 host.addEventListener('suspend',()=>suspend().catch(error=>report(error)));host.addEventListener('beforeExit',()=>suspend(true).catch(error=>report(error)));
-setInterval(async()=>{const now=mono(),delta=Math.max(0,now-lastUndo);lastUndo=now;if(resyncPending){if(!busy&&!resyncing&&now-lastResync>=3000){resyncing=true;lastResync=now;try{if(await resync()&&silentError)clearError();}finally{resyncing=false;}}return;}if(!state||busy||!ready||quick)return;if(pendingTasks().length){const next=applyCommand(state,{type:'advanceUndo',delta,paused:undoPaused()},context());const expired=next.tasks.some(task=>task.lifecycle==='trash'&&state.tasks.find(old=>old.id===task.id)?.lifecycle==='pending');if(expired){setBusy(true);try{await commitState(next);}catch(error){report(error);}finally{setBusy(false);}}else{state=next;renderUndo();}}if(now-lastTick>=1000){lastTick=now;updateTimes();await mutate({type:'tick'},{silent:true,notifyOverdue:true});}/* F03: while a timer runs, ask the host every 5 s how long there has been no input anywhere. */if(idleSupported&&now-lastIdle>=5000){lastIdle=now;const runner=state.tasks.find(task=>task.workState==='running');if(!runner)idleWatch.reset();else{try{const found=idleWatch.sample({idleMs:(await host.window('idle')).idleMs,now:Date.now()});if(found&&!busy)await mutate({type:'idle',id:runner.id,...found},{silent:true});}catch{idleSupported=false;}}}/* A running timer is written every 15 s (N07); pause, stop, completion, sleep and exit are saved at once, so a crash loses at most that interval. */if(now-lastCheckpoint>=15000){lastCheckpoint=now;if(state.tasks.some(task=>task.workState==='running'))await mutate({type:'checkpoint'},{silent:true});}},200);
+setInterval(async()=>{const now=mono(),delta=Math.max(0,now-lastUndo);lastUndo=now;if(resyncPending){if(!busy&&!resyncing&&now-lastResync>=3000){resyncing=true;lastResync=now;try{if(await resync()&&silentError)clearError();}finally{resyncing=false;}}return;}if(!state||busy||!ready||quick)return;if(pendingTasks().length){const next=applyCommand(state,{type:'advanceUndo',delta,paused:undoPaused()},context());const expired=next.tasks.some(task=>task.lifecycle==='trash'&&state.tasks.find(old=>old.id===task.id)?.lifecycle==='pending');if(expired){setBusy(true);try{await commitState(next);}catch(error){report(error);}finally{setBusy(false);}}else{state=next;renderUndo();}}if(now-lastTick>=1000){lastTick=now;updateTimes();await mutate({type:'tick'},{silent:true,notifyOverdue:true});await remind();checkUpdates();}/* F03: while a timer runs, ask the host every 5 s how long there has been no input anywhere. */if(idleSupported&&now-lastIdle>=5000){lastIdle=now;const runner=state.tasks.find(task=>task.workState==='running');if(!runner)idleWatch.reset();else{try{const found=idleWatch.sample({idleMs:(await host.window('idle')).idleMs,now:Date.now()});if(found&&!busy)await mutate({type:'idle',id:runner.id,...found},{silent:true});}catch{idleSupported=false;}}}/* A running timer is written every 15 s (N07); pause, stop, completion, sleep and exit are saved at once, so a crash loses at most that interval. */if(now-lastCheckpoint>=15000){lastCheckpoint=now;if(state.tasks.some(task=>task.workState==='running'))await mutate({type:'checkpoint'},{silent:true});}},200);
 host.addEventListener('exitFailed',()=>report(Error('saveError')));
 localize();load({startup:true}).then(()=>{if(quick)$('#task-input').focus();}).catch(error=>{ready=false;report(error,()=>load({startup:true}));const empty=$('#empty');if(empty)text(empty,t('loadError'));});
 

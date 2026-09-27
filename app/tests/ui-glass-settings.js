@@ -36,7 +36,7 @@
   check('settings form no longer carries collection shortcuts',!document.querySelector('.settings-links'));
   document.querySelector('#settings-open').click();await wait(60);
   document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();await wait(120);
-  check('four binary settings form a two by two grid',getComputedStyle(surface.querySelector('.settings-check-grid')).gridTemplateColumns.split(' ').length===2);
+  check('binary settings form a two-column grid',getComputedStyle(surface.querySelector('.settings-check-grid')).gridTemplateColumns.split(' ').length===2);
   dialog.close();
   return {checks};
 })()

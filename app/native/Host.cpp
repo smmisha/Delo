@@ -25,13 +25,14 @@
 #include "GlassRenderer.h"
 #include "ScreenshotKeys.h"
 #include "Voice.h"
+#include "Update.h"
 #include "resource.h"
 
 using Microsoft::WRL::Callback;
 using namespace winrt;
 using namespace winrt::Windows::Data::Json;
 namespace fs=std::filesystem;
-constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2, StoreDone=WM_APP+3, NativeSaveFailed=WM_APP+4;
+constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2, StoreDone=WM_APP+3, NativeSaveFailed=WM_APP+4, UpdateDone=WM_APP+5;
 const UINT RequestExitMessage=RegisterWindowMessageW(L"Delo.RequestExit");constexpr LRESULT RequestExitAccepted=0x44454C4F;
 constexpr wchar_t ClassName[]=L"Delo.Widget.Host";
 constexpr int QuickHeightDip=83;
@@ -56,6 +57,10 @@ std::uint64_t powerSuspends{},powerResumes{},dragRequests{},quickDismissals{},tr
 delo::TraceLog trace;
 // File writes run here, in order, never on the window thread (N06).
 std::unique_ptr<delo::Worker> storeWorker;std::atomic<int> storeDelayMs{0};
+// F05: the optional timer shortcut, hotkey id 3; empty means off (П11).
+std::wstring timerKey;
+// N13: the update check runs on its own thread so a slow network never holds up data writes.
+std::unique_ptr<delo::Worker> netWorker;
 void Log(std::string const& kind,std::string const& value){if(!trace)return;JsonObject r;SYSTEMTIME now{};GetLocalTime(&now);wchar_t when[32]{};swprintf_s(when,L"%04u-%02u-%02uT%02u:%02u:%02u.%03u",now.wYear,now.wMonth,now.wDay,now.wHour,now.wMinute,now.wSecond,now.wMilliseconds);r.Insert(L"time",JsonValue::CreateStringValue(when));r.Insert(L"event",JsonValue::CreateStringValue(to_hstring(kind)));r.Insert(L"value",JsonValue::CreateStringValue(to_hstring(value)));trace.Write(to_string(r.Stringify()));}
 JsonValue Number(double n){return JsonValue::CreateNumberValue(n);}JsonValue Text(std::wstring const& s){return JsonValue::CreateStringValue(s);}
 JsonValue Bool(bool b){return JsonValue::CreateBooleanValue(b);}
@@ -117,12 +122,23 @@ std::wstring TrayTip(){return demoMode?L"Delo · "+std::wstring(TrayLabel(Curren
 void Tray(){NOTIFYICONDATAW n{sizeof(n)};n.hWnd=control;n.uID=1;n.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;n.uCallbackMessage=TrayMessage;n.hIcon=AppIcon(true);wcscpy_s(n.szTip,TrayTip().c_str());Shell_NotifyIconW(NIM_ADD,&n);}
 void UpdateTrayTip(){NOTIFYICONDATAW n{sizeof(n)};n.hWnd=control;n.uID=1;n.uFlags=NIF_TIP;wcscpy_s(n.szTip,TrayTip().c_str());Shell_NotifyIconW(NIM_MODIFY,&n);}
 void RegisterKeys(std::wstring const& list,std::wstring const& quick){auto a=ParseHotkey(list),b=ParseHotkey(quick);if(a.key==b.key&&a.modifiers==b.modifiers)throw std::runtime_error("Hotkeys must be different");UnregisterHotKey(control,1);UnregisterHotKey(control,2);if(!RegisterHotKey(control,1,a.modifiers,a.key)||!RegisterHotKey(control,2,b.modifiers,b.key)){UnregisterHotKey(control,1);UnregisterHotKey(control,2);throw std::runtime_error("Hotkey is already used by another application; choose another combination");}if(shortcutRecording){UnregisterHotKey(control,1);UnregisterHotKey(control,2);}}
+void RegisterTimerKey(std::wstring const& key){UnregisterHotKey(control,3);if(key.empty()||shortcutRecording)return;auto k=ParseHotkey(key);if(!RegisterHotKey(control,3,k.modifiers,k.key))throw std::runtime_error("Hotkey is already used by another application; choose another combination");}
+// N13 helpers. The check result is kept in window.json: when it was made, the newest tag and its page.
+constexpr double UpdateIntervalMs=24.0*3600*1000;
+double WallMs(){FILETIME ft{};GetSystemTimeAsFileTime(&ft);return double(((ULONGLONG(ft.dwHighDateTime)<<32)|ft.dwLowDateTime)-116444736000000000ULL)/10000.0;}
+std::wstring NativeText(wchar_t const* key){return std::wstring(nativeSettings.GetNamedString(key,L"").c_str());}
+bool UpdateAvailable(){auto latest=NativeText(L"updateLatest");return !latest.empty()&&delo::NewerVersion(latest,delo::OwnVersion());}
+JsonObject UpdateResult(bool cached){JsonObject r;r.Insert(L"current",Text(delo::OwnVersion()));r.Insert(L"latest",Text(NativeText(L"updateLatest")));r.Insert(L"url",Text(NativeText(L"updateUrl")));r.Insert(L"newer",Bool(UpdateAvailable()));r.Insert(L"cached",Bool(cached));r.Insert(L"checkedAt",Number(nativeSettings.GetNamedNumber(L"updateCheckedAt",0)));return r;}
+// Only this project's release pages are opened; the address comes from the network.
+void OpenReleasePage(){auto url=NativeText(L"updateUrl");constexpr wchar_t prefix[]=L"https://github.com/smmisha/Delo/";if(url.size()>std::size(prefix)-1&&_wcsnicmp(url.c_str(),prefix,std::size(prefix)-1)==0)ShellExecuteW(nullptr,L"open",url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
+std::wstring UpdateMenuLabel(std::wstring const& language){if(!UpdateAvailable())return {};auto version=NativeText(L"updateLatest");if(!version.empty()&&(version[0]==L'v'||version[0]==L'V'))version.erase(0,1);return (language==L"uk"?L"Доступна версія ":language==L"en"?L"Version available: ":L"Доступна версия ")+version;}
 // Own global shortcuts must not swallow keys while their recorder has focus.
 // Leaving the window restores them even when the renderer has not delivered blur yet.
 void RecordShortcuts(bool enabled){
     if(shortcutRecording==enabled)return;
     shortcutRecording=enabled;
-    if(enabled){UnregisterHotKey(control,1);UnregisterHotKey(control,2);return;}
+    if(enabled){UnregisterHotKey(control,1);UnregisterHotKey(control,2);UnregisterHotKey(control,3);return;}
+    try{RegisterTimerKey(timerKey);}catch(std::exception const& e){Log("timer_hotkey_error",e.what());}
     try{auto keys=nativeSettings.GetNamedObject(L"hotkeys");RegisterKeys(keys.GetNamedString(L"list").c_str(),keys.GetNamedString(L"quick").c_str());if(nativeSettings.HasKey(L"hotkeyError"))nativeSettings.Remove(L"hotkeyError");}
     catch(std::exception const& e){nativeSettings.Insert(L"hotkeyError",JsonValue::CreateStringValue(to_hstring(e.what())));}
     Broadcast(L"nativeChanged",nativeSettings);
@@ -174,6 +190,21 @@ void SetDemoMode(bool on){
     demoMode=on;UpdateTrayTip();JsonObject changed;changed.Insert(L"on",Bool(on));Broadcast(L"demo",changed);Log("demo_mode",on?"on":"off");
 }
 void Reply(View& v,IJsonValue const& id,bool ok,JsonObject const& result,std::string const& error={}){JsonObject response;response.Insert(L"id",id);response.Insert(L"ok",Bool(ok));if(ok)response.Insert(L"result",result);else response.Insert(L"error",JsonValue::CreateStringValue(to_hstring(error)));Send(v,response);}
+struct UpdateJob{View* v{};IJsonValue id{nullptr};std::string body,error;DWORD status{};bool ok{};};
+void FinishUpdate(UpdateJob* raw){
+    std::unique_ptr<UpdateJob> job(raw);
+    // Every attempt counts toward the once-a-day limit, so an offline morning does not turn into retries.
+    nativeSettings.Insert(L"updateCheckedAt",Number(WallMs()));
+    try{
+        if(!job->ok)throw std::runtime_error(job->error.empty()?std::string("Update check failed"):job->error);
+        if(job->status!=200)throw std::runtime_error("Update check returned HTTP "+std::to_string(job->status));
+        auto release=JsonObject::Parse(to_hstring(job->body));auto tag=release.GetNamedString(L"tag_name",L"");
+        if(tag.empty())throw std::runtime_error("Update response has no version");
+        nativeSettings.Insert(L"updateLatest",JsonValue::CreateStringValue(tag));nativeSettings.Insert(L"updateUrl",JsonValue::CreateStringValue(release.GetNamedString(L"html_url",L"")));
+        SaveNativeLater();Log("update_check",to_string(tag));Reply(*job->v,job->id,true,UpdateResult(false));
+    }catch(hresult_error const& e){SaveNativeLater();Log("update_check_error",to_string(e.message()));Reply(*job->v,job->id,false,{},to_string(e.message()));}
+    catch(std::exception const& e){SaveNativeLater();Log("update_check_error",e.what());Reply(*job->v,job->id,false,{},e.what());}
+}
 // Data operations run one at a time, in the order the pages sent them. A save is checked and
 // serialized on the window thread, written on the worker, and adopted and answered only once
 // the write is confirmed; a load or backup restore waits for a save in flight, so it always
@@ -299,6 +330,34 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
         else if(action==L"finishScreenshot"&&harness)FinishScreenshot();
         else if(action==L"autostart"){auto old=nativeSettings.GetNamedBoolean(L"autostart",false);auto enabled=payload.GetNamedBoolean(L"enabled");SetAutostart(enabled);nativeSettings.Insert(L"autostart",Bool(enabled));try{SaveNative();}catch(...){nativeSettings.Insert(L"autostart",Bool(old));try{SetAutostart(old);}catch(...){throw std::runtime_error("nativeRollbackError");}throw;}Broadcast(L"nativeChanged",nativeSettings);}
         else if(action==L"hotkeys"){auto old=nativeSettings.GetNamedObject(L"hotkeys");auto keys=payload.HasKey(L"hotkeys")?payload.GetNamedObject(L"hotkeys"):payload;try{RegisterKeys(keys.GetNamedString(L"list").c_str(),keys.GetNamedString(L"quick").c_str());}catch(...){try{RegisterKeys(old.GetNamedString(L"list").c_str(),old.GetNamedString(L"quick").c_str());}catch(...){}throw;}JsonObject saved;saved.Insert(L"list",keys.GetNamedValue(L"list"));saved.Insert(L"quick",keys.GetNamedValue(L"quick"));nativeSettings.Insert(L"hotkeys",saved);if(nativeSettings.HasKey(L"hotkeyError"))nativeSettings.Remove(L"hotkeyError");try{SaveNative();}catch(...){nativeSettings.Insert(L"hotkeys",old);try{RegisterKeys(old.GetNamedString(L"list").c_str(),old.GetNamedString(L"quick").c_str());}catch(...){throw std::runtime_error("nativeRollbackError");}throw;}Broadcast(L"nativeChanged",nativeSettings);}
+        // F05: the timer shortcut is set on its own; it may be empty (off) and may not repeat the other two.
+        else if(action==L"timerHotkey"){
+            std::wstring key(payload.GetNamedString(L"key",L"").c_str());auto old=timerKey;
+            if(!key.empty()){auto k=ParseHotkey(key);auto keys=nativeSettings.GetNamedObject(L"hotkeys");for(auto name:{L"list",L"quick"}){auto other=ParseHotkey(keys.GetNamedString(name).c_str());if(other.key==k.key&&other.modifiers==k.modifiers)throw std::runtime_error("Hotkeys must be different");}}
+            try{RegisterTimerKey(key);}catch(...){try{RegisterTimerKey(old);}catch(...){}throw;}
+            timerKey=key;nativeSettings.Insert(L"timerKey",Text(key));if(nativeSettings.HasKey(L"timerKeyError"))nativeSettings.Remove(L"timerKeyError");
+            try{SaveNative();}catch(...){timerKey=old;nativeSettings.Insert(L"timerKey",Text(old));try{RegisterTimerKey(old);}catch(...){}throw;}
+            Broadcast(L"nativeChanged",nativeSettings);
+        }
+        // T07: a Windows notification from the tray icon; a click on it opens the list.
+        else if(action==L"notify"){
+            NOTIFYICONDATAW n{sizeof(n)};n.hWnd=control;n.uID=1;n.uFlags=NIF_INFO;n.dwInfoFlags=NIIF_INFO|NIIF_RESPECT_QUIET_TIME;
+            wcsncpy_s(n.szInfoTitle,payload.GetNamedString(L"title",L"Delo").c_str(),_TRUNCATE);wcsncpy_s(n.szInfo,payload.GetNamedString(L"body",L"").c_str(),_TRUNCATE);
+            Log("notify",to_string(payload.GetNamedString(L"title",L"")));
+            if(!Shell_NotifyIconW(NIM_MODIFY,&n))throw std::runtime_error("Notification failed");
+        }
+        // N13: off by default. On, at most one request a day; otherwise the last answer is returned.
+        else if(action==L"openRelease")OpenReleasePage();
+        else if(action==L"updates"){
+            if(!payload.GetNamedBoolean(L"enabled",false)){for(auto key:{L"updateLatest",L"updateUrl"})if(nativeSettings.HasKey(key))nativeSettings.Remove(key);SaveNativeLater();}
+            else if(WallMs()-nativeSettings.GetNamedNumber(L"updateCheckedAt",0)<UpdateIntervalMs)result=UpdateResult(true);
+            else{
+                if(!netWorker)netWorker=std::make_unique<delo::Worker>();
+                auto* job=new UpdateJob{};job->v=&v;job->id=id;
+                netWorker->Post([job]{try{job->body=delo::HttpsGet(L"api.github.com",L"/repos/smmisha/Delo/releases/latest",job->status);job->ok=true;}catch(std::exception const& e){job->error=e.what();}catch(...){job->error="Update check failed";}PostMessageW(control,UpdateDone,0,reinterpret_cast<LPARAM>(job));});
+                return;
+            }
+        }
         // F03: time since the last keyboard or mouse input anywhere in the session. The page polls it
         // while a timer runs; both counters are 32-bit milliseconds, so the difference wraps correctly.
         else if(action==L"idle"){LASTINPUTINFO input{sizeof(input)};if(!GetLastInputInfo(&input))throw std::runtime_error("GetLastInputInfo failed");result.Insert(L"idleMs",Number(double(DWORD(GetTickCount()-input.dwTime))));}
@@ -401,7 +460,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         }
         if(message==taskbarCreated){Tray();if(mainView.hwnd)ApplyMode();return 0;}
         if(message==ShowMessage){ShowList();return 0;}
-        if(message==WM_HOTKEY){if(w==1)ShowList();else if(w==2)Quick();return 0;}
+        if(message==WM_HOTKEY){if(w==1)ShowList();else if(w==2)Quick();else if(w==3)Event(mainView,L"timerToggle");return 0;}
+        if(message==UpdateDone){FinishUpdate(reinterpret_cast<UpdateJob*>(l));return 0;}
         if(message==WM_SETTINGCHANGE){SyncDpi(mainView,"settingchange");SyncDpi(quickView,"settingchange");}
         if(message==WM_DISPLAYCHANGE){SyncDpi(mainView,"displaychange");SyncDpi(quickView,"displaychange");if(mainView.hwnd)ClampWindow(mainView);if(quickView.hwnd)ClampWindow(quickView);if(mainView.glass)mainView.glass->Rebuild();if(quickView.glass)quickView.glass->Rebuild();return 0;}
         if(message==WM_POWERBROADCAST||message==WM_WTSSESSION_CHANGE){bool suspend=(message==WM_POWERBROADCAST&&w==PBT_APMSUSPEND)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_LOCK);bool resume=(message==WM_POWERBROADCAST&&w==PBT_APMRESUMEAUTOMATIC)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_UNLOCK);if(suspend){++powerSuspends;Log("power_suspend",message==WM_POWERBROADCAST?"system":"session");Broadcast(L"suspend");if(mainView.glass)mainView.glass->Suspend(true);if(quickView.glass)quickView.glass->Suspend(true);}if(resume){++powerResumes;Log("power_resume",message==WM_POWERBROADCAST?"system":"session");if(!demoMode){if(mainView.glass)mainView.glass->Suspend(false);if(quickView.glass)quickView.glass->Suspend(false);}Broadcast(L"resume");}return TRUE;}
@@ -409,7 +469,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         if(message==WM_ENDSESSION&&w){PostQuitMessage(0);return 0;}
         // A new press always starts a new gesture: a double click whose final button-up was
         // released away from the icon must not swallow the next genuine click.
-        if(message==TrayMessage){if(l==WM_LBUTTONDOWN)ignoreTrayButtonUp=false;else if(l==WM_LBUTTONDBLCLK){ignoreTrayButtonUp=true;++trayDoubleClicks;}else if(l==WM_LBUTTONUP){if(ignoreTrayButtonUp)ignoreTrayButtonUp=false;else{++traySingleClicks;Quick();}}if(l==WM_RBUTTONUP||l==WM_CONTEXTMENU){auto language=store&&store->State()?store->State().GetNamedObject(L"settings",JsonObject{}).GetNamedString(L"language",L"ru"):hstring(L"ru");auto menu=CreatePopupMenu();AppendMenuW(menu,MF_STRING,1,TrayLabel(language.c_str(),1));AppendMenuW(menu,MF_STRING,2,TrayLabel(language.c_str(),2));AppendMenuW(menu,MF_STRING,4,TrayLabel(language.c_str(),4));AppendMenuW(menu,MF_STRING|(demoMode?MF_CHECKED:MF_UNCHECKED),5,TrayLabel(language.c_str(),5));AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,3,TrayLabel(language.c_str(),3));POINT p{};GetCursorPos(&p);SetForegroundWindow(control);auto cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,0,control,nullptr);DestroyMenu(menu);if(cmd==1)ShowList();if(cmd==2)Quick();if(cmd==3)RequestExit();if(cmd==5){try{SetDemoMode(!demoMode);}catch(hresult_error const& e){Log("demo_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}if(cmd==4){try{BeginScreenshot();}catch(hresult_error const& e){Log("screenshot_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}}return 0;}
+        if(message==TrayMessage){if(l==NIN_BALLOONUSERCLICK){ShowList();return 0;}if(l==WM_LBUTTONDOWN)ignoreTrayButtonUp=false;else if(l==WM_LBUTTONDBLCLK){ignoreTrayButtonUp=true;++trayDoubleClicks;}else if(l==WM_LBUTTONUP){if(ignoreTrayButtonUp)ignoreTrayButtonUp=false;else{++traySingleClicks;Quick();}}if(l==WM_RBUTTONUP||l==WM_CONTEXTMENU){auto language=store&&store->State()?store->State().GetNamedObject(L"settings",JsonObject{}).GetNamedString(L"language",L"ru"):hstring(L"ru");auto menu=CreatePopupMenu();auto update=UpdateMenuLabel(language.c_str());if(!update.empty()){AppendMenuW(menu,MF_STRING,6,update.c_str());AppendMenuW(menu,MF_SEPARATOR,0,nullptr);}AppendMenuW(menu,MF_STRING,1,TrayLabel(language.c_str(),1));AppendMenuW(menu,MF_STRING,2,TrayLabel(language.c_str(),2));AppendMenuW(menu,MF_STRING,4,TrayLabel(language.c_str(),4));AppendMenuW(menu,MF_STRING|(demoMode?MF_CHECKED:MF_UNCHECKED),5,TrayLabel(language.c_str(),5));AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,3,TrayLabel(language.c_str(),3));POINT p{};GetCursorPos(&p);SetForegroundWindow(control);auto cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,0,control,nullptr);DestroyMenu(menu);if(cmd==6)OpenReleasePage();if(cmd==1)ShowList();if(cmd==2)Quick();if(cmd==3)RequestExit();if(cmd==5){try{SetDemoMode(!demoMode);}catch(hresult_error const& e){Log("demo_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}if(cmd==4){try{BeginScreenshot();}catch(hresult_error const& e){Log("screenshot_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}}return 0;}
         if(message==StoreDone){FinishStore(reinterpret_cast<StoreJob*>(l));return 0;}
         // The installer asks a running Delo to leave the ordinary way: the pages pause their timers and
         // save, and the app quits only after that save is acknowledged. The reply tells the installer
@@ -472,6 +532,9 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
         // so it is set after the file is written and never saved.
         nativeSettings.Insert(L"hotkeyError",JsonValue::CreateStringValue(to_hstring(e.what())));
     }
+    // F05: a timer shortcut that no longer registers is only switched off for this launch; the
+    // setting keeps it, and the settings sheet shows why it is not active.
+    timerKey=NativeText(L"timerKey");try{RegisterTimerKey(timerKey);}catch(std::exception const& e){Log("timer_hotkey_error",e.what());nativeSettings.Insert(L"timerKeyError",JsonValue::CreateStringValue(to_hstring(e.what())));}
     quickView.quick=true;CreateWindowFor(mainView);CreateWindowFor(quickView);
     try{lightshotTray=std::make_unique<delo::LightshotTray>(control,delo::ScreenshotKeys::PrepareMessage);}
     catch(std::exception const& e){Log("lightshot_tray_init_error",e.what());}
@@ -493,5 +556,5 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
     voice.reset();
     screenshotKeys.reset();
     lightshotTray.reset();
-    NOTIFYICONDATAW n{sizeof(n)};n.hWnd=control;n.uID=1;Shell_NotifyIconW(NIM_DELETE,&n);UnregisterHotKey(control,1);UnregisterHotKey(control,2);if(powerNotify)UnregisterSuspendResumeNotification(powerNotify);WTSUnRegisterSessionNotification(control);if(mainView.hwnd)DestroyWindow(mainView.hwnd);if(quickView.hwnd)DestroyWindow(quickView.hwnd);DestroyWindow(control);return exitCode;
+    NOTIFYICONDATAW n{sizeof(n)};n.hWnd=control;n.uID=1;Shell_NotifyIconW(NIM_DELETE,&n);UnregisterHotKey(control,1);UnregisterHotKey(control,2);UnregisterHotKey(control,3);if(netWorker)netWorker->Close(std::chrono::milliseconds(0));if(powerNotify)UnregisterSuspendResumeNotification(powerNotify);WTSUnRegisterSessionNotification(control);if(mainView.hwnd)DestroyWindow(mainView.hwnd);if(quickView.hwnd)DestroyWindow(quickView.hwnd);DestroyWindow(control);return exitCode;
 }catch(hresult_error const& e){MessageBoxW(nullptr,e.message().c_str(),L"Delo",MB_ICONERROR);return 1;}catch(std::exception const& e){MessageBoxW(nullptr,to_hstring(e.what()).c_str(),L"Delo",MB_ICONERROR);return 1;}}

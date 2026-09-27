@@ -1,7 +1,8 @@
 // Domain defaults implement SPEC P1-P8 as provisional implementation choices.
 export const DAY = 86400000;
-export const DEFAULT_SETTINGS = Object.freeze({language:'ru',theme:'system',autoArchive:'all',archiveDays:30,completionSound:true,overdueSound:true,reducedMotion:false,autostart:false,pinned:false,listShortcut:'Ctrl+Alt+Space',quickShortcut:'Ctrl+Alt+N',idleMinutes:15});
+export const DEFAULT_SETTINGS = Object.freeze({language:'ru',theme:'system',autoArchive:'all',archiveDays:30,completionSound:true,overdueSound:true,reducedMotion:false,autostart:false,pinned:false,listShortcut:'Ctrl+Alt+Space',quickShortcut:'Ctrl+Alt+N',idleMinutes:15,remindMinutes:15,checkUpdates:false});
 export const IDLE_MINUTES=Object.freeze([0,5,15,30,60]);
+export const REMIND_MINUTES=Object.freeze([0,5,15,30,60]);
 export const idleMinutes=settings=>settings?.idleMinutes??15;
 export function createState() { return {schemaVersion:1,tasks:[],reputation:0,events:[],settings:{...DEFAULT_SETTINGS}}; }
 const fail = message => { throw new Error(message); };
@@ -68,7 +69,33 @@ function settingsCheck(s) {
   if(s.reducedMotion!==undefined&&typeof s.reducedMotion!=='boolean')fail('Invalid settings');
   // F03, П9. Optional so data from before 0.3.0 loads as is; 0 means never ask.
   if(s.idleMinutes!==undefined&&!IDLE_MINUTES.includes(s.idleMinutes))fail('Invalid settings');
+  // T07, П12 and N13, S01: optional for the same reason; checking for updates stays off unless chosen.
+  if(s.remindMinutes!==undefined&&!REMIND_MINUTES.includes(s.remindMinutes))fail('Invalid settings');
+  if(s.checkUpdates!==undefined&&typeof s.checkUpdates!=='boolean')fail('Invalid settings');
   for(const key of ['listShortcut','quickShortcut']) if(typeof s[key]!=='string'||!s[key].trim()||s[key].length>100) fail('Invalid shortcut');
+}
+// T07. When to remind about a deadline: `minutes` before an exact time; for a date without a
+// time, 09:00 of that day in the deadline's zone. Infinity when there is nothing to remind.
+export const remindMinutes=settings=>settings?.remindMinutes??15;
+export function reminderAt(due,minutes) {
+  if(!due||!(minutes>0)) return Infinity;
+  if(due.time) return due.at-minutes*60000;
+  try { return makeDeadline(due.date,'09:00',due.timeZone).at; } catch { return due.at-15*3600000; }
+}
+// A deadline set when its reminder moment has already passed is not announced afterwards.
+function armReminder(task,now,settings) { delete task.reminded; if(task.due&&now>=reminderAt(task.due,remindMinutes(settings))) task.reminded=task.due.at; }
+export function dueReminders(state,{now}) {
+  const minutes=remindMinutes(state.settings);
+  return state.tasks.filter(t=>t.lifecycle==='active'&&t.completedAt===null&&t.due&&t.reminded!==t.due.at&&reminderAt(t.due,minutes)<=now&&now<t.due.at).sort((a,b)=>a.due.at-b.due.at||a.id.localeCompare(b.id));
+}
+// F05. The global shortcut pauses the running timer, or resumes the task in work whose timer
+// ran last (the latest interval end; tasks without intervals by creation time).
+export function timerToggle(state) {
+  const running=state.tasks.find(t=>t.workState==='running');
+  if(running) return {type:'pause',id:running.id};
+  const lastRun=t=>{const last=(t.intervals??[]).at(-1);return last?last[0]+last[1]:t.createdAt;};
+  const next=state.tasks.filter(t=>t.lifecycle==='active'&&t.completedAt===null&&['paused','working'].includes(t.workState)).sort((a,b)=>lastRun(b)-lastRun(a)||a.id.localeCompare(b.id))[0];
+  return next?{type:'start',id:next.id}:null;
 }
 export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
   if(!Number.isFinite(now)||!Number.isFinite(monotonic)) fail('Explicit clocks required');
@@ -80,10 +107,10 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
   switch(command.type) {
     case 'create': {
       if(typeof command.id!=='string'||!command.id||s.tasks.some(t=>t.id===command.id)) fail('Unique id required');
-      s.tasks.push({id:command.id,title:title(command.title),createdAt:now,lifecycle:'active',workState:'idle',elapsedMs:0,timerAnchor:null,due:deadline(command.due),completedAt:null,completedDayEnd:null,award:0,penalties:{first:false,week:false},archiveAnchor:now,deletedAt:null,undoRemaining:null}); break;
+      s.tasks.push({id:command.id,title:title(command.title),createdAt:now,lifecycle:'active',workState:'idle',elapsedMs:0,timerAnchor:null,due:deadline(command.due),completedAt:null,completedDayEnd:null,award:0,penalties:{first:false,week:false},archiveAnchor:now,deletedAt:null,undoRemaining:null}); armReminder(s.tasks.at(-1),now,s.settings); break;
     }
     case 'edit': active();t.title=title(command.title);break;
-    case 'deadline': active();t.due=deadline(command.due);break;
+    case 'deadline': active();t.due=deadline(command.due);armReminder(t,now,s.settings);break;
     case 'start': unfinished();for(const other of s.tasks)freeze(other,monotonic,now);t.workState='running';t.timerAnchor=monotonic;break;
     case 'pause': unfinished();freeze(t,monotonic,now);break;
     case 'stop': unfinished();freeze(t,monotonic,now);t.workState='idle';break;
@@ -137,6 +164,8 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
       const removed=cut(t,t.idle.from,t.idle.to);t.elapsedMs=Math.max(0,t.elapsedMs-removed);delete t.idle;break;
     }
     case 'idleKeep': active();delete t.idle;break;
+    // T07. Marks the reminders the page has just shown, so each deadline is announced once.
+    case 'reminded': {if(!Array.isArray(command.ids))fail('Invalid reminder');for(const id of command.ids){const task=s.tasks.find(x=>x.id===id);if(task?.due)task.reminded=task.due.at;}break;}
     case 'tick': break;
     default: fail('Unknown command');
   }
@@ -152,7 +181,7 @@ export function validateState(s) {
   try {
     if(!s||s.schemaVersion!==1||!Array.isArray(s.tasks)||!Array.isArray(s.events)||!Number.isFinite(s.reputation))fail('Invalid database'); settingsCheck(s.settings);
     const ids=new Set();let running=0;
-    for(const t of s.tasks) {if(typeof t.id!=='string'||!t.id||ids.has(t.id))fail('Invalid task id');ids.add(t.id);title(t.title);if(!['active','archive','pending','trash'].includes(t.lifecycle)||!['idle','running','paused','working'].includes(t.workState))fail('Invalid task state');for(const k of ['createdAt','archiveAnchor','elapsedMs'])if(!Number.isFinite(t[k])||t[k]<0)fail('Invalid task time');if(t.pinnedAt!=null&&(!Number.isFinite(t.pinnedAt)||t.pinnedAt<0))fail('Invalid task time');if(t.idle!==undefined&&(!t.idle||!Number.isFinite(t.idle.from)||!Number.isFinite(t.idle.to)||t.idle.to<=t.idle.from||!Number.isFinite(t.idle.ms)||t.idle.ms<=0))fail('Invalid idle');if(t.intervals!==undefined){if(!Array.isArray(t.intervals))fail('Invalid intervals');let tracked=0;for(const item of t.intervals){if(!Array.isArray(item)||item.length!==2||!Number.isFinite(item[0])||item[0]<0||!Number.isFinite(item[1])||item[1]<=0)fail('Invalid intervals');tracked+=item[1];}if(tracked>t.elapsedMs+1)fail('Intervals exceed elapsed time');}if(t.due){const d=deadline(t.due);if(d.date!==t.due.date||d.time!==t.due.time||d.timeZone!==t.due.timeZone||d.at!==t.due.at)fail('Invalid deadline');}if(!t.penalties||typeof t.penalties.first!=='boolean'||typeof t.penalties.week!=='boolean')fail('Invalid penalties');if(![0,2,5].includes(t.award))fail('Invalid award');if(t.completedAt!==null&&(!Number.isFinite(t.completedAt)||!Number.isFinite(t.completedDayEnd)||t.award===0))fail('Invalid completion');if(t.workState==='running'){running++;if(!Number.isFinite(t.timerAnchor)||t.lifecycle!=='active'||t.completedAt!==null)fail('Invalid timer');}else if(t.timerAnchor!==null)fail('Invalid timer');if(['pending','trash'].includes(t.lifecycle)&&!Number.isFinite(t.deletedAt))fail('Invalid deletion');if(t.lifecycle==='pending'&&(!Number.isFinite(t.undoRemaining)||t.undoRemaining<0||t.undoRemaining>5000))fail('Invalid undo');}
+    for(const t of s.tasks) {if(typeof t.id!=='string'||!t.id||ids.has(t.id))fail('Invalid task id');ids.add(t.id);title(t.title);if(!['active','archive','pending','trash'].includes(t.lifecycle)||!['idle','running','paused','working'].includes(t.workState))fail('Invalid task state');for(const k of ['createdAt','archiveAnchor','elapsedMs'])if(!Number.isFinite(t[k])||t[k]<0)fail('Invalid task time');if(t.pinnedAt!=null&&(!Number.isFinite(t.pinnedAt)||t.pinnedAt<0))fail('Invalid task time');if(t.reminded!==undefined&&!Number.isFinite(t.reminded))fail('Invalid reminder');if(t.idle!==undefined&&(!t.idle||!Number.isFinite(t.idle.from)||!Number.isFinite(t.idle.to)||t.idle.to<=t.idle.from||!Number.isFinite(t.idle.ms)||t.idle.ms<=0))fail('Invalid idle');if(t.intervals!==undefined){if(!Array.isArray(t.intervals))fail('Invalid intervals');let tracked=0;for(const item of t.intervals){if(!Array.isArray(item)||item.length!==2||!Number.isFinite(item[0])||item[0]<0||!Number.isFinite(item[1])||item[1]<=0)fail('Invalid intervals');tracked+=item[1];}if(tracked>t.elapsedMs+1)fail('Intervals exceed elapsed time');}if(t.due){const d=deadline(t.due);if(d.date!==t.due.date||d.time!==t.due.time||d.timeZone!==t.due.timeZone||d.at!==t.due.at)fail('Invalid deadline');}if(!t.penalties||typeof t.penalties.first!=='boolean'||typeof t.penalties.week!=='boolean')fail('Invalid penalties');if(![0,2,5].includes(t.award))fail('Invalid award');if(t.completedAt!==null&&(!Number.isFinite(t.completedAt)||!Number.isFinite(t.completedDayEnd)||t.award===0))fail('Invalid completion');if(t.workState==='running'){running++;if(!Number.isFinite(t.timerAnchor)||t.lifecycle!=='active'||t.completedAt!==null)fail('Invalid timer');}else if(t.timerAnchor!==null)fail('Invalid timer');if(['pending','trash'].includes(t.lifecycle)&&!Number.isFinite(t.deletedAt))fail('Invalid deletion');if(t.lifecycle==='pending'&&(!Number.isFinite(t.undoRemaining)||t.undoRemaining<0||t.undoRemaining>5000))fail('Invalid undo');}
     if(running>1)fail('Multiple timers');let sum=0;const penalties=new Set();for(let i=0;i<s.events.length;i++){const e=s.events[i];if(e.id!==i+1||typeof e.taskId!=='string'||!Number.isFinite(e.at)||!({first:[-2],week:[-1],complete:[2,5],uncomplete:[-2,-5]}[e.kind]?.includes(e.delta)))fail('Invalid event');if(['first','week'].includes(e.kind)){const key=e.taskId+':'+e.kind;if(penalties.has(key))fail('Repeated penalty');penalties.add(key);}sum+=e.delta;}if(sum!==s.reputation)fail('Reputation ledger mismatch');for(const t of s.tasks){for(const k of ['first','week'])if(penalties.has(t.id+':'+k)&&!t.penalties[k])fail('Penalty ledger mismatch');if(t.completedAt===null&&(t.award!==0||t.completedDayEnd!==null))fail('Invalid completion');}return {valid:true};
   } catch(error) {return {valid:false,error:error.message};}
 }
