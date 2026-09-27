@@ -43,7 +43,7 @@ try{
   await main.host('show');await main.host('pin',{pinned:true});await main.click('#settings-open');await main.click('#open-settings');await main.evaluate(`document.querySelector('.settings-fields').scrollTop=0`);await screenshot(main,path.join(output,`${theme}-settings.png`));
   await main.click('#settings [data-close]');await main.click('#settings-open');await wait(200);
   const nav=await main.evaluate(`(()=>[...document.querySelectorAll('#app-menu button')].map(b=>({id:b.id,label:b.textContent.trim(),icon:!!b.querySelector('use'),title:b.title})))()`);
-  check(`${theme}: archive and trash are labelled menu items`,nav.length===3&&nav.every(i=>i.label&&i.icon&&!i.title)&&nav.some(i=>i.id==='open-archive')&&nav.some(i=>i.id==='open-trash'),nav);
+  check(`${theme}: archive and trash are labelled menu items`,nav.length===4&&nav.every(i=>i.label&&i.icon&&!i.title)&&nav.some(i=>i.id==='open-archive')&&nav.some(i=>i.id==='open-trash')&&nav.some(i=>i.id==='open-time'),nav);
   await screenshot(main,path.join(output,`${theme}-menu.png`));await main.click('#settings-open');
  }
 }finally{await fs.writeFile(path.join(output,'visuals.json'),JSON.stringify(checks,null,2));main.close();quick.close();}

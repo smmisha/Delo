@@ -32,11 +32,11 @@
   document.querySelector('#settings-open').click();await wait(80);
   const nav=[...document.querySelectorAll('#app-menu button')];
   const centred=node=>{const button=node.getBoundingClientRect(),glyph=node.querySelector('svg').getBoundingClientRect();return glyph.left>=button.left&&glyph.right<=button.right;};
-  check('archive and trash are labelled items in the header menu',nav.length===3&&['open-archive','open-trash','open-settings'].every(id=>nav.some(n=>n.id===id))&&nav.every(n=>n.textContent.trim()&&!n.title&&centred(n)));
+  check('archive, trash and time are labelled items in the header menu',nav.length===4&&['open-archive','open-trash','open-time','open-settings'].every(id=>nav.some(n=>n.id===id))&&nav.every(n=>n.textContent.trim()&&!n.title&&centred(n)));
   check('settings form no longer carries collection shortcuts',!document.querySelector('.settings-links'));
   document.querySelector('#settings-open').click();await wait(60);
   document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();await wait(120);
-  check('four binary settings form a two by two grid',getComputedStyle(surface.querySelector('.settings-check-grid')).gridTemplateColumns.split(' ').length===2);
+  check('binary settings form a two-column grid',getComputedStyle(surface.querySelector('.settings-check-grid')).gridTemplateColumns.split(' ').length===2);
   dialog.close();
   return {checks};
 })()

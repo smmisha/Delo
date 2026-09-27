@@ -419,3 +419,53 @@ body.dark .engraving{color:rgba(0,0,0,.52);text-shadow:0 1px 0 rgba(255,255,255,
 /* body.dark .widget resets the background to transparent at higher specificity than
    .demo .widget, so the dark theme needs its own rule to get the matte at all. */
 body.dark.demo .widget{background:var(--menu-surface);box-shadow:inset 0 0 0 .8px #ffffff2e,inset 0 1px 1px #ffffff2e}
+
+/* T08: the recognized deadline sits on the capsule's top edge while typing, so the
+   field keeps its width and the task list does not move. The quick window has no room
+   above the capsule; there it takes the compact second line, like voice status. */
+#due-hint{position:absolute;left:calc(var(--control) + 6px);bottom:calc(100% - 10px);z-index:2;display:flex;align-items:center;gap:2px;max-width:calc(100% - 2*var(--control) - 12px);min-width:0;padding:2px 3px 2px 10px;border:1px solid #ffffff80;border-radius:999px;background:var(--popover);color:var(--ink);font-size:12px;font-weight:600;line-height:18px;box-shadow:inset 0 1px 1px #ffffffb0,0 3px 10px #17385318}
+body.dark #due-hint{border-color:#ffffff30;box-shadow:inset 0 1px 1px #ffffff2a,0 3px 10px #0004}
+#due-hint[hidden]{display:none}
+#due-hint-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+#due-hint-clear{display:grid;place-items:center;width:22px;height:22px;flex:0 0 22px;border-radius:50%;background:none;color:var(--muted)}
+#due-hint-clear:hover{background:var(--small-surface);color:var(--ink)}
+#due-hint-clear svg{width:13px;height:13px}
+.quick #due-hint{bottom:5px;left:calc(var(--control) + 8px);padding:0 0 0 2px;border:0;background:none;box-shadow:none;font-size:11px;line-height:14px;color:var(--muted)}
+.quick #due-hint-clear{width:16px;height:16px;flex-basis:16px}
+.quick .due-active #task-input{min-height:54px;padding-top:5px;padding-bottom:20px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+
+/* A05: search lives only inside the archive and trash sheets. */
+#collection-search{display:block;width:100%;height:44px;margin:2px 0 4px;padding:0 18px;border:1px solid #ffffff70;border-radius:22px;background:var(--small-surface);color:var(--ink);font-size:14px;outline:none;box-shadow:inset 0 1px 2px #17385314}
+body.dark #collection-search{border-color:#ffffff22;box-shadow:inset 0 1px 2px #0003}
+#collection-search::placeholder{color:var(--muted);opacity:.82}
+#collection-search:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
+#collection-search[hidden]{display:none}
+#collection-search::-webkit-search-cancel-button{cursor:pointer}
+
+/* F04: the "Time" sheet, opened from the header menu like the archive. */
+.time-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:4px 0 12px}
+.time-total{display:flex;flex-direction:column;gap:3px;padding:10px 14px;border-radius:18px;background:var(--small-surface);box-shadow:inset 0 1px 1px #ffffff80}
+body.dark .time-total{box-shadow:inset 0 1px 1px #ffffff1c}
+.time-total span{font-size:12px;color:var(--muted)}
+.time-total b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.time-row{display:flex;flex-direction:column;gap:4px;padding:12px 0;border-top:1px solid var(--line)}
+.time-title{min-width:0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.time-row small{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#time-before{margin:0;padding-top:10px;border-top:1px solid var(--line)}
+#time-before[hidden]{display:none}
+
+/* N12: export and import at the end of the settings sheet. */
+.settings-data{display:grid;gap:6px;font-size:13px;line-height:1.4}
+.settings-data-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.settings-data-actions button{height:44px;border-radius:22px;background:var(--small-surface);color:var(--focus);font-weight:600;box-shadow:inset 0 1px 1px #ffffff90,0 2px 8px #1738530f}
+body.dark .settings-data-actions button{box-shadow:inset 0 1px 1px #ffffff24}
+.settings-data-actions button:hover{background:#ffffff70}
+body.dark .settings-data-actions button:hover{background:#ffffff24}
+.settings-data-status{margin:0;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.settings-data-status[hidden]{display:none}
+
+/* N13: the update line under the checkboxes; the button reads as a link. */
+#update-status{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+#update-status[hidden]{display:none}
+.link-button{padding:0;background:none;color:var(--focus);font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.link-button[hidden]{display:none}
