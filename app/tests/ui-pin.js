@@ -12,36 +12,40 @@
     input.value=title;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();
     const end=Date.now()+3000;while(Date.now()<end&&input.value!=='')await wait(25);await idle();
   }
-  const last=titles[0],newest=titles.at(-1);
+  // The long-group case: the oldest task is the one at the bottom, the one that needs pinning.
+  const oldest=titles[0],newest=titles.at(-1);
   const row=title=>[...document.querySelectorAll('.task[data-task]')].find(node=>node.querySelector('.task-title')?.textContent===title);
   const groupOf=title=>row(title)?.closest('.task-group')?.dataset.group;
   const count=key=>+document.querySelector(`.task-group[data-group="${key}"] .group-toggle span:last-child`)?.textContent;
   const rowsOf=title=>[...row(title).closest('.task-group-rows').children];
-  check('the newest task sits at the top of its group and the oldest at the bottom',groupOf(last)==='any'&&rowsOf(newest)[0]===row(newest)&&rowsOf(last).at(-1)===row(last));
+  // Earlier scenarios of the audit suite leave older undated tasks in the same group, so the
+  // oldest of these twelve is not necessarily the bottom row; the twelve must be in reverse creation order.
+  const order=rowsOf(newest).map(node=>node.querySelector('.task-title')?.textContent).filter(title=>titles.includes(title));
+  check('new tasks enter the top of their group, newest first',groupOf(oldest)==='any'&&rowsOf(newest)[0]===row(newest)&&order.join('|')===[...titles].reverse().join('|'));
   const anyBefore=count('any');
   const menuAction=async(title)=>{const node=row(title);node.scrollIntoView({block:'center'});await wait(60);node.querySelector('.task-more').click();await wait(60);const item=document.querySelector('#menu-pin');const label=item.textContent.trim();item.click();await idle();return label;};
 
-  const pinLabel=await menuAction(last);
+  const pinLabel=await menuAction(oldest);
   check('the menu offers to pin',/^(Закрепить|Закріпити|Pin)$/.test(pinLabel));
   const first=document.querySelector('#task-scroll .task-group');
-  check('a pinned group leads the list',first?.dataset.group==='pinned'&&first.querySelector('.task-title')?.textContent===last);
+  check('a pinned group leads the list',first?.dataset.group==='pinned'&&first.querySelector('.task-title')?.textContent===oldest);
   check('the pinned group is named and counted like the others',/^(Закреплено|Закріплено|Pinned)$/.test(first.querySelector('.group-name')?.textContent)&&count('pinned')===1);
   check('the task left its own group',count('any')===anyBefore-1);
-  const saved=(await host.request('load')).state.tasks.find(task=>task.title===last);
+  const saved=(await host.request('load')).state.tasks.find(task=>task.title===oldest);
   check('the pin is saved',Number.isFinite(saved?.pinnedAt));
 
   // A second pin goes after the first: pins keep their order.
-  await menuAction(titles[0]);
-  check('pins keep their order',[...document.querySelectorAll('.task-group[data-group="pinned"] .task-title')].map(node=>node.textContent).join('|')===`${last}|${titles[0]}`);
+  await menuAction(newest);
+  check('pins keep their order',[...document.querySelectorAll('.task-group[data-group="pinned"] .task-title')].map(node=>node.textContent).join('|')===`${oldest}|${newest}`);
 
-  const unpinLabel=await menuAction(titles[0]);
+  const unpinLabel=await menuAction(newest);
   check('a pinned task offers to unpin',/^(Открепить|Відкріпити|Unpin)$/.test(unpinLabel));
-  check('unpinning returns the task to its group',groupOf(titles[0])==='any');
+  check('unpinning returns the task to its group',groupOf(newest)==='any');
 
   // Completing a pinned task clears the pin.
-  row(last).querySelector('.complete').click();await idle();
-  check('completion clears the pin',groupOf(last)==='done'&&!document.querySelector('.task-group[data-group="pinned"] .task'));
-  const done=(await host.request('load')).state.tasks.find(task=>task.title===last);
+  row(oldest).querySelector('.complete').click();await idle();
+  check('completion clears the pin',groupOf(oldest)==='done'&&!document.querySelector('.task-group[data-group="pinned"] .task'));
+  const done=(await host.request('load')).state.tasks.find(task=>task.title===oldest);
   check('the cleared pin is saved',!('pinnedAt' in done));
 
   // Leave one pinned task for the relaunch check.
