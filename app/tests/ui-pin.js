@@ -1,4 +1,5 @@
-// F06, V28: pinning a task from the bottom of a long group through its own menu.
+// F06, V28: pinning a task from the bottom of a long group through its own menu. Since 0.3.1 a new
+// task enters a group at the top, so the bottom of the group is the oldest task.
 (async()=>{
   const {HostBridge}=await import('./bridge.mjs');
   const host=new HostBridge(),checks=[];
@@ -11,11 +12,12 @@
     input.value=title;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();
     const end=Date.now()+3000;while(Date.now()<end&&input.value!=='')await wait(25);await idle();
   }
-  const last=titles.at(-1);
+  const last=titles[0],newest=titles.at(-1);
   const row=title=>[...document.querySelectorAll('.task[data-task]')].find(node=>node.querySelector('.task-title')?.textContent===title);
   const groupOf=title=>row(title)?.closest('.task-group')?.dataset.group;
   const count=key=>+document.querySelector(`.task-group[data-group="${key}"] .group-toggle span:last-child`)?.textContent;
-  check('the newest task sits at the bottom of its group',groupOf(last)==='any'&&[...row(last).closest('.task-group-rows').children].at(-1)===row(last));
+  const rowsOf=title=>[...row(title).closest('.task-group-rows').children];
+  check('the newest task sits at the top of its group and the oldest at the bottom',groupOf(last)==='any'&&rowsOf(newest)[0]===row(newest)&&rowsOf(last).at(-1)===row(last));
   const anyBefore=count('any');
   const menuAction=async(title)=>{const node=row(title);node.scrollIntoView({block:'center'});await wait(60);node.querySelector('.task-more').click();await wait(60);const item=document.querySelector('#menu-pin');const label=item.textContent.trim();item.click();await idle();return label;};
 

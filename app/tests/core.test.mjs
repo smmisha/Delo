@@ -23,3 +23,20 @@ test('R04 uncomplete compensates only the current completion still present in th
 test('F06 a pinned task leads the list in pin order and keeps its timer and deadline',()=>{let s=add(add(add(createState(),'old'),'dated',makeDeadline('2026-01-01','13:00')),'new');s=run(s,{type:'start',id:'new'},base,100);s=run(s,{type:'pin',id:'new'},base+1,200);s=run(s,{type:'pin',id:'dated'},base+2,300);s=run(s,{type:'pin',id:'dated'},base+9,400);const g=groups(s,{now:base+3,timeZone:'UTC'});assert.deepEqual(g.map(group=>group.key),['pinned','any']);assert.deepEqual(g[0].tasks.map(task=>task.id),['new','dated']);assert.equal(s.tasks.find(task=>task.id==='dated').pinnedAt,base+2);assert.equal(s.tasks.find(task=>task.id==='new').workState,'running');assert.equal(elapsed(s.tasks.find(task=>task.id==='new'),1100),1000);assert.equal(validateState(s).valid,true);s=run(s,{type:'tick'},Date.parse('2026-01-01T13:00Z'),500);assert.equal(s.reputation,-2);assert.equal(groups(s,{now:Date.parse('2026-01-01T13:00Z'),timeZone:'UTC'})[0].tasks.length,2);});
 test('F06 unpin returns the task to its group; completion and restoration clear the pin',()=>{let s=add(add(run(createState(),{type:'settings',patch:{autoArchive:'off'}}),'a'),'b');s=run(s,{type:'pin',id:'b'},base+1);s=run(s,{type:'unpin',id:'b'},base+2);assert.equal('pinnedAt' in s.tasks[1],false);assert.deepEqual(groups(s,{now:base+3,timeZone:'UTC'}).map(group=>group.key),['any']);s=run(s,{type:'pin',id:'a'},base+4);s=run(s,{type:'complete',id:'a'},base+5);assert.equal('pinnedAt' in s.tasks[0],false);assert.throws(()=>run(s,{type:'pin',id:'a'},base+6),/completed/);s=run(s,{type:'uncomplete',id:'a'},base+6);s=run(s,{type:'pin',id:'b'},base+7);s=run(s,{type:'archive',id:'b'},base+8);assert.equal(s.tasks[1].pinnedAt,base+7);s=run(s,{type:'restore',id:'b'},base+9);assert.equal('pinnedAt' in s.tasks[1],false);s=run(s,{type:'pin',id:'b'},base+10);s=run(s,{type:'delete',id:'b'},base+11);s=run(s,{type:'undo'},base+12);assert.equal(s.tasks[1].pinnedAt,base+10);assert.equal(validateState(s).valid,true);});
 test('F06 data without pins loads as it is; a broken pin is rejected',()=>{let s=add(createState(),'a');assert.equal('pinnedAt' in s.tasks[0],false);assert.equal(validateState(s).valid,true);const nulled=structuredClone(s);nulled.tasks[0].pinnedAt=null;assert.equal(validateState(nulled).valid,true);for(const value of [-1,'1',Infinity]){const broken=structuredClone(s);broken.tasks[0].pinnedAt=value;assert.equal(validateState(broken).valid,false);}});
+test('V30 a new task enters its group at the top; a nearer deadline still leads',()=>{
+  const day=Date.parse('2026-01-01T09:00Z'),at=(s,command,ms)=>run(s,command,day+ms);
+  let s=createState();
+  s=at(s,{type:'create',id:'undated-1',title:'A'},0);s=at(s,{type:'create',id:'undated-2',title:'B'},1000);s=at(s,{type:'create',id:'undated-3',title:'C'},2000);
+  s=at(s,{type:'create',id:'today-1',title:'D',due:{date:'2026-01-01',time:'',timeZone:'UTC'}},3000);
+  s=at(s,{type:'create',id:'today-2',title:'E',due:{date:'2026-01-01',time:'',timeZone:'UTC'}},4000);
+  s=at(s,{type:'create',id:'today-timed',title:'F',due:{date:'2026-01-01',time:'18:00',timeZone:'UTC'}},5000);
+  s=at(s,{type:'create',id:'later-1',title:'G',due:{date:'2026-01-05',time:'',timeZone:'UTC'}},6000);
+  s=at(s,{type:'create',id:'later-2',title:'H',due:{date:'2026-01-05',time:'',timeZone:'UTC'}},7000);
+  s=at(s,{type:'create',id:'sooner',title:'I',due:{date:'2026-01-03',time:'',timeZone:'UTC'}},8000);
+  const g=Object.fromEntries(groups(s,{now:day+9000,timeZone:'UTC'}).map(group=>[group.key,group.tasks.map(task=>task.id)]));
+  assert.deepEqual(g.any,['undated-3','undated-2','undated-1']);
+  // Same day: the timed task is more urgent than date-only ones, then the newest date-only task first.
+  assert.deepEqual(g.today,['today-timed','today-2','today-1']);
+  // A later-created task with a nearer deadline goes above earlier ones; equal deadlines: newest first.
+  assert.deepEqual(g.upcoming,['sooner','later-2','later-1']);
+});
