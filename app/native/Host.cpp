@@ -143,6 +143,27 @@ void RecordShortcuts(bool enabled){
     catch(std::exception const& e){nativeSettings.Insert(L"hotkeyError",JsonValue::CreateStringValue(to_hstring(e.what())));}
     Broadcast(L"nativeChanged",nativeSettings);
 }
+// Shared by the visible tray and the harness: inspecting HMENU is integration evidence,
+// not proof that Explorer displayed it.
+HMENU BuildTrayMenu(std::wstring const& language){
+    auto menu=CreatePopupMenu();auto update=UpdateMenuLabel(language.c_str());if(!update.empty()){AppendMenuW(menu,MF_STRING,6,update.c_str());AppendMenuW(menu,MF_SEPARATOR,0,nullptr);}AppendMenuW(menu,MF_STRING,1,TrayLabel(language.c_str(),1));AppendMenuW(menu,MF_STRING,2,TrayLabel(language.c_str(),2));AppendMenuW(menu,MF_STRING,4,TrayLabel(language.c_str(),4));AppendMenuW(menu,MF_STRING|(demoMode?MF_CHECKED:MF_UNCHECKED),5,TrayLabel(language.c_str(),5));AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,3,TrayLabel(language.c_str(),3));return menu;
+}
+unsigned notificationAccepted{},notificationShown{},notificationClicked{};
+JsonObject OsSurfaceDiagnostics(){
+    JsonObject r;JsonArray items;auto menu=BuildTrayMenu(CurrentLanguage());
+    if(!menu)throw std::runtime_error("Could not create tray menu");
+    for(int i=0;i<GetMenuItemCount(menu);++i){
+        wchar_t label[256]{};MENUITEMINFOW item{sizeof(item)};
+        item.fMask=MIIM_ID|MIIM_FTYPE|MIIM_STRING;item.dwTypeData=label;item.cch=256;
+        if(!GetMenuItemInfoW(menu,UINT(i),TRUE,&item)){DestroyMenu(menu);throw std::runtime_error("Could not read tray menu");}
+        JsonObject entry;entry.Insert(L"id",Number(item.wID));entry.Insert(L"label",Text(label));entry.Insert(L"separator",Bool((item.fType&MFT_SEPARATOR)!=0));items.Append(entry);
+    }
+    DestroyMenu(menu);r.Insert(L"menu",items);
+    r.Insert(L"profile",Text(dataRoot.wstring()));r.Insert(L"pid",Number(GetCurrentProcessId()));
+    r.Insert(L"notificationAccepted",Number(notificationAccepted));
+    r.Insert(L"notificationShownCallback",Number(notificationShown));
+    r.Insert(L"notificationClickedCallback",Number(notificationClicked));return r;
+}
 void SetAutostart(bool enabled){if(harness){Log("autostart_simulated",enabled?"true":"false");return;}HKEY raw{};check_hresult(HRESULT_FROM_WIN32(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&raw,nullptr)));auto exe=appRoot/L"Delo.exe";auto value=L"\""+exe.wstring()+L"\"";LSTATUS error=enabled?RegSetValueExW(raw,L"Delo",0,REG_SZ,reinterpret_cast<BYTE const*>(value.c_str()),DWORD((value.size()+1)*sizeof(wchar_t))):RegDeleteValueW(raw,L"Delo");RegCloseKey(raw);if(error!=ERROR_SUCCESS&&error!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("Could not change autostart");}
 void RequestExit(){if(exiting)return;CancelVoice();exiting=true;Broadcast(L"beforeExit");SetTimer(control,4,20000,nullptr);}
 void FinishScreenshot(){
@@ -324,6 +345,7 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
             result.Insert(L"lastTrayQueryMs",Number(lightshotTray?lightshotTray->LastQueryMs():0));result.Insert(L"lastTrayQueryMatched",Bool(lightshotTray&&lightshotTray->LastQueryMatched()));
         }
         else if(action==L"materialShot"&&harness){auto target=payload.GetNamedString(L"path",L"");if(target.empty())throw std::runtime_error("materialShot requires a path");v.glass->SaveMaterial(std::wstring(target));result.Insert(L"written",Text(target.c_str()));}
+        else if(action==L"osSurfaceDiagnostics"&&harness)result=OsSurfaceDiagnostics();
         else if(action==L"storeDelay"&&harness)storeDelayMs=int(payload.GetNamedNumber(L"ms",0));
         else if(action==L"demo"&&harness)SetDemoMode(payload.GetNamedBoolean(L"enabled",!demoMode));
         else if(action==L"freezeForScreenshot"&&harness)BeginScreenshot();
@@ -345,6 +367,7 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
             wcsncpy_s(n.szInfoTitle,payload.GetNamedString(L"title",L"Delo").c_str(),_TRUNCATE);wcsncpy_s(n.szInfo,payload.GetNamedString(L"body",L"").c_str(),_TRUNCATE);
             Log("notify",to_string(payload.GetNamedString(L"title",L"")));
             if(!Shell_NotifyIconW(NIM_MODIFY,&n))throw std::runtime_error("Notification failed");
+            ++notificationAccepted;
         }
         // N13: off by default. On, at most one request a day; otherwise the last answer is returned.
         else if(action==L"openRelease")OpenReleasePage();
@@ -469,7 +492,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         if(message==WM_ENDSESSION&&w){PostQuitMessage(0);return 0;}
         // A new press always starts a new gesture: a double click whose final button-up was
         // released away from the icon must not swallow the next genuine click.
-        if(message==TrayMessage){if(l==NIN_BALLOONUSERCLICK){ShowList();return 0;}if(l==WM_LBUTTONDOWN)ignoreTrayButtonUp=false;else if(l==WM_LBUTTONDBLCLK){ignoreTrayButtonUp=true;++trayDoubleClicks;}else if(l==WM_LBUTTONUP){if(ignoreTrayButtonUp)ignoreTrayButtonUp=false;else{++traySingleClicks;Quick();}}if(l==WM_RBUTTONUP||l==WM_CONTEXTMENU){auto language=store&&store->State()?store->State().GetNamedObject(L"settings",JsonObject{}).GetNamedString(L"language",L"ru"):hstring(L"ru");auto menu=CreatePopupMenu();auto update=UpdateMenuLabel(language.c_str());if(!update.empty()){AppendMenuW(menu,MF_STRING,6,update.c_str());AppendMenuW(menu,MF_SEPARATOR,0,nullptr);}AppendMenuW(menu,MF_STRING,1,TrayLabel(language.c_str(),1));AppendMenuW(menu,MF_STRING,2,TrayLabel(language.c_str(),2));AppendMenuW(menu,MF_STRING,4,TrayLabel(language.c_str(),4));AppendMenuW(menu,MF_STRING|(demoMode?MF_CHECKED:MF_UNCHECKED),5,TrayLabel(language.c_str(),5));AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,3,TrayLabel(language.c_str(),3));POINT p{};GetCursorPos(&p);SetForegroundWindow(control);auto cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,0,control,nullptr);DestroyMenu(menu);if(cmd==6)OpenReleasePage();if(cmd==1)ShowList();if(cmd==2)Quick();if(cmd==3)RequestExit();if(cmd==5){try{SetDemoMode(!demoMode);}catch(hresult_error const& e){Log("demo_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}if(cmd==4){try{BeginScreenshot();}catch(hresult_error const& e){Log("screenshot_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}}return 0;}
+        if(message==TrayMessage){if(l==NIN_BALLOONSHOW)++notificationShown;if(l==NIN_BALLOONUSERCLICK){++notificationClicked;ShowList();return 0;}if(l==WM_LBUTTONDOWN)ignoreTrayButtonUp=false;else if(l==WM_LBUTTONDBLCLK){ignoreTrayButtonUp=true;++trayDoubleClicks;}else if(l==WM_LBUTTONUP){if(ignoreTrayButtonUp)ignoreTrayButtonUp=false;else{++traySingleClicks;Quick();}}if(l==WM_RBUTTONUP||l==WM_CONTEXTMENU){auto language=store&&store->State()?store->State().GetNamedObject(L"settings",JsonObject{}).GetNamedString(L"language",L"ru"):hstring(L"ru");auto menu=BuildTrayMenu(language.c_str());POINT p{};GetCursorPos(&p);SetForegroundWindow(control);auto cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,0,control,nullptr);DestroyMenu(menu);if(cmd==6)OpenReleasePage();if(cmd==1)ShowList();if(cmd==2)Quick();if(cmd==3)RequestExit();if(cmd==5){try{SetDemoMode(!demoMode);}catch(hresult_error const& e){Log("demo_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}if(cmd==4){try{BeginScreenshot();}catch(hresult_error const& e){Log("screenshot_error",to_string(e.message()));MessageBoxW(mainView.hwnd,e.message().c_str(),L"Delo",MB_ICONERROR);}}}return 0;}
         if(message==StoreDone){FinishStore(reinterpret_cast<StoreJob*>(l));return 0;}
         // The installer asks a running Delo to leave the ordinary way: the pages pause their timers and
         // save, and the app quits only after that save is acknowledged. The reply tells the installer
