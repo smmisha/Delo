@@ -42,7 +42,9 @@ if(mode==='--prepare'){
   await until(`document.querySelector('#settings').open`);
   // Use the application's export handler, recording exactly what it writes to a
   // controlled picker. Restore the original global even on assertion failure.
-  await page.evaluate(`globalThis.__osPicker=Object.getOwnPropertyDescriptor(globalThis,'showSaveFilePicker');globalThis.__osExport={};Object.defineProperty(globalThis,'showSaveFilePicker',{configurable:true,writable:true,value:async options=>{__osExport.options=options;return {name:'captured.json',createWritable:async()=>({write:async body=>{__osExport.body=body},close:async()=>{__osExport.closed=true}})}}})`);
+  // Every expression below ends in a plain value: Object.defineProperty returns globalThis, and
+  // returnByValue on that fails with "Object reference chain is too long".
+  await page.evaluate(`globalThis.__osPicker=Object.getOwnPropertyDescriptor(globalThis,'showSaveFilePicker');globalThis.__osExport={};Object.defineProperty(globalThis,'showSaveFilePicker',{configurable:true,writable:true,value:async options=>{__osExport.options=options;return {name:'captured.json',createWritable:async()=>({write:async body=>{__osExport.body=body},close:async()=>{__osExport.closed=true}})}}});0`);
   await check('N12 export bytes',async()=>{
    await page.evaluate(`document.querySelector('#export-data').click()`);
    await until(`globalThis.__osExport.closed===true`);
@@ -62,7 +64,7 @@ if(mode==='--prepare'){
    assert.equal(await fs.readFile(data,'utf8'),before);
    assert.equal(await page.evaluate(`document.querySelector('#settings-error').hidden`),true);
   });
-  await page.evaluate(`HTMLAnchorElement.prototype.click=__osAnchor;if(__osPicker)Object.defineProperty(globalThis,'showSaveFilePicker',__osPicker);else delete globalThis.showSaveFilePicker`);
+  await page.evaluate(`HTMLAnchorElement.prototype.click=__osAnchor;if(__osPicker)Object.defineProperty(globalThis,'showSaveFilePicker',__osPicker);else delete globalThis.showSaveFilePicker;0`);
   await check('N12 invalid import',async()=>{
    const before=await fs.readFile(data,'utf8'),oldCopies=await copies();
    await select('invalid.json');await until(`!document.querySelector('#settings-error').hidden`);
@@ -114,7 +116,7 @@ if(mode==='--prepare'){
   }
  }catch(e){metadata.error=e.stack;process.exitCode=1;}
  finally{
-  if(page&&identified&&mode==='--run'){try{await page.evaluate(`if(globalThis.__osAnchor)HTMLAnchorElement.prototype.click=__osAnchor;if(Object.hasOwn(globalThis,'__osPicker')){if(__osPicker)Object.defineProperty(globalThis,'showSaveFilePicker',__osPicker);else delete globalThis.showSaveFilePicker}`);}catch(e){metadata.cleanupError=e.message;process.exitCode=1;}}
+  if(page&&identified&&mode==='--run'){try{await page.evaluate(`if(globalThis.__osAnchor)HTMLAnchorElement.prototype.click=__osAnchor;if(Object.hasOwn(globalThis,'__osPicker')){if(__osPicker)Object.defineProperty(globalThis,'showSaveFilePicker',__osPicker);else delete globalThis.showSaveFilePicker};0`);}catch(e){metadata.cleanupError=e.message;process.exitCode=1;}}
   page?.close();
   if(mode==='--run'){
   const result=report(checks,metadata);if(result.integration!=='PASS')process.exitCode=1;

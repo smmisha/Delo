@@ -32,7 +32,9 @@ try{
  for($i=0;$i -lt 120;$i++){
   if($p.HasExited){throw "Harness exited early: $($p.ExitCode)"}
   try{
-   $pages=@(Invoke-RestMethod 'http://127.0.0.1:9223/json/list' -TimeoutSec 1)
+   # Windows PowerShell 5.1 hands the JSON array down the pipeline as one object; unroll it, or
+   # the page count below is 1 whatever is open.
+   $pages=@(Invoke-RestMethod 'http://127.0.0.1:9223/json/list' -TimeoutSec 1 | ForEach-Object {$_})
    if(@($pages | Where-Object {$_.url -like 'https://delo.local/ui/*'}).Count -eq 2){$ready=$true;break}
   }catch{}
   Start-Sleep -Milliseconds 250
