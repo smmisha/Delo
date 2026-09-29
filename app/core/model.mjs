@@ -174,7 +174,7 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
 export function groups(state,{now,timeZone='UTC'}) {
   const result=['pinned','late','today','upcoming','any','done'].map(key=>({key,tasks:[]}));
   for(const t of state.tasks.filter(t=>t.lifecycle==='active')) {const key=t.completedAt!==null?'done':t.pinnedAt!=null?'pinned':!t.due?'any':now>=t.due.at?'late':t.due.date===dateKey(now,t.due.timeZone||timeZone)?'today':'upcoming';result.find(g=>g.key===key).tasks.push(t);}
-  for(const g of result)g.tasks.sort((a,b)=>g.key==='done'?a.completedAt-b.completedAt||a.id.localeCompare(b.id):g.key==='pinned'?a.pinnedAt-b.pinnedAt||a.id.localeCompare(b.id):(a.due?.at??0)-(b.due?.at??0)||a.createdAt-b.createdAt||a.id.localeCompare(b.id));
+  for(const g of result)g.tasks.sort((a,b)=>g.key==='done'?a.completedAt-b.completedAt||a.id.localeCompare(b.id):g.key==='pinned'?a.pinnedAt-b.pinnedAt||a.id.localeCompare(b.id):(a.due?.at??0)-(b.due?.at??0)||b.createdAt-a.createdAt||a.id.localeCompare(b.id));
   return result.filter(g=>g.tasks.length);
 }
 export function validateState(s) {
