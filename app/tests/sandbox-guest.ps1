@@ -1,4 +1,4 @@
-param([string]$Version='0.3.0',[string]$From)
+param([string]$Version='0.3.1',[string]$From)
 # Clean install: install $Version, create a task, relaunch, uninstall.
 # With -From: install $From first and create the task there, run it as the user's widget on that
 # data, then install $Version over the running widget (V12 update, N09): the installer has to close
