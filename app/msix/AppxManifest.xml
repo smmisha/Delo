@@ -2,10 +2,11 @@
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+         xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-         IgnorableNamespaces="uap uap5 rescap">
+         IgnorableNamespaces="uap uap5 uap11 rescap">
   <Identity Name="socialmediamisha.Delo" Publisher="CN=D800CEBB-A019-4986-94AF-D4063AC04D7A"
-            Version="0.3.2.0" ProcessorArchitecture="x64" />
+            Version="0.3.3.0" ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>Delo</DisplayName>
     <PublisherDisplayName>socialmediamisha</PublisherDisplayName>
@@ -33,6 +34,8 @@
   </Applications>
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
+    <!-- Lets the app ask the user once to capture without the yellow border (Windows 11). -->
+    <uap11:Capability Name="graphicsCaptureWithoutBorder" />
     <DeviceCapability Name="microphone" />
   </Capabilities>
 </Package>

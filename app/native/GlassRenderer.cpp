@@ -1,5 +1,6 @@
 #include "GlassRenderer.h"
 #include "Dpi.h"
+#include "StoreDistribution.h"
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -194,7 +195,7 @@ struct EventCapture {
     winrt::Windows::Graphics::SizeInt32 size{};
     std::shared_ptr<Signal> ready=std::make_shared<Signal>();
     event_token arrived{},closed{}; bool subscribed{}; std::shared_ptr<std::atomic_bool> ended=std::make_shared<std::atomic_bool>(false);
-    com_ptr<ID3D11Texture2D> latestTexture; RECT monitor{}; unsigned recreates{}; HRESULT borderless{E_PENDING};
+    com_ptr<ID3D11Texture2D> latestTexture; RECT monitor{}; unsigned recreates{}; HRESULT borderless{E_PENDING}; bool borderlessGranted{};
     EventCapture(GPU& gpu, HMONITOR handle,HWND host) {
         auto interop=get_activation_factory<GraphicsCaptureItem,IGraphicsCaptureItemInterop>();
         MONITORINFO mi{sizeof(mi)};
@@ -217,7 +218,7 @@ struct EventCapture {
         // Windows draws a yellow capture border around any monitor under capture. The
         // widget is a desktop ornament, not a recording tool, so it asks for borderless
         // capture; the property is honoured only once the access request is granted.
-        borderless=E_PENDING;
+        borderless=E_PENDING;borderlessGranted=BorderlessGranted();
         try {
             if(auto session3=session.try_as<IGraphicsCaptureSession3>()) {
                 session3.IsBorderRequired(false);
@@ -417,6 +418,9 @@ struct GlassRenderer::Impl {
             DWORD affinity{};
             if(!GetWindowDisplayAffinity(host,&affinity)||affinity!=WDA_EXCLUDEFROMCAPTURE)
                 throw hresult_error(E_ACCESSDENIED);
+            // A packaged app learns the user's answer to the border prompt after capture began. A session
+            // made before the answer keeps its border, so it is made again once, now with consent.
+            if(capture&&!capture->borderlessGranted&&BorderlessGranted())capture.reset();
             if(!capture){capture=std::make_unique<EventCapture>(*gpu,monitor,host);captureStarted=GetTickCount64();dirty=true;}
             const auto workStarted=PreciseMilliseconds();
             phase="capture";
