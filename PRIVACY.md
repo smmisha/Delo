@@ -14,7 +14,7 @@ You can edit and delete tasks, restore tasks from the trash during its retention
 
 Voice entry records your microphone only when you start voice entry. Speech is transcribed locally with the bundled Whisper model, and the resulting text appears in the entry field for you to review. Recordings and transcripts are not sent to the publisher or to a speech service. Temporary recording and transcription files are removed after processing where the operating system permits. You can cancel recording, deny microphone access in Windows, or use typing instead.
 
-The glass effect uses Windows Graphics Capture to render the background behind the widget. Desktop image processing is local. Delo does not upload or maintain a recording of these images. Demo mode changes whether the widget appears in capture performed by other software; those applications have their own privacy practices.
+The glass effect uses Windows Graphics Capture to render the background behind the widget. Desktop image processing is local. Delo does not upload or maintain a recording of these images. In the Microsoft Store version, Windows may ask once whether Delo may capture the screen without the yellow capture border; Windows remembers your answer, and before asking Delo shows a short explanation. Demo mode changes whether the widget appears in capture performed by other software; those applications have their own privacy practices.
 
 ## Network services and sharing
 

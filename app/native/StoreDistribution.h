@@ -8,6 +8,7 @@
 #include <atomic>
 #include <future>
 #include <stdexcept>
+#include <string>
 #include <thread>
 
 namespace delo {
@@ -21,6 +22,22 @@ inline bool HasPackageIdentity() {
 // applicable, 1: granted, 2: refused or not available (Windows 10 has no such API: the border stays).
 inline std::atomic<int> borderlessAccess{0};
 inline bool BorderlessGranted() { return borderlessAccess.load() == 1; }
+// What Windows already knows about the answer, without showing the prompt: 1 allowed, 2 refused,
+// 0 not asked yet or not known. `detail` names the raw status for the log. If this capability name is
+// not accepted here, the answer stays 0 and the first-run explanation is shown, which does no harm.
+inline int BorderlessAnswer(std::wstring& detail) {
+    try {
+        using namespace winrt::Windows::Security::Authorization::AppCapabilityAccess;
+        switch (AppCapability::Create(L"graphicsCaptureWithoutBorder").CheckAccess()) {
+            case AppCapabilityAccessStatus::Allowed: detail = L"allowed"; return 1;
+            case AppCapabilityAccessStatus::DeniedByUser: detail = L"denied_by_user"; return 2;
+            case AppCapabilityAccessStatus::DeniedBySystem: detail = L"denied_by_system"; return 2;
+            case AppCapabilityAccessStatus::UserPromptRequired: detail = L"prompt_required"; return 0;
+            case AppCapabilityAccessStatus::NotDeclaredByApp: detail = L"not_declared"; return 0;
+            default: detail = L"unknown"; return 0;
+        }
+    } catch (...) { detail = L"unavailable"; return 0; }
+}
 // The request can wait for the user, so it runs on its own thread and never blocks the host.
 inline void RequestBorderlessCapture() {
     if (!HasPackageIdentity()) return;
