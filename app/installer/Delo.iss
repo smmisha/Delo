@@ -47,6 +47,7 @@ en.CloseFailed=Delo could not be closed. Exit it from the tray icon menu and try
 [Files]
 Source: "..\bin\Delo.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Glass.hlsl"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\bin\privacy.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\ui\*.html"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "..\bin\ui\*.css"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "..\bin\ui\*.mjs"; DestDir: "{app}\ui"; Flags: ignoreversion

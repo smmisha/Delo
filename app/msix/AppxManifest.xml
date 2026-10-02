@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap uap5 rescap">
+  <Identity Name="socialmediamisha.Delo" Publisher="CN=D800CEBB-A019-4986-94AF-D4063AC04D7A"
+            Version="0.3.2.0" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Delo</DisplayName>
+    <PublisherDisplayName>socialmediamisha</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19045.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="ru" />
+    <Resource Language="uk" />
+    <Resource Language="en" />
+  </Resources>
+  <Applications>
+    <Application Id="Delo" Executable="Delo.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Delo" Description="Desktop task planner" BackgroundColor="transparent"
+                          Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
+      </uap:VisualElements>
+      <Extensions>
+        <uap5:Extension Category="windows.startupTask" Executable="Delo.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask TaskId="DeloStartup" Enabled="false" DisplayName="Delo" />
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <DeviceCapability Name="microphone" />
+  </Capabilities>
+</Package>

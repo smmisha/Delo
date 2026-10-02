@@ -24,6 +24,16 @@ try {
  & "$vc/bin/Hostx64/x64/cl.exe" /nologo /MT /EHsc /std:c++17 /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /DUNICODE /D_UNICODE /utf-8 /W4 /O2 "/I$vc/include" "/I$sdk/Include/$sdkVersion/ucrt" "/I$sdk/Include/$sdkVersion/shared" "/I$sdk/Include/$sdkVersion/um" "/I$sdk/Include/$sdkVersion/winrt" "/I$sdk/Include/$sdkVersion/cppwinrt" "/I$webview/build/native/include" "/Fo$out/" "$PSScriptRoot/native/Host.cpp" "$PSScriptRoot/native/GlassRenderer.cpp" "$out/Delo.res" /link /SUBSYSTEM:WINDOWS /MANIFEST:EMBED "/MANIFESTINPUT:$PSScriptRoot/native/app.manifest" "/LIBPATH:$vc/lib/x64" "/LIBPATH:$sdk/Lib/$sdkVersion/um/x64" "/LIBPATH:$sdk/Lib/$sdkVersion/ucrt/x64" "$webview/build/native/x64/WebView2LoaderStatic.lib" WindowsApp.lib D3D11.lib DXGI.lib D3DCompiler.lib Dcomp.lib Windowscodecs.lib User32.lib Gdi32.lib Dwmapi.lib CoreMessaging.lib Wtsapi32.lib Shell32.lib Ole32.lib Shlwapi.lib Advapi32.lib Version.lib "/OUT:$out/Delo.exe"
  if($LASTEXITCODE -ne 0){throw 'Delo compilation failed'}
  Copy-Item -LiteralPath "$PSScriptRoot/native/Glass.hlsl" -Destination $out -Force
+ # Keep the policy inside the installed app and generate it from the single source.
+ $policy=Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'PRIVACY.md') -Raw
+ $policyHtml=foreach($paragraph in ($policy -split '(?:\r?\n){2,}')){
+  $paragraph=$paragraph.Trim();if(-not $paragraph){continue}
+  $tag=if($paragraph.StartsWith('## ')){'h2'}elseif($paragraph.StartsWith('# ')){'h1'}else{'p'}
+  $value=[Net.WebUtility]::HtmlEncode(($paragraph -replace '^#{1,2} ',''))
+  "<$tag>$value</$tag>"
+ }
+ $html='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Delo privacy policy</title><style>body{font:16px/1.6 system-ui;max-width:800px;margin:40px auto;padding:0 24px;color:#182535;background:#fff}h1,h2{line-height:1.25}p{overflow-wrap:anywhere}</style><main>'+($policyHtml -join "`n")+'</main></html>'
+ [IO.File]::WriteAllText((Join-Path $out 'privacy.html'),$html,[Text.UTF8Encoding]::new($false))
  foreach($folder in @('ui','core')){$target=Join-Path $out $folder;if(Test-Path -LiteralPath $target){Remove-Item -LiteralPath $target -Recurse -Force}Copy-Item -LiteralPath "$PSScriptRoot/$folder" -Destination $out -Recurse -Force}
  if(-not $SkipVoice){
  $voice=Join-Path $PSScriptRoot 'vendor/voice'
