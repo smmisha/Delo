@@ -6,7 +6,7 @@
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
          IgnorableNamespaces="uap uap5 uap11 rescap">
   <Identity Name="socialmediamisha.Delo" Publisher="CN=D800CEBB-A019-4986-94AF-D4063AC04D7A"
-            Version="0.3.3.0" ProcessorArchitecture="x64" />
+            Version="0.3.4.0" ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>Delo</DisplayName>
     <PublisherDisplayName>socialmediamisha</PublisherDisplayName>

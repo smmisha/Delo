@@ -62,6 +62,8 @@ std::uint64_t powerSuspends{},powerResumes{},dragRequests{},quickDismissals{},tr
 delo::TraceLog trace;
 // File writes run here, in order, never on the window thread (N06).
 std::unique_ptr<delo::Worker> storeWorker;std::atomic<int> storeDelayMs{0};
+// Harness only: makes the first-run capture explanation appear without a packaged build.
+std::atomic<bool> fakeCaptureIntro{false};
 // F05: the optional timer shortcut, hotkey id 3; empty means off (П11).
 std::wstring timerKey;
 // N13: the update check runs on its own thread so a slow network never holds up data writes.
@@ -355,6 +357,14 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
         else if(action==L"materialShot"&&harness){auto target=payload.GetNamedString(L"path",L"");if(target.empty())throw std::runtime_error("materialShot requires a path");v.glass->SaveMaterial(std::wstring(target));result.Insert(L"written",Text(target.c_str()));}
         else if(action==L"osSurfaceDiagnostics"&&harness)result=OsSurfaceDiagnostics();
         else if(action==L"storeDelay"&&harness)storeDelayMs=int(payload.GetNamedNumber(L"ms",0));
+        else if(action==L"fakeCaptureIntro"&&harness)fakeCaptureIntro=payload.GetNamedBoolean(L"on",false);
+        // First-run explanation before Windows' own border prompt. `needed` asks whether to show it; `accept`
+        // records that it was read and starts the request; `later` leaves everything as it is for the next start.
+        else if(action==L"captureIntro"){
+            const bool undecided=delo::borderlessAccess.load()==0&&!nativeSettings.GetNamedBoolean(L"captureIntroSeen",false);
+            if(payload.GetNamedBoolean(L"accept",false)){nativeSettings.Insert(L"captureIntroSeen",Bool(true));SaveNativeLater();delo::RequestBorderlessCapture();}
+            else if(!payload.GetNamedBoolean(L"later",false))result.Insert(L"needed",Bool(harness?fakeCaptureIntro.load():(storeDistribution&&undecided)));
+        }
         else if(action==L"demo"&&harness)SetDemoMode(payload.GetNamedBoolean(L"enabled",!demoMode));
         else if(action==L"freezeForScreenshot"&&harness)BeginScreenshot();
         else if(action==L"finishScreenshot"&&harness)FinishScreenshot();
@@ -540,7 +550,7 @@ void CreateWindowFor(View& v){int x=100,y=120;auto key=v.quick?L"quickPosition":
 }
 int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=module;try{
     init_apartment(apartment_type::single_threaded);SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    wchar_t path[32768]{};GetModuleFileNameW(nullptr,path,32768);appRoot=fs::path(path).parent_path();harness=wcsstr(args,L"--harness")!=nullptr;storeDistribution=delo::HasPackageIdentity();/* Packaged builds ask once for borderless capture (no yellow border); see StoreDistribution.h. */if(storeDistribution)delo::RequestBorderlessCapture();
+    wchar_t path[32768]{};GetModuleFileNameW(nullptr,path,32768);appRoot=fs::path(path).parent_path();harness=wcsstr(args,L"--harness")!=nullptr;storeDistribution=delo::HasPackageIdentity();
     PWSTR local{};check_hresult(SHGetKnownFolderPath(FOLDERID_LocalAppData,0,nullptr,&local));dataRoot=fs::path(local)/L"Delo";CoTaskMemFree(local);if(storeDistribution)dataRoot=fs::path(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());if(harness){dataRoot=storeDistribution?dataRoot/L"test-output":appRoot/L"test-output";auto named=wcsstr(args,L"--harness=");if(named){std::wstring name(named+10);// The rest of the command line is not the name: shells routinely leave a trailing space, and another argument may follow. Take the token and nothing else, otherwise a stray space refuses the launch with only "Invalid harness session name" to show for it.
         if(auto end=name.find_first_of(L" \t\"");end!=std::wstring::npos)name.erase(end);
         if(name.empty()||name.size()>64||name.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")!=std::wstring::npos)throw std::runtime_error("Invalid harness session name");dataRoot/=L"sessions";dataRoot/=name;}}fs::create_directories(dataRoot);trace.Open(dataRoot/L"native.jsonl");storeWorker=std::make_unique<delo::Worker>();
@@ -582,6 +592,9 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
     }
     // F05: a timer shortcut that no longer registers is only switched off for this launch; the
     // setting keeps it, and the settings sheet shows why it is not active.
+    // Packaged builds ask once for borderless capture (no yellow border; see StoreDistribution.h). Windows may
+    // already know the answer. If not, the widget first explains why it reads the screen behind it, then asks.
+    if(storeDistribution){std::wstring detail;if(const int known=delo::BorderlessAnswer(detail))delo::borderlessAccess=known;else if(nativeSettings.GetNamedBoolean(L"captureIntroSeen",false))delo::RequestBorderlessCapture();Log("borderless_status",to_string(detail));}
     timerKey=NativeText(L"timerKey");try{RegisterTimerKey(timerKey);}catch(std::exception const& e){Log("timer_hotkey_error",e.what());nativeSettings.Insert(L"timerKeyError",JsonValue::CreateStringValue(to_hstring(e.what())));}
     quickView.quick=true;CreateWindowFor(mainView);CreateWindowFor(quickView);
     try{lightshotTray=std::make_unique<delo::LightshotTray>(control,delo::ScreenshotKeys::PrepareMessage);}
@@ -596,7 +609,7 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
     auto ownerCheck=GetTickCount64();bool running=true;int exitCode{};
     while(running){MSG msg{};while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){if(msg.message==WM_QUIT){running=false;exitCode=int(msg.wParam);break;}TranslateMessage(&msg);DispatchMessageW(&msg);}if(!running)break;
         for(auto* v:{&mainView,&quickView}){if(v->hwnd&&v->visible&&v->glass&&!v->captureFrozen){v->glass->Tick();auto healthy=v->glass->Healthy();if(const auto errors=v->glass->GetCounters().errors;errors>v->lastErrors){v->lastErrors=errors;Log("glass_error",std::string(v->quick?"quick ":"main ")+v->glass->LastError());}if(healthy!=v->lastHealthy){v->lastHealthy=healthy;JsonObject p;p.Insert(L"available",Bool(healthy));Event(*v,L"material",p);InvalidateRect(v->hwnd,nullptr,TRUE);}}}
-        if(GetTickCount64()-ownerCheck>2000){ownerCheck=GetTickCount64();SyncDpi(mainView,"poll");SyncDpi(quickView,"poll");if(!mainView.hwnd&&!exiting){CreateWindowFor(mainView);Log("window_recreated","true");}if(mainView.hwnd&&!pinned&&!mainView.temporary){auto owner=GetWindow(mainView.hwnd,GW_OWNER);if(!IsWindow(owner))ApplyMode();}}
+        if(GetTickCount64()-ownerCheck>2000){ownerCheck=GetTickCount64();{static int loggedAccess=0;const int access=delo::borderlessAccess.load();if(access!=loggedAccess){loggedAccess=access;Log("borderless_access",access==1?"granted":"refused_or_unavailable");}}SyncDpi(mainView,"poll");SyncDpi(quickView,"poll");if(!mainView.hwnd&&!exiting){CreateWindowFor(mainView);Log("window_recreated","true");}if(mainView.hwnd&&!pinned&&!mainView.temporary){auto owner=GetWindow(mainView.hwnd,GW_OWNER);if(!IsWindow(owner))ApplyMode();}}
         HANDLE handles[2]{};DWORD count{};for(auto* v:{&mainView,&quickView})if(v->visible&&v->glass&&v->glass->EventHandle())handles[count++]=v->glass->EventHandle();MsgWaitForMultipleObjectsEx(count,handles,50,QS_ALLINPUT,MWMO_INPUTAVAILABLE);
     }
     // Let writes already queued land before the process goes away.

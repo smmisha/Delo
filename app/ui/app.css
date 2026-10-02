@@ -203,6 +203,8 @@ body.dark .tooltip-layer{border-color:#ffffff35;background:#20364bec;color:#f5f7
 .confirm-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:16px}
 .confirm-actions button{min-height:44px;padding:0 17px;border:1px solid #ffffff3f;border-radius:22px;background:var(--small-surface);color:var(--ink)}
 #confirmation-accept{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,var(--small-surface));font-weight:620}
+/* An explanation, not a warning: the same sheet without the red of a destructive confirmation. */
+#confirmation.calm #confirmation-accept{color:var(--focus);background:color-mix(in srgb,var(--focus) 12%,var(--small-surface))}
 .shortcut-recorder.recording{border-color:color-mix(in srgb,var(--focus) 72%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 48%,transparent),0 0 0 3px color-mix(in srgb,var(--focus) 10%,transparent)}
 
 /* Actions get their own row before they can squeeze an archived title to zero. */
