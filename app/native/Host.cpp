@@ -57,6 +57,9 @@ bool demoMode{};
 delo::CaptureSuspension captureSuspension;
 void SyncCaptureSuspension(){for(auto* v:{&mainView,&quickView})if(v->glass)v->glass->Suspend(captureSuspension.RendererBlocked());}
 bool storeDistribution{};
+// Telegram-style draft of the main window's entry field. It changes with every pause in typing, so it lives
+// in its own small file (draft.json) and never touches tasks.json, its revision or the transaction path.
+std::wstring draftText;
 bool pinned{},exiting{},harness{},mainHiddenForQuick{},ignoreTrayButtonUp{},shortcutRecording{};UINT taskbarCreated{};HPOWERNOTIFY powerNotify{};
 std::uint64_t powerSuspends{},powerResumes{},dragRequests{},quickDismissals{},traySingleClicks{},trayDoubleClicks{};
 delo::TraceLog trace;
@@ -357,6 +360,15 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
         else if(action==L"materialShot"&&harness){auto target=payload.GetNamedString(L"path",L"");if(target.empty())throw std::runtime_error("materialShot requires a path");v.glass->SaveMaterial(std::wstring(target));result.Insert(L"written",Text(target.c_str()));}
         else if(action==L"osSurfaceDiagnostics"&&harness)result=OsSurfaceDiagnostics();
         else if(action==L"storeDelay"&&harness)storeDelayMs=int(payload.GetNamedNumber(L"ms",0));
+        // The entry field's draft: `text` stores it (in order, on the write thread), without `text` it is read back.
+        else if(action==L"draft"){
+            if(payload.HasKey(L"text")){
+                auto value=payload.GetNamedString(L"text");if(value.size()>20000)throw std::runtime_error("Draft is too long");
+                draftText=value.c_str();JsonObject saved;saved.Insert(L"text",JsonValue::CreateStringValue(value));
+                auto bytes=to_string(saved.Stringify());auto path=dataRoot/L"draft.json";
+                if(storeWorker)storeWorker->Post([bytes,path]{try{delo::AtomicWrite(path,bytes);}catch(...){}});else delo::AtomicWrite(path,bytes);
+            }else result.Insert(L"text",JsonValue::CreateStringValue(draftText));
+        }
         else if(action==L"fakeCaptureIntro"&&harness)fakeCaptureIntro=payload.GetNamedBoolean(L"on",false);
         // First-run explanation before Windows' own border prompt. `needed` asks whether to show it; `accept`
         // records that it was read and starts the request; `later` leaves everything as it is for the next start.
@@ -555,6 +567,8 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=modul
         if(auto end=name.find_first_of(L" \t\"");end!=std::wstring::npos)name.erase(end);
         if(name.empty()||name.size()>64||name.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")!=std::wstring::npos)throw std::runtime_error("Invalid harness session name");dataRoot/=L"sessions";dataRoot/=name;}}fs::create_directories(dataRoot);trace.Open(dataRoot/L"native.jsonl");storeWorker=std::make_unique<delo::Worker>();
     auto mutexName=harness?L"Local\\Delo.Widget.Harness":L"Local\\Delo.Widget";winrt::handle mutex{CreateMutexW(nullptr,FALSE,mutexName)};if(GetLastError()==ERROR_ALREADY_EXISTS){auto other=FindWindowW(ClassName,harness?L"Delo.Harness.Control":L"Delo.Control");if(other)PostMessageW(other,ShowMessage,0,0);return 0;}
+    // The draft of an earlier run comes back in the entry field; a damaged file just means no draft.
+    if(fs::exists(dataRoot/L"draft.json")){try{draftText=JsonObject::Parse(to_hstring(delo::ReadBytes(dataRoot/L"draft.json"))).GetNamedString(L"text",L"").c_str();}catch(...){Log("draft_load_error","Ignoring an unreadable draft");}}
     if(fs::exists(dataRoot/L"window.json")){try{nativeSettings=JsonObject::Parse(to_hstring(delo::ReadBytes(dataRoot/L"window.json")));}catch(...){Log("settings_error","Using defaults; original preserved");}}
     nativeSettings.Insert(L"storeManagedUpdates",Bool(storeDistribution));RefreshPackageStartup();
     pinned=nativeSettings.GetNamedBoolean(L"pinned",false);nativeSettings.Insert(L"pinned",Bool(pinned));if(!nativeSettings.HasKey(L"autostart"))nativeSettings.Insert(L"autostart",Bool(false));if(!nativeSettings.HasKey(L"hotkeys")){JsonObject keys;keys.Insert(L"list",Text(L"Ctrl+Alt+Space"));keys.Insert(L"quick",Text(L"Ctrl+Alt+N"));nativeSettings.Insert(L"hotkeys",keys);}
