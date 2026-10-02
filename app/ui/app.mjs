@@ -127,7 +127,7 @@ $('#editor-form').addEventListener('submit',async event=>{event.preventDefault()
 function grow(input){input.style.height='auto';input.style.height=`${Math.min(input.scrollHeight,input.id==='editor-input'?180:quick?125:92)}px`;}
 // The main window keeps what is typed in its entry field as a draft (see draft.mjs); the quick capsule does not.
 const draft=quick?null:createDraft(text=>host.window('draft',{text}));
-async function restoreDraft(){const input=$('#task-input');if(!draft||input.value)return;const reply=await host.window('draft');if(reply?.text&&!input.value){input.value=reply.text;draft.known(reply.text);grow(input);setBusy(busy);renderDueHint();}}
+async function restoreDraft(){const input=$('#task-input');if(!draft||input.value)return;const reply=await host.window('draft');if(reply?.text&&!input.value){/* A hand-edited file can hold more than the field accepts. */const kept=input.maxLength>0?reply.text.slice(0,input.maxLength):reply.text;input.value=kept;draft.known(reply.text);grow(input);setBusy(busy);renderDueHint();}}
 for(const input of [$('#task-input'),$('#editor-input')]){input.addEventListener('input',()=>{grow(input);setBusy(busy);if(input.id==='task-input')draft?.change(input.value);});input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing&&event.keyCode!==229){event.preventDefault();if(!busy)input.closest('form').requestSubmit();}});}
 function shortcutFromEvent(event){
   const legacy=Number(event.keyCode||event.which),code=event.code||(legacy>=65&&legacy<=90?`Key${String.fromCharCode(legacy)}`:legacy>=48&&legacy<=57?`Digit${String.fromCharCode(legacy)}`:legacy===32?'Space':'');
