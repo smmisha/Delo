@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createDraft} from '../ui/draft.mjs';
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+test('typing is saved once, after a pause, with the last text',async()=>{const saved=[];const d=createDraft(async text=>{saved.push(text);},{delay:30,maxWait:500});d.change('П');d.change('Пр');d.change('При');assert.deepEqual(saved,[]);await sleep(90);assert.deepEqual(saved,['При']);});
+test('continuous typing is saved at least every maxWait',async()=>{const saved=[];const d=createDraft(async text=>{saved.push(text);},{delay:60,maxWait:100});for(let i=1;i<=8;i++){d.change('x'.repeat(i));await sleep(25);}assert.ok(saved.length>=1,'a save happened while typing went on');await d.flush();assert.equal(saved.at(-1),'xxxxxxxx');});
+test('flush writes at once and a second flush has nothing to do',async()=>{const saved=[];const d=createDraft(async text=>{saved.push(text);},{delay:5000});d.change('черновик');await d.flush();assert.deepEqual(saved,['черновик']);await d.flush();assert.deepEqual(saved,['черновик']);assert.equal(d.pending,false);});
+test('text restored from the host is not written back; clearing is saved',async()=>{const saved=[];const d=createDraft(async text=>{saved.push(text);},{delay:5});d.known('из хоста');d.change('из хоста');await sleep(30);assert.deepEqual(saved,[]);d.change('');await sleep(30);assert.deepEqual(saved,['']);});
+test('a failed write is kept and retried with the next flush',async()=>{let fail=true;const saved=[];const d=createDraft(async text=>{if(fail)throw Error('disk');saved.push(text);},{delay:5});d.change('важное');await sleep(30);assert.deepEqual(saved,[]);assert.equal(d.pending,true);fail=false;await d.flush();assert.deepEqual(saved,['важное']);});
+test('a change made while a write is in flight is not lost',async()=>{const saved=[];let release;const d=createDraft(text=>new Promise(resolve=>{release=()=>{saved.push(text);resolve();};}),{delay:5});d.change('а');await sleep(20);d.change('аб');release();await sleep(10);await d.flush?.();release?.();await sleep(10);assert.equal(saved.at(-1),'аб');});

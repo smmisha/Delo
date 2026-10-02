@@ -6,7 +6,7 @@ Delo is a local desktop task planner for Windows. It does not require a Delo acc
 
 ## Data on your device
 
-Task text, deadlines, timer history, reputation, preferences, and recovery backups are stored on your device. The Microsoft Store version uses its Windows app data profile. The standalone version uses `%LOCALAPPDATA%\Delo`. WebView2 also maintains a local profile used to display the interface.
+Task text, deadlines, timer history, reputation, preferences, recovery backups, and the unsent text in the entry field (kept as a local draft so it survives closing the widget) are stored on your device. The Microsoft Store version uses its Windows app data profile. The standalone version uses `%LOCALAPPDATA%\Delo`. WebView2 also maintains a local profile used to display the interface.
 
 You can edit and delete tasks, restore tasks from the trash during its retention period, and export or import your data in Settings. Deleted tasks are retained for 30 days unless you permanently delete them earlier. Local recovery backups may still contain earlier task data. Exported files remain in the location you choose, until you delete them. Resetting or uninstalling the Microsoft Store package can remove its app data, so export any data you want to keep beforehand.
 

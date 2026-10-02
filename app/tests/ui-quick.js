@@ -39,7 +39,8 @@
  check('Escape closes without saving',!cancelled.visible&&!after.state.tasks.some(t=>t.title===cancelTitle));
  check('Escape returns focus',cancelled.foreground===first.previous);
  await host.window('quick');await wait(100);
- check('Escape discards cancelled draft',input.value==='');
+ check('Escape keeps the unsent text for next time',input.value===cancelTitle);
+ input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));await wait(700);
  await host.window('quickDone');
  return {checks};
 })()
