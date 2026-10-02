@@ -23,10 +23,11 @@
   const order=rowsOf(newest).map(node=>node.querySelector('.task-title')?.textContent).filter(title=>titles.includes(title));
   check('new tasks enter the top of their group, newest first',groupOf(oldest)==='any'&&rowsOf(newest)[0]===row(newest)&&order.join('|')===[...titles].reverse().join('|'));
   const anyBefore=count('any');
-  const menuAction=async(title)=>{const node=row(title);node.scrollIntoView({block:'center'});await wait(60);node.querySelector('.task-more').click();await wait(60);const item=document.querySelector('#menu-pin');const label=item.textContent.trim();item.click();await idle();return label;};
+  let lastIcon='';
+  const menuAction=async(title)=>{const node=row(title);node.scrollIntoView({block:'center'});await wait(60);node.querySelector('.task-more').click();await wait(60);const item=document.querySelector('#menu-pin');const label=item.textContent.trim();lastIcon=item.querySelector('use').getAttribute('href');item.click();await idle();return label;};
 
   const pinLabel=await menuAction(oldest);
-  check('the menu offers to pin',/^(Закрепить|Закріпити|Pin)$/.test(pinLabel));
+  check('the menu offers to pin, with the plain pin',/^(Закрепить|Закріпити|Pin)$/.test(pinLabel)&&lastIcon==='#i-pin');
   const first=document.querySelector('#task-scroll .task-group');
   check('a pinned group leads the list',first?.dataset.group==='pinned'&&first.querySelector('.task-title')?.textContent===oldest);
   check('the pinned group is named and counted like the others',/^(Закреплено|Закріплено|Pinned)$/.test(first.querySelector('.group-name')?.textContent)&&count('pinned')===1);
@@ -39,7 +40,7 @@
   check('pins keep their order',[...document.querySelectorAll('.task-group[data-group="pinned"] .task-title')].map(node=>node.textContent).join('|')===`${oldest}|${newest}`);
 
   const unpinLabel=await menuAction(newest);
-  check('a pinned task offers to unpin',/^(Открепить|Відкріпити|Unpin)$/.test(unpinLabel));
+  check('a pinned task offers to unpin, with the pin crossed out',/^(Открепить|Відкріпити|Unpin)$/.test(unpinLabel)&&lastIcon==='#i-unpin');
   check('unpinning returns the task to its group',groupOf(newest)==='any');
 
   // Completing a pinned task clears the pin.
