@@ -23,9 +23,11 @@
 #include "Dpi.h"
 #include "Hotkey.h"
 #include "GlassRenderer.h"
+#include "CaptureSuspension.h"
 #include "ScreenshotKeys.h"
 #include "Voice.h"
 #include "Update.h"
+#include "StoreDistribution.h"
 #include "resource.h"
 
 using Microsoft::WRL::Callback;
@@ -52,6 +54,9 @@ fs::path appRoot,dataRoot;JsonObject nativeSettings;std::string storageError;
 std::unique_ptr<delo::Voice> voice;View* voiceView{};hstring voiceSession;
 void CancelVoice(View* view=nullptr){if(voice&&(!view||voiceView==view))voice->Cancel();}
 bool demoMode{};
+delo::CaptureSuspension captureSuspension;
+void SyncCaptureSuspension(){for(auto* v:{&mainView,&quickView})if(v->glass)v->glass->Suspend(captureSuspension.RendererBlocked());}
+bool storeDistribution{};
 bool pinned{},exiting{},harness{},mainHiddenForQuick{},ignoreTrayButtonUp{},shortcutRecording{};UINT taskbarCreated{};HPOWERNOTIFY powerNotify{};
 std::uint64_t powerSuspends{},powerResumes{},dragRequests{},quickDismissals{},traySingleClicks{},trayDoubleClicks{};
 delo::TraceLog trace;
@@ -127,10 +132,10 @@ void RegisterTimerKey(std::wstring const& key){UnregisterHotKey(control,3);if(ke
 constexpr double UpdateIntervalMs=24.0*3600*1000;
 double WallMs(){FILETIME ft{};GetSystemTimeAsFileTime(&ft);return double(((ULONGLONG(ft.dwHighDateTime)<<32)|ft.dwLowDateTime)-116444736000000000ULL)/10000.0;}
 std::wstring NativeText(wchar_t const* key){return std::wstring(nativeSettings.GetNamedString(key,L"").c_str());}
-bool UpdateAvailable(){auto latest=NativeText(L"updateLatest");return !latest.empty()&&delo::NewerVersion(latest,delo::OwnVersion());}
+bool UpdateAvailable(){if(storeDistribution)return false;auto latest=NativeText(L"updateLatest");return !latest.empty()&&delo::NewerVersion(latest,delo::OwnVersion());}
 JsonObject UpdateResult(bool cached){JsonObject r;r.Insert(L"current",Text(delo::OwnVersion()));r.Insert(L"latest",Text(NativeText(L"updateLatest")));r.Insert(L"url",Text(NativeText(L"updateUrl")));r.Insert(L"newer",Bool(UpdateAvailable()));r.Insert(L"cached",Bool(cached));r.Insert(L"checkedAt",Number(nativeSettings.GetNamedNumber(L"updateCheckedAt",0)));return r;}
 // Only this project's release pages are opened; the address comes from the network.
-void OpenReleasePage(){auto url=NativeText(L"updateUrl");constexpr wchar_t prefix[]=L"https://github.com/smmisha/Delo/";if(url.size()>std::size(prefix)-1&&_wcsnicmp(url.c_str(),prefix,std::size(prefix)-1)==0)ShellExecuteW(nullptr,L"open",url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
+void OpenReleasePage(){if(storeDistribution){ShellExecuteW(nullptr,L"open",L"ms-windows-store://pdp/?productid=9MSPF2LJL0V2",nullptr,nullptr,SW_SHOWNORMAL);return;}auto url=NativeText(L"updateUrl");constexpr wchar_t prefix[]=L"https://github.com/smmisha/Delo/";if(url.size()>std::size(prefix)-1&&_wcsnicmp(url.c_str(),prefix,std::size(prefix)-1)==0)ShellExecuteW(nullptr,L"open",url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
 std::wstring UpdateMenuLabel(std::wstring const& language){if(!UpdateAvailable())return {};auto version=NativeText(L"updateLatest");if(!version.empty()&&(version[0]==L'v'||version[0]==L'V'))version.erase(0,1);return (language==L"uk"?L"Доступна версія ":language==L"en"?L"Version available: ":L"Доступна версия ")+version;}
 // Own global shortcuts must not swallow keys while their recorder has focus.
 // Leaving the window restores them even when the renderer has not delivered blur yet.
@@ -164,7 +169,8 @@ JsonObject OsSurfaceDiagnostics(){
     r.Insert(L"notificationShownCallback",Number(notificationShown));
     r.Insert(L"notificationClickedCallback",Number(notificationClicked));return r;
 }
-void SetAutostart(bool enabled){if(harness){Log("autostart_simulated",enabled?"true":"false");return;}HKEY raw{};check_hresult(HRESULT_FROM_WIN32(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&raw,nullptr)));auto exe=appRoot/L"Delo.exe";auto value=L"\""+exe.wstring()+L"\"";LSTATUS error=enabled?RegSetValueExW(raw,L"Delo",0,REG_SZ,reinterpret_cast<BYTE const*>(value.c_str()),DWORD((value.size()+1)*sizeof(wchar_t))):RegDeleteValueW(raw,L"Delo");RegCloseKey(raw);if(error!=ERROR_SUCCESS&&error!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("Could not change autostart");}
+void RefreshPackageStartup(){if(storeDistribution&&!harness){auto status=delo::PackageStartup();nativeSettings.Insert(L"autostart",Bool(status.enabled));nativeSettings.Insert(L"startupBlocked",Bool(status.blocked));}}
+void SetAutostart(bool enabled){if(harness){Log("autostart_simulated",enabled?"true":"false");return;}if(storeDistribution){delo::PackageStartup(true,enabled);return;}HKEY raw{};check_hresult(HRESULT_FROM_WIN32(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&raw,nullptr)));auto exe=appRoot/L"Delo.exe";auto value=L"\""+exe.wstring()+L"\"";LSTATUS error=enabled?RegSetValueExW(raw,L"Delo",0,REG_SZ,reinterpret_cast<BYTE const*>(value.c_str()),DWORD((value.size()+1)*sizeof(wchar_t))):RegDeleteValueW(raw,L"Delo");RegCloseKey(raw);if(error!=ERROR_SUCCESS&&error!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("Could not change autostart");}
 void RequestExit(){if(exiting)return;CancelVoice();exiting=true;Broadcast(L"beforeExit");SetTimer(control,4,20000,nullptr);}
 void FinishScreenshot(){
     // Exclude every widget before restarting either monitor session: otherwise the
@@ -201,12 +207,14 @@ void SetDemoMode(bool on){
     auto capturable=[](bool visible){for(auto* v:{&mainView,&quickView})if(v->hwnd&&!SetWindowDisplayAffinity(v->hwnd,visible?WDA_NONE:WDA_EXCLUDEFROMCAPTURE))throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));};
     if(on){
         FinishScreenshot();
-        for(auto* v:{&mainView,&quickView})if(v->glass)v->glass->Suspend(true);
+        // Keep this blocker set before changing affinity: a nested power/session
+        // callback must not restart capture before the mode change commits.
+        captureSuspension.SetDemo(true);SyncCaptureSuspension();
         try{capturable(true);check_hresult(DwmFlush());}
-        catch(...){try{capturable(false);}catch(...){}for(auto* v:{&mainView,&quickView})if(v->glass)v->glass->Suspend(false);throw;}
+        catch(...){try{capturable(false);}catch(...){}captureSuspension.SetDemo(demoMode);SyncCaptureSuspension();throw;}
     }else{
         capturable(false);check_hresult(DwmFlush());
-        for(auto* v:{&mainView,&quickView})if(v->glass)v->glass->Suspend(false);
+        captureSuspension.SetDemo(false);SyncCaptureSuspension();
     }
     demoMode=on;UpdateTrayTip();JsonObject changed;changed.Insert(L"on",Bool(on));Broadcast(L"demo",changed);Log("demo_mode",on?"on":"off");
 }
@@ -350,7 +358,8 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
         else if(action==L"demo"&&harness)SetDemoMode(payload.GetNamedBoolean(L"enabled",!demoMode));
         else if(action==L"freezeForScreenshot"&&harness)BeginScreenshot();
         else if(action==L"finishScreenshot"&&harness)FinishScreenshot();
-        else if(action==L"autostart"){auto old=nativeSettings.GetNamedBoolean(L"autostart",false);auto enabled=payload.GetNamedBoolean(L"enabled");SetAutostart(enabled);nativeSettings.Insert(L"autostart",Bool(enabled));try{SaveNative();}catch(...){nativeSettings.Insert(L"autostart",Bool(old));try{SetAutostart(old);}catch(...){throw std::runtime_error("nativeRollbackError");}throw;}Broadcast(L"nativeChanged",nativeSettings);}
+        else if(action==L"startupState"){RefreshPackageStartup();result=nativeSettings;}
+        else if(action==L"autostart"){RefreshPackageStartup();auto old=nativeSettings.GetNamedBoolean(L"autostart",false);auto enabled=payload.GetNamedBoolean(L"enabled");SetAutostart(enabled);nativeSettings.Insert(L"autostart",Bool(enabled));try{SaveNative();}catch(...){nativeSettings.Insert(L"autostart",Bool(old));try{SetAutostart(old);}catch(...){throw std::runtime_error("nativeRollbackError");}throw;}Broadcast(L"nativeChanged",nativeSettings);}
         else if(action==L"hotkeys"){auto old=nativeSettings.GetNamedObject(L"hotkeys");auto keys=payload.HasKey(L"hotkeys")?payload.GetNamedObject(L"hotkeys"):payload;try{RegisterKeys(keys.GetNamedString(L"list").c_str(),keys.GetNamedString(L"quick").c_str());}catch(...){try{RegisterKeys(old.GetNamedString(L"list").c_str(),old.GetNamedString(L"quick").c_str());}catch(...){}throw;}JsonObject saved;saved.Insert(L"list",keys.GetNamedValue(L"list"));saved.Insert(L"quick",keys.GetNamedValue(L"quick"));nativeSettings.Insert(L"hotkeys",saved);if(nativeSettings.HasKey(L"hotkeyError"))nativeSettings.Remove(L"hotkeyError");try{SaveNative();}catch(...){nativeSettings.Insert(L"hotkeys",old);try{RegisterKeys(old.GetNamedString(L"list").c_str(),old.GetNamedString(L"quick").c_str());}catch(...){throw std::runtime_error("nativeRollbackError");}throw;}Broadcast(L"nativeChanged",nativeSettings);}
         // F05: the timer shortcut is set on its own; it may be empty (off) and may not repeat the other two.
         else if(action==L"timerHotkey"){
@@ -371,8 +380,10 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
         }
         // N13: off by default. On, at most one request a day; otherwise the last answer is returned.
         else if(action==L"openRelease")OpenReleasePage();
+        else if(action==L"privacy"){auto policy=appRoot/L"privacy.html";ShellExecuteW(nullptr,L"open",policy.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
         else if(action==L"updates"){
-            if(!payload.GetNamedBoolean(L"enabled",false)){for(auto key:{L"updateLatest",L"updateUrl"})if(nativeSettings.HasKey(key))nativeSettings.Remove(key);SaveNativeLater();}
+            if(storeDistribution){result.Insert(L"storeManaged",Bool(true));}
+            else if(!payload.GetNamedBoolean(L"enabled",false)){for(auto key:{L"updateLatest",L"updateUrl"})if(nativeSettings.HasKey(key))nativeSettings.Remove(key);SaveNativeLater();}
             else if(WallMs()-nativeSettings.GetNamedNumber(L"updateCheckedAt",0)<UpdateIntervalMs)result=UpdateResult(true);
             else{
                 if(!netWorker)netWorker=std::make_unique<delo::Worker>();
@@ -487,7 +498,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         if(message==UpdateDone){FinishUpdate(reinterpret_cast<UpdateJob*>(l));return 0;}
         if(message==WM_SETTINGCHANGE){SyncDpi(mainView,"settingchange");SyncDpi(quickView,"settingchange");}
         if(message==WM_DISPLAYCHANGE){SyncDpi(mainView,"displaychange");SyncDpi(quickView,"displaychange");if(mainView.hwnd)ClampWindow(mainView);if(quickView.hwnd)ClampWindow(quickView);if(mainView.glass)mainView.glass->Rebuild();if(quickView.glass)quickView.glass->Rebuild();return 0;}
-        if(message==WM_POWERBROADCAST||message==WM_WTSSESSION_CHANGE){bool suspend=(message==WM_POWERBROADCAST&&w==PBT_APMSUSPEND)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_LOCK);bool resume=(message==WM_POWERBROADCAST&&w==PBT_APMRESUMEAUTOMATIC)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_UNLOCK);if(suspend){++powerSuspends;Log("power_suspend",message==WM_POWERBROADCAST?"system":"session");Broadcast(L"suspend");if(mainView.glass)mainView.glass->Suspend(true);if(quickView.glass)quickView.glass->Suspend(true);}if(resume){++powerResumes;Log("power_resume",message==WM_POWERBROADCAST?"system":"session");if(!demoMode){if(mainView.glass)mainView.glass->Suspend(false);if(quickView.glass)quickView.glass->Suspend(false);}Broadcast(L"resume");}return TRUE;}
+        if(message==WM_POWERBROADCAST||message==WM_WTSSESSION_CHANGE){
+            const bool suspend=(message==WM_POWERBROADCAST&&w==PBT_APMSUSPEND)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_LOCK);
+            const bool resume=(message==WM_POWERBROADCAST&&w==PBT_APMRESUMEAUTOMATIC)||(message==WM_WTSSESSION_CHANGE&&w==WTS_SESSION_UNLOCK);
+            if(suspend||resume){
+                const auto cause=message==WM_POWERBROADCAST?delo::CaptureSuspension::Cause::System:delo::CaptureSuspension::Cause::Session;
+                const auto transition=captureSuspension.Update(cause,suspend);
+                if(suspend){++powerSuspends;Log("power_suspend",message==WM_POWERBROADCAST?"system":"session");}
+                else{++powerResumes;Log("power_resume",message==WM_POWERBROADCAST?"system":"session");}
+                SyncCaptureSuspension();
+                if(transition==delo::CaptureSuspension::Transition::Suspend)Broadcast(L"suspend");
+                else if(transition==delo::CaptureSuspension::Transition::Resume)Broadcast(L"resume");
+            }
+            return TRUE;
+        }
         if(message==WM_QUERYENDSESSION){Broadcast(L"suspend");return TRUE;}
         if(message==WM_ENDSESSION&&w){PostQuitMessage(0);return 0;}
         // A new press always starts a new gesture: a double click whose final button-up was
@@ -512,16 +536,17 @@ void CreateWindowFor(View& v){int x=100,y=120;auto key=v.quick?L"quickPosition":
     // Windows 11 still strokes a 1px border outside the client area; DWMWA_COLOR_NONE
     // drops it so nothing squares off the rounded corners.
     {COLORREF borderNone=DWMWA_COLOR_NONE;DwmSetWindowAttribute(hwnd,DWMWA_BORDER_COLOR,&borderNone,sizeof(borderNone));}
-    ClampWindow(v);v.glass=std::make_unique<delo::GlassRenderer>(hwnd,appRoot/L"Glass.hlsl");if(demoMode){v.glass->Suspend(true);SetWindowDisplayAffinity(hwnd,WDA_NONE);}if(v.quick){v.visible=false;SetWindowPos(hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}else{ApplyMode();ShowWindow(hwnd,SW_SHOWNOACTIVATE);}if(environment)CreateWebView(v);
+    ClampWindow(v);v.glass=std::make_unique<delo::GlassRenderer>(hwnd,appRoot/L"Glass.hlsl");v.glass->Suspend(captureSuspension.RendererBlocked());if(demoMode)SetWindowDisplayAffinity(hwnd,WDA_NONE);if(v.quick){v.visible=false;SetWindowPos(hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}else{ApplyMode();ShowWindow(hwnd,SW_SHOWNOACTIVATE);}if(environment)CreateWebView(v);
 }
 int WINAPI wWinMain(HINSTANCE module,HINSTANCE,PWSTR args,int){appInstance=module;try{
     init_apartment(apartment_type::single_threaded);SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    wchar_t path[32768]{};GetModuleFileNameW(nullptr,path,32768);appRoot=fs::path(path).parent_path();harness=wcsstr(args,L"--harness")!=nullptr;
-    PWSTR local{};check_hresult(SHGetKnownFolderPath(FOLDERID_LocalAppData,0,nullptr,&local));dataRoot=fs::path(local)/L"Delo";CoTaskMemFree(local);if(harness){dataRoot=appRoot/L"test-output";auto named=wcsstr(args,L"--harness=");if(named){std::wstring name(named+10);// The rest of the command line is not the name: shells routinely leave a trailing space, and another argument may follow. Take the token and nothing else, otherwise a stray space refuses the launch with only "Invalid harness session name" to show for it.
+    wchar_t path[32768]{};GetModuleFileNameW(nullptr,path,32768);appRoot=fs::path(path).parent_path();harness=wcsstr(args,L"--harness")!=nullptr;storeDistribution=delo::HasPackageIdentity();/* Packaged builds ask once for borderless capture (no yellow border); see StoreDistribution.h. */if(storeDistribution)delo::RequestBorderlessCapture();
+    PWSTR local{};check_hresult(SHGetKnownFolderPath(FOLDERID_LocalAppData,0,nullptr,&local));dataRoot=fs::path(local)/L"Delo";CoTaskMemFree(local);if(storeDistribution)dataRoot=fs::path(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());if(harness){dataRoot=storeDistribution?dataRoot/L"test-output":appRoot/L"test-output";auto named=wcsstr(args,L"--harness=");if(named){std::wstring name(named+10);// The rest of the command line is not the name: shells routinely leave a trailing space, and another argument may follow. Take the token and nothing else, otherwise a stray space refuses the launch with only "Invalid harness session name" to show for it.
         if(auto end=name.find_first_of(L" \t\"");end!=std::wstring::npos)name.erase(end);
         if(name.empty()||name.size()>64||name.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")!=std::wstring::npos)throw std::runtime_error("Invalid harness session name");dataRoot/=L"sessions";dataRoot/=name;}}fs::create_directories(dataRoot);trace.Open(dataRoot/L"native.jsonl");storeWorker=std::make_unique<delo::Worker>();
     auto mutexName=harness?L"Local\\Delo.Widget.Harness":L"Local\\Delo.Widget";winrt::handle mutex{CreateMutexW(nullptr,FALSE,mutexName)};if(GetLastError()==ERROR_ALREADY_EXISTS){auto other=FindWindowW(ClassName,harness?L"Delo.Harness.Control":L"Delo.Control");if(other)PostMessageW(other,ShowMessage,0,0);return 0;}
     if(fs::exists(dataRoot/L"window.json")){try{nativeSettings=JsonObject::Parse(to_hstring(delo::ReadBytes(dataRoot/L"window.json")));}catch(...){Log("settings_error","Using defaults; original preserved");}}
+    nativeSettings.Insert(L"storeManagedUpdates",Bool(storeDistribution));RefreshPackageStartup();
     pinned=nativeSettings.GetNamedBoolean(L"pinned",false);nativeSettings.Insert(L"pinned",Bool(pinned));if(!nativeSettings.HasKey(L"autostart"))nativeSettings.Insert(L"autostart",Bool(false));if(!nativeSettings.HasKey(L"hotkeys")){JsonObject keys;keys.Insert(L"list",Text(L"Ctrl+Alt+Space"));keys.Insert(L"quick",Text(L"Ctrl+Alt+N"));nativeSettings.Insert(L"hotkeys",keys);}
     if(!nativeSettings.GetNamedBoolean(L"quickFrameReduced",false)){if(nativeSettings.HasKey(L"quickPosition")){auto b=nativeSettings.GetNamedObject(L"quickPosition");if(b.HasKey(L"width")&&b.HasKey(L"height")){auto oldWidth=int(b.GetNamedNumber(L"width")),oldHeight=int(b.GetNamedNumber(L"height"));auto width=std::max(1,MulDiv(oldWidth,985,1000)),height=std::max(1,MulDiv(oldHeight,985,1000));b.Insert(L"x",Number(b.GetNamedNumber(L"x",100)+(oldWidth-width)/2));b.Insert(L"y",Number(b.GetNamedNumber(L"y",120)+(oldHeight-height)/2));b.Insert(L"width",Number(width));b.Insert(L"height",Number(height));nativeSettings.Insert(L"quickPosition",b);}}nativeSettings.Insert(L"quickFrameReduced",Bool(true));try{SaveNative();}catch(std::exception const& e){Log("quick_frame_save_error",e.what());}}
     store=std::make_unique<delo::Store>(dataRoot/L"tasks.json");try{store->Load();}catch(...){storageError="dataCorrupt: Local data is damaged. Restore the backup; original data will be retained.";Log("storage_error",storageError);}

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.3.1"
+  #define AppVersion "0.3.3"
 #endif
 [Setup]
 AppId={{CE9AAB6D-03AE-43FB-A87E-48BF58868D12}
@@ -47,6 +47,7 @@ en.CloseFailed=Delo could not be closed. Exit it from the tray icon menu and try
 [Files]
 Source: "..\bin\Delo.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Glass.hlsl"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\bin\privacy.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\ui\*.html"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "..\bin\ui\*.css"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "..\bin\ui\*.mjs"; DestDir: "{app}\ui"; Flags: ignoreversion

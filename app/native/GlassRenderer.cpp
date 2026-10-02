@@ -1,5 +1,6 @@
 #include "GlassRenderer.h"
 #include "Dpi.h"
+#include "StoreDistribution.h"
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -119,44 +120,66 @@ struct GPU {
 double PreciseMilliseconds() {
     return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
-struct PreciseTimer {
-    winrt::handle timer{CreateWaitableTimerExW(nullptr,nullptr,CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,TIMER_MODIFY_STATE|SYNCHRONIZE)};
-    PreciseTimer(){if(!timer)throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));}
-    void Arm(double ms){LARGE_INTEGER due{};due.QuadPart=-std::max<LONGLONG>(1,LONGLONG(ms*10000));check_hresult(SetWaitableTimer(timer.get(),&due,0,nullptr,nullptr,FALSE)?S_OK:HRESULT_FROM_WIN32(GetLastError()));}
-    void Pause(){Arm(1);if(WaitForSingleObject(timer.get(),1000)!=WAIT_OBJECT_0)throw hresult_error(E_FAIL);}
-};
-
 // Compare only the widget crop on the GPU. No desktop pixels are read back to the CPU in the render loop.
 struct ChangeDetector {
-    PreciseTimer wait;
     com_ptr<ID3D11Texture2D> previous;com_ptr<ID3D11ShaderResourceView> view;
-    com_ptr<ID3D11PixelShader> shader;com_ptr<ID3D11BlendState> noWrite;com_ptr<ID3D11Query> query;bool valid{};
+    com_ptr<ID3D11PixelShader> shader;com_ptr<ID3D11BlendState> noWrite;com_ptr<ID3D11Query> query;
+    bool valid{},pending{};
+    std::uint64_t sourceVersion{},queryVersion{};
+    ULONGLONG pendingSince{};
+    using QueryReader=HRESULT(*)(ID3D11DeviceContext*,ID3D11Query*,UINT64*);
+    static HRESULT ReadQuery(ID3D11DeviceContext* ctx,ID3D11Query* query,UINT64* samples) {
+        return ctx->GetData(query,samples,sizeof(*samples),D3D11_ASYNC_GETDATA_DONOTFLUSH);
+    }
+    void CreateQuery(GPU& gpu) {
+        D3D11_QUERY_DESC q{D3D11_QUERY_OCCLUSION,0};check_hresult(gpu.device->CreateQuery(&q,query.put()));
+    }
+    void AbandonPending(GPU& gpu) {
+        if(pending){query=nullptr;CreateQuery(gpu);pending=false;}
+    }
     ChangeDetector(GPU& gpu) {
         const char* code="Texture2D<float4> a:register(t0);Texture2D<float4> b:register(t1);float4 PS(float4 p:SV_Position):SV_Target{float4 d=abs(a.Load(int3(p.xy,0))-b.Load(int3(p.xy,0)));if(max(max(d.r,d.g),d.b)<0.001)discard;return 0;}";
         com_ptr<ID3DBlob> bytes;check_hresult(D3DCompile(code,strlen(code),nullptr,nullptr,nullptr,"PS","ps_5_0",D3DCOMPILE_OPTIMIZATION_LEVEL3,0,bytes.put(),nullptr));
         check_hresult(gpu.device->CreatePixelShader(bytes->GetBufferPointer(),bytes->GetBufferSize(),nullptr,shader.put()));
-        D3D11_BLEND_DESC blend{};check_hresult(gpu.device->CreateBlendState(&blend,noWrite.put()));D3D11_QUERY_DESC q{D3D11_QUERY_OCCLUSION,0};check_hresult(gpu.device->CreateQuery(&q,query.put()));
+        D3D11_BLEND_DESC blend{};check_hresult(gpu.device->CreateBlendState(&blend,noWrite.put()));CreateQuery(gpu);
         Resize(gpu);
     }
     // The reference frame mirrors the source crop, so a window resize only needs a new
     // texture — the shader, blend state and query outlive it.
     void Resize(GPU& gpu) {
-        valid=false;view=nullptr;previous=nullptr;
+        AbandonPending(gpu);valid=false;sourceVersion=queryVersion=0;view=nullptr;previous=nullptr;
         D3D11_TEXTURE2D_DESC desc{};gpu.source->GetDesc(&desc);desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;
         check_hresult(gpu.device->CreateTexture2D(&desc,nullptr,previous.put()));check_hresult(gpu.device->CreateShaderResourceView(previous.get(),nullptr,view.put()));
     }
-    bool Changed(GPU& gpu,bool force=false) {
-        bool changed=!valid||force;
-        if(valid&&!force){
-            auto& ctx=gpu.context;auto rt=gpu.outputRT.get();ctx->OMSetRenderTargets(1,&rt,nullptr);ctx->OMSetBlendState(noWrite.get(),nullptr,~0u);
-            D3D11_VIEWPORT vp{0,0,float(gpu.renderWidth),float(gpu.renderHeight),0,1};ctx->RSSetViewports(1,&vp);ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            ctx->VSSetShader(gpu.vs.get(),nullptr,0);ctx->PSSetShader(shader.get(),nullptr,0);ID3D11ShaderResourceView* views[]{gpu.sourceView.get(),view.get()};ctx->PSSetShaderResources(0,2,views);
-            ctx->Begin(query.get());ctx->Draw(3,0);ctx->End(query.get());ID3D11ShaderResourceView* none[2]{};ctx->PSSetShaderResources(0,2,none);ctx->OMSetRenderTargets(0,nullptr,nullptr);ctx->OMSetBlendState(nullptr,nullptr,~0u);
-            UINT64 samples{};HRESULT hr{};auto deadline=GetTickCount64()+50;
-            do{hr=ctx->GetData(query.get(),&samples,sizeof(samples),0);if(hr==S_FALSE)wait.Pause();}while(hr==S_FALSE&&GetTickCount64()<deadline);
-            if(hr==S_FALSE)throw hresult_error(HRESULT_FROM_WIN32(WAIT_TIMEOUT));check_hresult(hr);changed=samples>0;
+    void Compare(GPU& gpu) {
+        auto& ctx=gpu.context;auto rt=gpu.outputRT.get();ctx->OMSetRenderTargets(1,&rt,nullptr);ctx->OMSetBlendState(noWrite.get(),nullptr,~0u);
+        D3D11_VIEWPORT vp{0,0,float(gpu.renderWidth),float(gpu.renderHeight),0,1};ctx->RSSetViewports(1,&vp);ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ctx->VSSetShader(gpu.vs.get(),nullptr,0);ctx->PSSetShader(shader.get(),nullptr,0);ID3D11ShaderResourceView* views[]{gpu.sourceView.get(),view.get()};ctx->PSSetShaderResources(0,2,views);
+        ctx->Begin(query.get());ctx->Draw(3,0);ctx->End(query.get());ID3D11ShaderResourceView* none[2]{};ctx->PSSetShaderResources(0,2,none);ctx->OMSetRenderTargets(0,nullptr,nullptr);ctx->OMSetBlendState(nullptr,nullptr,~0u);
+        // An unchanged crop has no Present to submit these commands. Flush once,
+        // then check readiness on subsequent UI turns without waiting or flushing.
+        ctx->Flush();pending=true;pendingSince=GetTickCount64();queryVersion=sourceVersion;
+    }
+    bool Changed(GPU& gpu,bool force=false,bool fresh=true,QueryReader read=ReadQuery) {
+        if(fresh)++sourceVersion;
+        if(!sourceVersion)return false; // Build/resize still needs a populated crop.
+        if(force||!valid){AbandonPending(gpu);return true;}
+        if(pending){
+            UINT64 samples{};const auto hr=read(gpu.context.get(),query.get(),&samples);
+            if(hr==S_FALSE){
+                if(GetTickCount64()-pendingSince>10000)throw hresult_error(HRESULT_FROM_WIN32(WAIT_TIMEOUT));
+                return false;
+            }
+            check_hresult(hr);pending=false;
+            // The result belongs to queryVersion. Display the latest crop, which
+            // may have replaced it, and compare again if an unchanged result is old.
+            if(samples)return true;
         }
-        if(changed){gpu.context->CopyResource(previous.get(),gpu.source.get());valid=true;}return changed;
+        if(sourceVersion>queryVersion)Compare(gpu);
+        return false;
+    }
+    void Remember(GPU& gpu) {
+        gpu.context->CopyResource(previous.get(),gpu.source.get());valid=true;queryVersion=sourceVersion;
     }
 };
 
@@ -172,7 +195,7 @@ struct EventCapture {
     winrt::Windows::Graphics::SizeInt32 size{};
     std::shared_ptr<Signal> ready=std::make_shared<Signal>();
     event_token arrived{},closed{}; bool subscribed{}; std::shared_ptr<std::atomic_bool> ended=std::make_shared<std::atomic_bool>(false);
-    com_ptr<ID3D11Texture2D> latestTexture; RECT monitor{}; unsigned recreates{}; HRESULT borderless{E_PENDING};
+    com_ptr<ID3D11Texture2D> latestTexture; RECT monitor{}; unsigned recreates{}; HRESULT borderless{E_PENDING}; bool borderlessGranted{};
     EventCapture(GPU& gpu, HMONITOR handle,HWND host) {
         auto interop=get_activation_factory<GraphicsCaptureItem,IGraphicsCaptureItemInterop>();
         MONITORINFO mi{sizeof(mi)};
@@ -195,7 +218,7 @@ struct EventCapture {
         // Windows draws a yellow capture border around any monitor under capture. The
         // widget is a desktop ornament, not a recording tool, so it asks for borderless
         // capture; the property is honoured only once the access request is granted.
-        borderless=E_PENDING;
+        borderless=E_PENDING;borderlessGranted=BorderlessGranted();
         try {
             if(auto session3=session.try_as<IGraphicsCaptureSession3>()) {
                 session3.IsBorderRequired(false);
@@ -296,9 +319,10 @@ struct GlassRenderer::Impl {
         if(!gpu->renderWidth||!gpu->renderHeight||rect.right<=0||rect.bottom<=0)return;
         Scale(float(rect.right)/float(gpu->renderWidth),float(rect.bottom)/float(gpu->renderHeight));
     }
-    void Fault(HRESULT hr) {
+    void Fault(HRESULT hr,char const* phase=nullptr) {
         Close();++counts.errors;++attempts;
         std::ostringstream message;message<<"Glass renderer HRESULT 0x"<<std::hex<<uint32_t(hr);
+        if(phase)message<<" ("<<phase<<")";
         error=message.str();OutputDebugStringA((error+"\n").c_str());
         retryAt=GetTickCount64()+(250ull<<std::min(attempts-1,3u));
     }
@@ -379,33 +403,41 @@ struct GlassRenderer::Impl {
             width=w;height=h;
             if(gpu){
                 try{gpu->Resize(width,height);ApplyGeometry();detector->Resize(*gpu);dirty=true;}
-                catch(hresult_error const& e){Fault(e.code());}
-                catch(std::exception const&){Fault(E_FAIL);}
+                catch(hresult_error const& e){Fault(e.code(),"resize");}
+                catch(std::exception const&){Fault(E_FAIL,"resize");}
             }
         }
+        char const* phase="build";
         try {
             if(!gpu){if(attempts>=4||GetTickCount64()<retryAt)return;Build();}
+            phase="device";
             check_hresult(gpu->device->GetDeviceRemovedReason());
+            phase="first_frame";
             if(!ready&&GetTickCount64()-captureStarted>10000)throw hresult_error(HRESULT_FROM_WIN32(WAIT_TIMEOUT));
+            phase="capture_exclusion";
             DWORD affinity{};
             if(!GetWindowDisplayAffinity(host,&affinity)||affinity!=WDA_EXCLUDEFROMCAPTURE)
                 throw hresult_error(E_ACCESSDENIED);
+            // A packaged app learns the user's answer to the border prompt after capture began. A session
+            // made before the answer keeps its border, so it is made again once, now with consent.
+            if(capture&&!capture->borderlessGranted&&BorderlessGranted())capture.reset();
             if(!capture){capture=std::make_unique<EventCapture>(*gpu,monitor,host);captureStarted=GetTickCount64();dirty=true;}
             const auto workStarted=PreciseMilliseconds();
-            if(capture->CopyLatest(*gpu,origin,moved||dirty)) {
-                ++counts.copied;
-                // A new crop/geometry is already known to require rendering. Avoid
-                // waiting for a GPU comparison just to rediscover that during a drag.
-                bool changed=detector->Changed(*gpu,moved||dirty);
-                if(changed||dirty) {
-                    gpu->Draw(dark);gpu->Present();++counts.rendered;
+            phase="capture";
+            const bool copied=capture->CopyLatest(*gpu,origin,moved||dirty);
+            if(copied)++counts.copied;
+            // Poll even when capture is idle: the final changed frame must not
+            // depend on another FrameArrived callback to reach the material.
+            phase="change_query";
+            if(detector->Changed(*gpu,moved||dirty,copied)) {
+                    phase="draw";gpu->Draw(dark);
+                    phase="present";gpu->Present();detector->Remember(*gpu);++counts.rendered;
                     counts.cropX=origin.x;counts.cropY=origin.y;
                     counts.lastSubmitMs=PreciseMilliseconds();counts.lastRenderWorkMs=counts.lastSubmitMs-workStarted;
                     ready=true;dirty=false;attempts=0;error.clear();
-                }
             }
-        }catch(hresult_error const& e){Fault(e.code());}
-         catch(std::exception const&){Fault(E_FAIL);}
+        }catch(hresult_error const& e){Fault(e.code(),phase);}
+         catch(std::exception const&){Fault(E_FAIL,phase);}
     }
 };
 GlassRenderer::GlassRenderer(HWND host,std::filesystem::path shaderPath)
