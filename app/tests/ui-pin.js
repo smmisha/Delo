@@ -21,7 +21,8 @@
   // Earlier scenarios of the audit suite leave older undated tasks in the same group, so the
   // oldest of these twelve is not necessarily the bottom row; the twelve must be in reverse creation order.
   const order=rowsOf(newest).map(node=>node.querySelector('.task-title')?.textContent).filter(title=>titles.includes(title));
-  check('new tasks enter the top of their group, newest first',groupOf(oldest)==='any'&&rowsOf(newest)[0]===row(newest)&&order.join('|')===[...titles].reverse().join('|'));
+  // Tasks in work from earlier scenarios lead the group (П15); the new ones come right after them.
+  check('new tasks enter the top of their group, newest first',groupOf(oldest)==='any'&&rowsOf(newest).find(node=>!node.classList.contains('in-work'))===row(newest)&&order.join('|')===[...titles].reverse().join('|'));
   const anyBefore=count('any');
   let lastIcon='';
   const menuAction=async(title)=>{const node=row(title);node.scrollIntoView({block:'center'});await wait(60);node.querySelector('.task-more').click();await wait(60);const item=document.querySelector('#menu-pin');const label=item.textContent.trim();lastIcon=item.querySelector('use').getAttribute('href');item.click();await idle();return label;};
