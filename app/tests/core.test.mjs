@@ -40,3 +40,33 @@ test('V30 a new task enters its group at the top; a nearer deadline still leads'
   // A later-created task with a nearer deadline goes above earlier ones; equal deadlines: newest first.
   assert.deepEqual(g.upcoming,['sooner','later-2','later-1']);
 });
+test('V31 without a deadline, tasks in work lead: running, then by latest touch, then the rest newest first',()=>{
+  const M=60000,at=(s,command,minutes)=>run(s,command,base+minutes*M,minutes*M);
+  let s=createState();for(let i=1;i<=50;i++)s=at(s,{type:'create',id:`t${i}`,title:`T${i}`},i/100);
+  s=at(s,{type:'create',id:'dated',title:'D',due:{date:'2026-01-03',time:'',timeZone:'UTC'}},1);
+  const any=minutes=>groups(s,{now:base+minutes*M,timeZone:'UTC'}).find(group=>group.key==='any').tasks.map(task=>task.id);
+  assert.deepEqual(any(1).slice(0,3),['t50','t49','t48']);
+  // The 50th from the top starts: it leads, and stays near the top when paused.
+  s=at(s,{type:'start',id:'t1'},2);assert.deepEqual(any(2).slice(0,2),['t1','t50']);
+  s=at(s,{type:'pause',id:'t1'},10);assert.deepEqual(any(10).slice(0,2),['t1','t50']);
+  // Marked in work without a timer, then another one runs: running first, then the latest touch.
+  s=at(s,{type:'work',id:'t20'},11);assert.deepEqual(any(11).slice(0,3),['t20','t1','t50']);
+  s=at(s,{type:'start',id:'t30'},12);assert.deepEqual(any(12).slice(0,4),['t30','t20','t1','t50']);
+  // Starting another pauses the running one at that moment: it ran last, so it comes next.
+  s=at(s,{type:'start',id:'t1'},20);assert.deepEqual(any(20).slice(0,4),['t1','t30','t20','t50']);
+  // A task with a deadline keeps the deadline order and its group.
+  s=at(s,{type:'start',id:'dated'},21);assert.equal(groups(s,{now:base+21*M,timeZone:'UTC'}).find(group=>group.key==='upcoming').tasks[0].id,'dated');
+  assert.deepEqual(any(21).slice(0,4),['t1','t30','t20','t50']);
+  // Stopping and completing take a task out of work.
+  s=at(s,{type:'stop',id:'t1'},22);s=at(s,{type:'complete',id:'t30'},23);
+  assert.deepEqual(any(23).slice(0,2),['t20','t50']);assert.equal(any(23).at(-1),'t1');
+  assert.equal(validateState(s).valid,true);
+});
+test('V31 data without touchedAt loads; old paused tasks rank by their last run; a broken touch is rejected',()=>{
+  let s=add(add(add(createState(),'a'),'b'),'c');
+  s=run(s,{type:'start',id:'a'},base+1000,0);s=run(s,{type:'start',id:'b'},base+5000,4000);s=run(s,{type:'pause',id:'b'},base+9000,8000);
+  const old=structuredClone(s);for(const task of old.tasks)delete task.touchedAt;
+  assert.equal(validateState(old).valid,true);
+  assert.deepEqual(groups(old,{now:base+9000,timeZone:'UTC'})[0].tasks.map(task=>task.id),['b','a','c']);
+  for(const value of [-1,'1',Infinity,null]){const broken=structuredClone(s);broken.tasks[0].touchedAt=value;assert.equal(validateState(broken).valid,false);}
+});
