@@ -1,5 +1,5 @@
 # Store signs the uploaded package. No certificate or machine trust changes are made here.
-param([Alias('Version')][string]$AppVersion='0.3.5',[switch]$SkipBuild)
+param([Alias('Version')][string]$AppVersion='0.3.6',[switch]$SkipBuild)
 $ErrorActionPreference='Stop'
 if($AppVersion -notmatch '^\d+\.\d+\.\d+$'){throw 'Version must be major.minor.patch'}
 $appDirectory=[IO.Path]::GetFullPath($PSScriptRoot)
