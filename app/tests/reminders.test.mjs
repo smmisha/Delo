@@ -52,15 +52,20 @@ test('V22 a deadline set after its reminder moment is not announced late',()=>{
   assert.equal(validateState(old).valid,true);assert.deepEqual(ids(old,at('2026-09-26T06:00:00Z')),['today']);
 });
 
-test('V21 the timer shortcut pauses the running task and resumes the one that ran last',()=>{
+test('V21 the timer shortcut pauses the task in focus and resumes the one paused last',()=>{
   let s=createState();for(const id of ['a','b','c'])s=run(s,{type:'create',id,title:id},start);
   assert.equal(timerToggle(s),null);
   s=run(s,{type:'start',id:'a'},start);s=run(s,{type:'start',id:'b'},start+10*M);s=run(s,{type:'pause',id:'b'},start+20*M);
-  s=run(s,{type:'work',id:'c'},start+21*M);
   assert.deepEqual(timerToggle(s),{type:'start',id:'b'});
   s=run(s,timerToggle(s),start+30*M);assert.equal(s.tasks[1].workState,'running');
   assert.deepEqual(timerToggle(s),{type:'pause',id:'b'});
   s=run(s,timerToggle(s),start+40*M);assert.equal(s.tasks[1].elapsedMs,20*M);
-  s=run(s,{type:'complete',id:'b'},start+41*M);
+  // П16: "in work" without the timer is the focus too; the shortcut pauses it and brings it back without the timer.
+  s=run(s,{type:'work',id:'c'},start+41*M);
+  assert.deepEqual(timerToggle(s),{type:'pause',id:'c'});
+  s=run(s,timerToggle(s),start+42*M);assert.equal(s.tasks[2].workState,'paused');assert.equal(s.tasks[2].untimed,true);
+  assert.deepEqual(timerToggle(s),{type:'work',id:'c'});
+  s=run(s,timerToggle(s),start+43*M);assert.equal(s.tasks[2].workState,'working');assert.equal(s.tasks[2].elapsedMs,0);
+  s=run(s,{type:'complete',id:'c'},start+44*M);s=run(s,{type:'complete',id:'b'},start+45*M);
   assert.deepEqual(timerToggle(s),{type:'start',id:'a'});
 });
