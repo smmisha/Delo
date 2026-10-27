@@ -261,9 +261,10 @@ void FinishDownload(DownloadJob* raw){
         auto arguments=delo::InstallerArguments(job->file.parent_path()/L"setup.log");
         SHELLEXECUTEINFOW setup{sizeof(setup)};setup.fMask=SEE_MASK_NOCLOSEPROCESS|SEE_MASK_NOASYNC;setup.lpVerb=L"open";setup.lpFile=job->file.c_str();setup.lpParameters=arguments.c_str();setup.nShow=SW_HIDE;
         if(!ShellExecuteExW(&setup)||!setup.hProcess)throw std::runtime_error("Could not start update installer");
+        winrt::handle process{setup.hProcess};
         SetDownloadState(L"installing",100);Log("update_install_started",to_string(job->asset.version));
-        auto process=setup.hProcess;auto target=control;
-        netWorker->Post([process,target]{WaitForSingleObject(process,INFINITE);DWORD code=1;GetExitCodeProcess(process,&code);CloseHandle(process);PostMessageW(target,InstallerDone,WPARAM(code),0);});
+        // The installer can outlive the app; it must not hold the serialized network queue.
+        std::thread([process=std::move(process),target=control]{WaitForSingleObject(process.get(),INFINITE);DWORD code=1;GetExitCodeProcess(process.get(),&code);PostMessageW(target,InstallerDone,WPARAM(code),0);}).detach();
     }catch(std::exception const& e){Log("update_install_error",e.what());SetDownloadState(L"error");}
 }
 void FinishUpdate(UpdateJob* raw){

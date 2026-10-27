@@ -42,3 +42,7 @@ jobs:
         run: ./app/build.ps1 -SkipVoice
       - name: Store tests
         run: ./app/test-store.ps1
+      - name: Updater tests
+        run: ./app/test-updater.ps1
+      - name: Updater wait regression
+        run: ./app/test-updater-wait.ps1

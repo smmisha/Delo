@@ -12,10 +12,11 @@ try{
   const initial=await page.host('updates',{enabled:true});
   check(initial.newer,'harness version is older than the public release');
   await page.evaluate(`document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();`);
+  await page.evaluate(`const checkbox=document.querySelector('#settings-form').elements.checkUpdates;if(!checkbox.checked)checkbox.click();`);
   for(const end=Date.now()+10000;Date.now()<end;){if(await page.evaluate(`document.querySelector('#open-release').textContent==='Обновить'&&!document.querySelector('#open-release').hidden`))break;await wait(100);}
   const initialView=await page.evaluate(`({button:document.querySelector('#open-release').outerHTML,status:document.querySelector('#update-status').outerHTML,enabled:document.querySelector('#settings-form').elements.checkUpdates.checked,error:document.querySelector('#error').innerText})`);
   await fs.writeFile(path.join(output,'initial-view.json'),JSON.stringify(initialView,null,2));
-  check(initialView.button.includes('Обновить')&&!initialView.button.includes('hidden'),'Update action replaces browser link');
+  check(initialView.enabled&&initialView.button.includes('Обновить')&&!initialView.button.includes('hidden'),'Update action replaces browser link');
   await page.evaluate(`document.querySelector('#open-release').click()`);
   const first=await page.host('updateState');check(['checking','downloading'].includes(first.phase),'update starts in the background');
   await page.host('installUpdate'); // Duplicate requests must not create another installer job.
