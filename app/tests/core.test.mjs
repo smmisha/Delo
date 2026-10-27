@@ -141,3 +141,14 @@ test('V32 successive legacy working pauses resume the most recently paused task'
   state=recoverState(JSON.parse(JSON.stringify(state)));
   assert.deepEqual(timerToggle(state),{type:'work',id:'a'});
 });
+
+test('V32 an automatic working pause ranks after an older timer pause',()=>{
+  let state=add(add(add(createState(),'working'),'paused'),'new');
+  Object.assign(state.tasks[0],{workState:'working',touchedAt:base+10});
+  Object.assign(state.tasks[1],{workState:'paused',touchedAt:base+30,elapsedMs:10,intervals:[[base+20,10]]});
+  assert.equal(validateState(state).valid,true);
+  state=run(state,{type:'start',id:'new'},base+40,40);
+  state=run(state,{type:'stop',id:'new'},base+50,50);
+  assert.equal(validateState(state).valid,true);
+  assert.deepEqual(timerToggle(recoverState(JSON.parse(JSON.stringify(state)))),{type:'work',id:'working'});
+});

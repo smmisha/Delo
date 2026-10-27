@@ -52,7 +52,7 @@ function freeze(task,mono,now) { if(task.workState==='running') record(task,now,
 // touchedAt or run interval) comes later. A later touch always invalidates it; an interval end
 // gets only the half-millisecond rounding error from record(), which rounds its wall-clock start.
 // Every command drops the flag where it does not hold.
-function hold(task,mono,now) { freeze(task,mono,now); if(task.workState==='working') {task.workState='paused';task.untimed=now;} }
+function hold(task,mono,now) { freeze(task,mono,now); if(task.workState==='working') {task.workState='paused';task.touchedAt=now;task.untimed=now;} }
 export const untimedPause=t=>t.workState==='paused'&&Number.isFinite(t.untimed)&&t.untimed>=(t.touchedAt??0)&&t.untimed+0.5>=lastTouch(t);
 function event(state,task,kind,at,delta) { state.reputation+=delta; state.events.push({id:state.events.length+1,taskId:task.id,kind,at,delta}); }
 function archiveAt(task,settings) { if(task.completedAt!==null) return task.completedDayEnd; if(settings.autoArchive==='off' || settings.autoArchive==='dated'&&!task.due || settings.autoArchive==='undated'&&task.due) return Infinity; return Math.max(task.archiveAnchor+settings.archiveDays*DAY,task.due?.at??-Infinity); }
