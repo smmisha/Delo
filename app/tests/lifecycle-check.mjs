@@ -28,7 +28,7 @@ try{
  if(mode==='baseline'){
   // The widget under test carries a running timer, as a person's would during the event.
   await main.host('show');
-  if(!(await load()).timer){await main.evaluate(`(()=>{const i=document.querySelector('#task-input');i.value=${JSON.stringify(TITLE)};i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);await wait(1200);}
+  if(!(await load()).timer){await main.evaluate((title)=>{const i=document.querySelector('#task-input');i.value=title;i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},TITLE);await wait(1200);}
   if((await load()).timer?.workState!=='running'){await main.evaluate(`${row}.querySelector('.timer').click()`);await wait(1200);}
  }
  // The glass may be rebuilding right after the event; the app gives itself 10 s as well.
