@@ -25,7 +25,7 @@ try{
  for(const theme of ['light','dark']){
   await main.evaluate(`(()=>{document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();})()`);await wait(300);
   for(let i=0;!await main.evaluate(`document.querySelector('#settings').open`);i++){if(i===50)throw Error('Settings did not open');await wait(100);}
-  await main.evaluate(`(()=>{const field=document.querySelector('[name=theme]');field.value=${JSON.stringify(theme)};field.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await main.evaluate((selectedTheme)=>{const field=document.querySelector('[name=theme]');field.value=selectedTheme;field.dispatchEvent(new Event('change',{bubbles:true}));},theme);
   for(let i=0;!await main.evaluate(`document.body.classList.contains('dark')===${theme==='dark'}&&document.querySelector('#widget').getAttribute('aria-busy')==='false'`);i++){if(i===50)throw Error('Theme was not applied');await wait(100);}
   check(`${theme}: actual theme applied`,await main.evaluate(`document.body.classList.contains('dark')===${theme==='dark'}`));
   await main.click('#settings [data-close]');
