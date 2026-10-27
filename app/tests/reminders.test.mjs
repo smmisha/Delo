@@ -63,7 +63,7 @@ test('V21 the timer shortcut pauses the task in focus and resumes the one paused
   // П16: "in work" without the timer is the focus too; the shortcut pauses it and brings it back without the timer.
   s=run(s,{type:'work',id:'c'},start+41*M);
   assert.deepEqual(timerToggle(s),{type:'pause',id:'c'});
-  s=run(s,timerToggle(s),start+42*M);assert.equal(s.tasks[2].workState,'paused');assert.equal(s.tasks[2].untimed,true);
+  s=run(s,timerToggle(s),start+42*M);assert.equal(s.tasks[2].workState,'paused');assert.equal(s.tasks[2].untimed,start+42*M);
   assert.deepEqual(timerToggle(s),{type:'work',id:'c'});
   s=run(s,timerToggle(s),start+43*M);assert.equal(s.tasks[2].workState,'working');assert.equal(s.tasks[2].elapsedMs,0);
   s=run(s,{type:'complete',id:'c'},start+44*M);s=run(s,{type:'complete',id:'b'},start+45*M);

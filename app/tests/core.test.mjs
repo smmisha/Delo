@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createState,applyCommand,makeDeadline,DAY,validateState,recoverState,elapsed,formatElapsed,groups} from '../core/model.mjs';
+import {createState,applyCommand,makeDeadline,DAY,validateState,recoverState,elapsed,formatElapsed,groups,timerToggle,untimedPause} from '../core/model.mjs';
 const base=Date.parse('2026-01-01T12:00Z');
 const run=(s,c,now=base,monotonic=0)=>applyCommand(s,c,{now,monotonic,timeZone:'UTC'});
 const add=(s,id,due)=>run(s,{type:'create',id,title:id,due});
@@ -19,11 +19,11 @@ test('V32 in work without the timer pauses and resumes, and only one task is in 
   const M=60000,at=(s,command,minutes)=>run(s,command,base+minutes*M,minutes*M),task=(s,id)=>s.tasks.find(t=>t.id===id);
   let s=add(add(add(createState(),'a'),'b'),'c');
   s=at(s,{type:'work',id:'a'},1);s=at(s,{type:'pause',id:'a'},2);
-  assert.equal(task(s,'a').workState,'paused');assert.equal(task(s,'a').untimed,true);assert.equal(task(s,'a').elapsedMs,0);assert.equal(validateState(s).valid,true);
+  assert.equal(task(s,'a').workState,'paused');assert.equal(task(s,'a').untimed,base+2*M);assert.equal(untimedPause(task(s,'a')),true);assert.equal(task(s,'a').elapsedMs,0);assert.equal(validateState(s).valid,true);
   s=at(s,{type:'work',id:'a'},3);assert.equal(task(s,'a').workState,'working');assert.equal('untimed' in task(s,'a'),false);
   // Another task in work pauses the first; a started timer pauses "in work" too, and "in work" pauses a running timer.
-  s=at(s,{type:'work',id:'b'},4);assert.equal(task(s,'a').workState,'paused');assert.equal(task(s,'a').untimed,true);assert.equal(task(s,'b').workState,'working');
-  s=at(s,{type:'start',id:'c'},5);assert.equal(task(s,'b').workState,'paused');assert.equal(task(s,'b').untimed,true);assert.equal(task(s,'c').workState,'running');
+  s=at(s,{type:'work',id:'b'},4);assert.equal(task(s,'a').workState,'paused');assert.equal(task(s,'a').untimed,base+4*M);assert.equal(task(s,'b').workState,'working');
+  s=at(s,{type:'start',id:'c'},5);assert.equal(task(s,'b').workState,'paused');assert.equal(task(s,'b').untimed,base+5*M);assert.equal(task(s,'c').workState,'running');
   s=at(s,{type:'work',id:'a'},7);assert.equal(task(s,'c').workState,'paused');assert.equal(task(s,'c').untimed,undefined);assert.equal(task(s,'c').elapsedMs,2*M);
   assert.deepEqual(s.tasks.filter(t=>t.workState==='working'||t.workState==='running').map(t=>t.id),['a']);
   // Starting the timer on a task paused from "in work" drops the flag; stop and completion drop it as well.
@@ -31,8 +31,24 @@ test('V32 in work without the timer pauses and resumes, and only one task is in 
   s=at(s,{type:'stop',id:'a'},9);assert.equal(task(s,'a').workState,'idle');assert.equal('untimed' in task(s,'a'),false);
   assert.equal(validateState(s).valid,true);
   // A version without П16 keeps the flag when it resumes the task: still valid, and the next command drops it.
-  const stale=structuredClone(s);task(stale,'a').untimed=true;assert.equal(validateState(stale).valid,true);assert.equal('untimed' in task(at(stale,{type:'tick'},10),'a'),false);
+  const stale=structuredClone(s);task(stale,'a').untimed=base+2*M;assert.equal(validateState(stale).valid,true);assert.equal('untimed' in task(at(stale,{type:'tick'},10),'a'),false);
   const bad=structuredClone(s);task(bad,'a').untimed='yes';assert.equal(validateState(bad).valid,false);
+});
+test('V32 a flag kept by a version without П16 does not decide how the task resumes',()=>{
+  const M=60000,at=(s,command,minutes)=>run(s,command,base+minutes*M,minutes*M),task=s=>s.tasks.find(t=>t.id==='a');
+  const s=at(at(add(createState(),'a'),{type:'work',id:'a'},1),{type:'pause',id:'a'},2);
+  assert.equal(untimedPause(task(s)),true);assert.deepEqual(timerToggle(s),{type:'work',id:'a'});
+  // That version starts the timer and keeps the field, then the app closes while it runs. With П15 the
+  // start is touched; before it nothing marks the start, so recovery itself drops the flag.
+  for(const touchedAt of [base+5*M,undefined]) {
+    const running=structuredClone(s);Object.assign(task(running),{workState:'running',timerAnchor:5*M});if(touchedAt)task(running).touchedAt=touchedAt;
+    const recovered=recoverState(running);
+    assert.equal(task(recovered).workState,'paused');assert.equal('untimed' in task(recovered),false);assert.deepEqual(timerToggle(recovered),{type:'start',id:'a'});
+  }
+  // That version runs the timer and pauses it: the run ends after the flag, so the flag no longer holds.
+  const paused=structuredClone(s);Object.assign(task(paused),{elapsedMs:3*M,intervals:[[base+5*M,3*M]]});
+  assert.equal(validateState(paused).valid,true);assert.equal(untimedPause(task(paused)),false);assert.deepEqual(timerToggle(paused),{type:'start',id:'a'});
+  assert.equal('untimed' in task(at(paused,{type:'tick'},9)),false);
 });
 test('V06 no deadline and in-time rewards, restoration evaluates only missing penalties',()=>{let s=add(add(createState(),'plain'),'dated',makeDeadline('2026-01-02'));s=run(s,{type:'complete',id:'plain'});s=run(s,{type:'complete',id:'dated'});assert.equal(s.reputation,10);s=add(s,'old',makeDeadline('2026-01-01','13:00'));s=run(s,{type:'delete',id:'old'});s=run(s,{type:'finalizeDeletes'});s=run(s,{type:'restore',id:'old'},base+8*DAY);assert.equal(s.reputation,7);s=run(s,{type:'tick'},base+8*DAY);assert.equal(s.reputation,7);assert.equal(validateState(s).valid,true);});
 const deleteEvent=event=>({type:'deleteEvent',eventId:event.id,taskId:event.taskId,kind:event.kind,at:event.at,delta:event.delta});
