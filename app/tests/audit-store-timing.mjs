@@ -9,10 +9,9 @@ import {connect,wait} from './audit-harness.mjs';
 const output=path.resolve(process.argv[2]||'app/test-output/store-timing'),main=await connect(),quick=await connect(true),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
 const load=()=>main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const r=await new HostBridge().request('load');return {revision:r.revision,titles:r.state.tasks.map(t=>t.title),running:r.state.tasks.filter(t=>t.workState==='running').map(t=>t.title)};})()`);
-const add=(title,page=main)=>page.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${JSON.stringify(title)};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
+const add=(title,page=main)=>page.evaluate(title=>{const input=document.querySelector('#task-input');input.value=title;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);
 // Round trip of a request the host answers without touching the disk.
 const clockMs=()=>main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const t=performance.now();await new HostBridge().request('clock');return Math.round(performance.now()-t);})()`);
-const titled=title=>`[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===${JSON.stringify(title)})`;
 try{
  await fs.mkdir(output,{recursive:true});
  await main.host('show');await main.evaluate(`document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close())`);
@@ -42,14 +41,14 @@ try{
  await main.host('storeDelay',{ms:0});
 
  // V15. A running timer checkpoints about every 15 s.
- await main.evaluate(`${titled(first)}.querySelector('.timer').click()`);await wait(1500);
+ await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===title).querySelector('.timer').click(),first);await wait(1500);
  const started=await load();
  const revisions=[];const t0=Date.now();let last=started.revision;
  while(Date.now()-t0<31000){const r=(await load()).revision;if(r!==last){revisions.push({at:Date.now()-t0,revision:r});last=r;}await wait(250);}
  const gaps=revisions.map((r,i)=>r.at-(i?revisions[i-1].at:0));
  check('a running timer writes at most 3 times in 31 s',revisions.length>=1&&revisions.length<=3,{writes:revisions.length,revisions});
  check('checkpoints come about every 15 s',gaps.slice(1).every(g=>g>=13000&&g<=17000),{gaps});
- await main.evaluate(`${titled(first)}.querySelector('.stop-work')?.click()`);await wait(800);
+ await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===title).querySelector('.stop-work')?.click(),first);await wait(800);
 }finally{
  try{await main.host('storeDelay',{ms:0});}catch{}
  await fs.writeFile(path.join(output,'store-timing.json'),JSON.stringify(checks,null,2));main.close();quick.close();

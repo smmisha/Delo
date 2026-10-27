@@ -17,17 +17,16 @@ const TITLE='Lifecycle timer';
 const main=await connect(),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify({name,pass:!!pass,details}));};
 const native=(hwnd,since)=>JSON.parse(execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(import.meta.dirname,'lifecycle-native.ps1'),'-Window',String(hwnd),...(since?['-Since',since]:[])],{encoding:'utf8',windowsHide:true}));
-const load=()=>main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const r=await new HostBridge().request('load');const tasks=r.state?.tasks??[];const t=tasks.find(t=>t.title===${JSON.stringify(TITLE)});return {revision:r.revision,count:tasks.length,monotonic:r.monotonicMs,timer:t?{workState:t.workState,elapsedMs:t.elapsedMs,timerAnchor:t.timerAnchor}:null};})()`);
+const load=()=>main.evaluate(async title=>{const {HostBridge}=await import('./bridge.mjs');const r=await new HostBridge().request('load');const tasks=r.state?.tasks??[];const t=tasks.find(t=>t.title===title);return {revision:r.revision,count:tasks.length,monotonic:r.monotonicMs,timer:t?{workState:t.workState,elapsedMs:t.elapsedMs,timerAnchor:t.timerAnchor}:null};},TITLE);
 // Time the timer shows right now: saved time plus the running stretch since its anchor.
 const shown=data=>data.timer?data.timer.elapsedMs+(data.timer.workState==='running'?data.monotonic-data.timer.timerAnchor:0):0;
-const row=`[...document.querySelectorAll('.task[data-task]')].find(r=>r.querySelector('.task-title')?.textContent===${JSON.stringify(TITLE)})`;
 try{
  const wall=Date.now();
  if(mode==='baseline'){
   // The widget under test carries a running timer, as a person's would during the event.
   await main.host('show');
-  if(!(await load()).timer){await main.evaluate(`(()=>{const i=document.querySelector('#task-input');i.value=${JSON.stringify(TITLE)};i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);await wait(1200);}
-  if((await load()).timer?.workState!=='running'){await main.evaluate(`${row}.querySelector('.timer').click()`);await wait(1200);}
+  if(!(await load()).timer){await main.evaluate(title=>{const i=document.querySelector('#task-input');i.value=title;i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},TITLE);await wait(1200);}
+  if((await load()).timer?.workState!=='running'){await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(r=>r.querySelector('.task-title')?.textContent===title).querySelector('.timer').click(),TITLE);await wait(1200);}
  }
  // The glass may be rebuilding right after the event; the app gives itself 10 s as well.
  let d;const end=Date.now()+10000;

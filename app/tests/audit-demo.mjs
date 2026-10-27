@@ -16,8 +16,8 @@ try{
  // Text over the widget region makes the difference between "shown" and "hidden" large even
  // over a dark desktop.
  for(const title of ['Позвонить в сервис','Купить продукты','Оплатить интернет']){
-  if(await main.evaluate(`[...document.querySelectorAll('.task-title')].some(node=>node.textContent===${JSON.stringify(title)})`))continue;
-  await main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${JSON.stringify(title)};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);await wait(650);
+  if(await main.evaluate(title=>[...document.querySelectorAll('.task-title')].some(node=>node.textContent===title),title))continue;
+  await main.evaluate(title=>{const input=document.querySelector('#task-input');input.value=title;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);await wait(650);
  }
  await main.host('theme',{dark:false});await main.evaluate(`document.body.classList.toggle('dark',false)`);await wait(500);
  const window_=(await main.host('diagnostics')).window;

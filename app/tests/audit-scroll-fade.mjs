@@ -12,7 +12,7 @@ try{
  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:15,y:15});
  const points=await page.evaluate(`(()=>{const s=document.querySelector('#task-scroll');s.scrollTop=0;const groups=s.querySelectorAll('.task-group');const boundary=groups[1].offsetTop;return [0,150,boundary-22,boundary+22,s.scrollHeight];})()`);
  for(const [i,y] of points.entries()){
-  await page.evaluate(`document.querySelector('#task-scroll').scrollTop=${y}`);await wait(100);
+  await page.evaluate(y=>{document.querySelector('#task-scroll').scrollTop=y;},y);await wait(100);
   const state=await page.evaluate(inspect);
   for(const g of state.groups){
    assert.equal(g.background,'rgba(0, 0, 0, 0)');assert.equal(g.blur,'none');assert.equal(g.shadow,'none');

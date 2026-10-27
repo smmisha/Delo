@@ -5,20 +5,20 @@ import {connect,wait,screenshot} from './audit-harness.mjs';
 const output=path.resolve(process.argv[2]||'app/test-output/voice-audit');await fs.mkdir(output,{recursive:true});
 const main=await connect(),quick=await connect(true),checks=[];
 function check(name,pass,details){checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));assert(pass,name);}
-async function until(page,expression,ms=30000){const end=Date.now()+ms;while(Date.now()<end){if(await page.evaluate(expression))return;await wait(100);}throw Error(`Timeout: ${expression}`);}
+async function until(page,expression,ms=30000,...args){const end=Date.now()+ms;while(Date.now()<end){if(await page.evaluate(expression,...args))return;await wait(100);}throw Error(`Timeout: ${String(expression)}`);}
 async function prepare(page){
  await page.evaluate(`(()=>{window.voiceUpdates=[];chrome.webview.addEventListener('message',event=>{if(event.data.event==='voiceState')voiceUpdates.push({...event.data.payload,at:performance.now()});});const original=chrome.webview.postMessage.bind(chrome.webview);chrome.webview.postMessage=message=>{if(message.type==='voice'&&message.payload.action==='start'&&window.voiceFixture){message.payload.fixture=window.voiceFixture;}original(message);};document.querySelectorAll('dialog[open]').forEach(d=>d.close());return true;})()`);
 }
 async function fixtureRun(page,language){
- await page.evaluate(`(()=>{window.voiceUpdates=[];window.voiceFixture=${JSON.stringify(language+'.wav')};const input=document.querySelector('#task-input');input.value='Draft:';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#voice-input').click();return true;})()`);
+ await page.evaluate(language=>{window.voiceUpdates=[];window.voiceFixture=language+'.wav';const input=document.querySelector('#task-input');input.value='Draft:';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#voice-input').click();return true;},language);
  await until(page,`voiceUpdates.some(x=>['result','error'].includes(x.state))`);
  return page.evaluate(`({updates:voiceUpdates,draft:document.querySelector('#task-input').value})`);
 }
 try{
  await main.host('show');await main.host('pin',{pinned:true});await prepare(main);await prepare(quick);
  for(const language of ['ru','uk','en']){
-  await main.evaluate(`(()=>{document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();const form=document.querySelector('#settings-form');form.elements.listShortcut.value='Ctrl+Alt+Shift+J';form.elements.quickShortcut.value='Ctrl+Alt+Shift+K';const field=form.elements.language;field.value=${JSON.stringify(language)};field.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
-  await until(main,`document.documentElement.lang===${JSON.stringify(language)}&&document.querySelector('#widget').getAttribute('aria-busy')==='false'`);
+  await main.evaluate(language=>{document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();const form=document.querySelector('#settings-form');form.elements.listShortcut.value='Ctrl+Alt+Shift+J';form.elements.quickShortcut.value='Ctrl+Alt+Shift+K';const field=form.elements.language;field.value=language;field.dispatchEvent(new Event('change',{bubbles:true}));return true;},language);
+  await until(main,language=>document.documentElement.lang===language&&document.querySelector('#widget').getAttribute('aria-busy')==='false',30000,language);
   await main.evaluate(`document.querySelector('#settings [data-close]').click()`);
   const start=Date.now(),result=await fixtureRun(main,language),terminal=result.updates.at(-1);
   const expected={ru:/молоко.*врачу/i,en:/milk.*doctor/i,uk:/ініціативу.*співі/i}[language];
