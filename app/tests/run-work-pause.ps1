@@ -1,4 +1,4 @@
-# П16 live check: "in work" without the timer pauses and resumes, one task stays in focus, and the
+﻿# П16 live check: "in work" without the timer pauses and resumes, one task stays in focus, and the
 # timer shortcut (F05) acts while another program's window has the focus. One named session is
 # launched three times by audit-work-pause.mjs: before (shortcut, RU/UK/EN, dark and light, the
 # pause glyph), after a saved exit and relaunch, and stale, once the profile has been made to look
