@@ -104,6 +104,8 @@ try {
 
     # A separate data directory is deliberately outside the application directory,
     # matching the production layout. The test never launches the installed exe.
+    # This is a synthetic sibling directory, not FOLDERID_LocalAppData/Delo. Its hash
+    # does not prove real-profile preservation; that needs a dedicated Windows user or VM.
     $dataDir = Join-Path $testRoot 'LocalAppData Delo'
     New-Item -ItemType Directory -Path $dataDir | Out-Null
     $tasksPath = Join-Path $dataDir 'tasks.json'

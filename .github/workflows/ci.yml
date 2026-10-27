@@ -43,6 +43,6 @@ jobs:
       - name: Store tests
         run: ./app/test-store.ps1
       - name: Updater tests
-        run: ./app/test-updater.ps1
+        run: ./app/test-updater.ps1 "$env:RUNNER_TEMP/delo-updater-fixture"
       - name: Updater wait regression
         run: ./app/test-updater-wait.ps1
