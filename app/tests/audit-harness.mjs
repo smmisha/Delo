@@ -31,7 +31,7 @@ export async function connect(quick=false){
  const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq,timer=setTimeout(()=>{pending.delete(id);reject(Error(`Timeout: ${method}`));},45000);pending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value;};
  const host=async(action,payload={})=>evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');globalThis.__deloHarnessBridge??=new HostBridge();return globalThis.__deloHarnessBridge.window(${stringifyForEvaluate(action)},${stringifyForEvaluate(payload)});})()`);
- const geometry=async selector=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,width:innerWidth,height:innerHeight};})()`);
+ const geometry=async selector=>evaluate(`(()=>{const e=document.querySelector(${stringifyForEvaluate(selector)});e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,width:innerWidth,height:innerHeight};})()`);
  const point=async selector=>{const p=await geometry(selector),d=await host('diagnostics');return {window:d.window,x:Math.round(d.x+p.x*d.width/p.width),y:Math.round(d.y+p.y*d.height/p.height)};};
  // A toast or another app can briefly cover the widget. Wait for it to leave (bounded);
  // the native helper still refuses to click through anything that stays.
