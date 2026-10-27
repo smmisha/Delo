@@ -26,8 +26,8 @@ try{
   await main.evaluate(`(()=>{document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();})()`);await wait(300);
   for(let i=0;!await main.evaluate(`document.querySelector('#settings').open`);i++){if(i===50)throw Error('Settings did not open');await wait(100);}
   await main.evaluate((selectedTheme)=>{const field=document.querySelector('[name=theme]');field.value=selectedTheme;field.dispatchEvent(new Event('change',{bubbles:true}));},theme);
-  for(let i=0;!await main.evaluate(`document.body.classList.contains('dark')===${theme==='dark'}&&document.querySelector('#widget').getAttribute('aria-busy')==='false'`);i++){if(i===50)throw Error('Theme was not applied');await wait(100);}
-  check(`${theme}: actual theme applied`,await main.evaluate(`document.body.classList.contains('dark')===${theme==='dark'}`));
+  for(let i=0;!await main.evaluate(isDark=>document.body.classList.contains('dark')===isDark&&document.querySelector('#widget').getAttribute('aria-busy')==='false',theme==='dark');i++){if(i===50)throw Error('Theme was not applied');await wait(100);}
+  check(`${theme}: actual theme applied`,await main.evaluate(isDark=>document.body.classList.contains('dark')===isDark,theme==='dark'));
   await main.click('#settings [data-close]');
   for(const width of [420,320]){
    const d=await main.host('diagnostics'),scale=d.width/await main.evaluate('innerWidth');

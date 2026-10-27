@@ -6,14 +6,15 @@ if(Test-Path -LiteralPath $profile){throw 'Use a new session; existing data will
 if(Get-CimInstance Win32_Process -Filter "Name='Delo.exe'" | Where-Object {$_.CommandLine -match '--harness'}){throw 'Close the other Delo harness first'}
 $out=if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{$profile}
 New-Item -ItemType Directory -Path $profile,$out -Force | Out-Null
-@{pinned=$true;autostart=$false;quickFrameReduced=$true;hotkeys=@{list='Ctrl+Alt+Shift+J';quick='Ctrl+Alt+Shift+K'}} | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $profile 'window.json') -Encoding utf8
+$window=@{pinned=$true;autostart=$false;quickFrameReduced=$true;hotkeys=@{list='Ctrl+Alt+Shift+J';quick='Ctrl+Alt+Shift+K'}} | ConvertTo-Json -Compress
+[IO.File]::WriteAllText((Join-Path $profile 'window.json'),$window,[Text.UTF8Encoding]::new($false))
 $p=Start-Process -FilePath (Join-Path $runtime 'Delo.exe') -ArgumentList "--harness=$SessionName" -WindowStyle Hidden -PassThru
 try {
  $ready=$false
  for($attempt=0;$attempt -lt 120;$attempt++){
   if($p.HasExited){throw "Harness exited before WebView was ready (code $($p.ExitCode))"}
   try{
-   $pages=@(Invoke-RestMethod -Uri 'http://127.0.0.1:9223/json/list' -TimeoutSec 1)
+   $pages=(Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:9223/json/list' -TimeoutSec 1).Content | ConvertFrom-Json
    $mainReady=@($pages | Where-Object {$_.url -like 'https://delo.local/ui/*' -and $_.url -notlike '*view=quick*'}).Count -eq 1
    $quickReady=@($pages | Where-Object {$_.url -like 'https://delo.local/ui/*view=quick*'}).Count -eq 1
    if($mainReady -and $quickReady){$ready=$true;break}
