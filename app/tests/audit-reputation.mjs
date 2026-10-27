@@ -6,9 +6,9 @@ const output=path.resolve(process.argv[2]||'app/test-output/sessions/audit-20260
 const page=await connect(),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
 const createCompleted=async title=>{
- await page.evaluate((titleArg)=>{const input=document.querySelector('#task-input');input.value=titleArg;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);
+ await page.evaluate((taskTitle)=>{const input=document.querySelector('#task-input');input.value=taskTitle;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);
  await wait(250);
- await page.evaluate((titleArg)=>{const row=[...document.querySelectorAll('.task')].find(row=>row.querySelector('.task-title')?.textContent===titleArg);if(!row)throw Error('Audit task was not created');row.querySelector('.complete').click();return true;},title);
+ await page.evaluate((taskTitle)=>{const row=[...document.querySelectorAll('.task')].find(row=>row.querySelector('.task-title')?.textContent===taskTitle);if(!row)throw Error('Audit task was not created');row.querySelector('.complete').click();return true;},title);
  await wait(250);
 };
 

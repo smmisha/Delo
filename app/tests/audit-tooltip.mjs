@@ -4,6 +4,8 @@ import {connect,native,wait,screenshot,ready} from './audit-harness.mjs';
 
 const output=path.resolve(process.argv[2]||'app/test-output/sessions/tooltip-audit'),main=await connect(),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
+const unsafeJsCharMap={'<':'\\u003C','>':'\\u003E','/':'\\u002F','\u2028':'\\u2028','\u2029':'\\u2029'};
+const escapeUnsafeJsChars=str=>str.replace(/[<>/\u2028\u2029]/g,char=>unsafeJsCharMap[char]);
 async function until(expression,ms=5000){const end=Date.now()+ms;while(Date.now()<end){if(await main.evaluate(expression))return;await wait(50);}throw Error(`Timeout: ${expression}`);}
 try{
   await main.host('show');await main.host('pin',{pinned:true});
@@ -17,12 +19,12 @@ try{
     await main.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'center'})`);
     const away=await main.point('#today');native(away.window,'move',{X:away.x,Y:away.y});await wait(60);
     const point=await main.point(selector);
-    const hit=await main.evaluate(`(()=>{const t=document.querySelector(${JSON.stringify(selector)}),r=t.getBoundingClientRect(),n=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return !!n&&t.contains(n);})()`);
+    const hit=await main.evaluate((selector)=>{const t=document.querySelector(selector),r=t.getBoundingClientRect(),n=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return !!n&&t.contains(n);},selector);
     if(!hit)throw Error(`${selector} is covered at its centre; refusing to hover`);
     native(point.window,'move',{X:point.x,Y:point.y});await wait(1150);
   };
   const title=`Harness tooltip ${Date.now()}`;
-  await main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${JSON.stringify(title)};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
+  await main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${escapeUnsafeJsChars(JSON.stringify(title))};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
   await until(`([...document.querySelectorAll('.task-title')].some(node=>node.textContent===${JSON.stringify(title)}))`);
   // Hover this test's own row: the first row in the list belongs to whichever audit ran before.
   const taskId=await main.evaluate(`[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===${JSON.stringify(title)}).dataset.task`);
@@ -31,7 +33,7 @@ try{
     const theme=dark?'dark':'light';await main.evaluate(`document.body.classList.toggle('dark',${dark})`);
     for(const control of [{name:'stopwatch',selector:`${row} .timer`},{name:'more',selector:`${row} .task-more`}]){
       await hover(control.selector);
-      const result=await main.evaluate(`(()=>{const target=document.querySelector(${JSON.stringify(control.selector)}),layer=document.querySelector('#tooltip-layer'),widget=document.querySelector('#widget').getBoundingClientRect(),rect=layer?.getBoundingClientRect();return {target:target?.getAttribute('aria-label'),targetOpen:target?.classList.contains('tip-open')||false,open:layer?.classList.contains('tip-open')||false,text:layer?.textContent||'',rect:rect&&{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom},widget:{left:widget.left,top:widget.top,right:widget.right,bottom:widget.bottom}};})()`);
+      const result=await main.evaluate((selector)=>{const target=document.querySelector(selector),layer=document.querySelector('#tooltip-layer'),widget=document.querySelector('#widget').getBoundingClientRect(),rect=layer?.getBoundingClientRect();return {target:target?.getAttribute('aria-label'),targetOpen:target?.classList.contains('tip-open')||false,open:layer?.classList.contains('tip-open')||false,text:layer?.textContent||'',rect:rect&&{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom},widget:{left:widget.left,top:widget.top,right:widget.right,bottom:widget.bottom}};},control.selector);
       check(`${theme}: ${control.name} tooltip stays fully visible above the masked task list`,result.open&&result.text===result.target&&result.rect&&result.rect.left>=result.widget.left&&result.rect.right<=result.widget.right&&result.rect.top>=result.widget.top&&result.rect.bottom<=result.widget.bottom,result);
       await fs.mkdir(output,{recursive:true});await screenshot(main,path.join(output,`${theme}-${control.name}-tooltip.png`));
     }

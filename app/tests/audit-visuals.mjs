@@ -12,7 +12,7 @@ try{
  for(const theme of ['light','dark']){
   await main.host('show');await main.host('pin',{pinned:true});
   await main.evaluate(`(()=>{document.querySelectorAll('dialog[open]').forEach(d=>d.close());if(!document.querySelector('#app-menu').matches(':popover-open'))document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();return true;})()`);await wait(300);
-  await main.evaluate(`(()=>{const theme=document.querySelector('[name=theme]');theme.value=${JSON.stringify(theme)};theme.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+  await main.evaluate((nextTheme)=>{const theme=document.querySelector('[name=theme]');theme.value=nextTheme;theme.dispatchEvent(new Event('change',{bubbles:true}));return true;},theme);
   const end=Date.now()+5000;let applied=false;
   while(Date.now()<end){applied=await main.evaluate(async(expectedTheme,expectedDark)=>{const {HostBridge}=await import('./bridge.mjs');globalThis.__deloHarnessBridge??=new HostBridge();const value=await globalThis.__deloHarnessBridge.request('load');return value.state?.settings?.theme===expectedTheme&&document.body.classList.contains('dark')===expectedDark&&document.querySelector('#widget').getAttribute('aria-busy')==='false'&&document.querySelector('#settings-error').hidden;},theme,theme==='dark');if(applied)break;await wait(25);}
   check(`${theme}: theme auto-saves and reaches the actual view`,applied);
