@@ -27,6 +27,7 @@
 #include "ScreenshotKeys.h"
 #include "Voice.h"
 #include "Update.h"
+#include "Updater.h"
 #include "StoreDistribution.h"
 #include "resource.h"
 
@@ -34,7 +35,7 @@ using Microsoft::WRL::Callback;
 using namespace winrt;
 using namespace winrt::Windows::Data::Json;
 namespace fs=std::filesystem;
-constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2, StoreDone=WM_APP+3, NativeSaveFailed=WM_APP+4, UpdateDone=WM_APP+5;
+constexpr UINT TrayMessage=WM_APP+1, ShowMessage=WM_APP+2, StoreDone=WM_APP+3, NativeSaveFailed=WM_APP+4, UpdateDone=WM_APP+5, DownloadProgress=WM_APP+6, DownloadDone=WM_APP+7, InstallerDone=WM_APP+8;
 const UINT RequestExitMessage=RegisterWindowMessageW(L"Delo.RequestExit");constexpr LRESULT RequestExitAccepted=0x44454C4F;
 constexpr wchar_t ClassName[]=L"Delo.Widget.Host";
 constexpr int QuickHeightDip=83;
@@ -72,6 +73,8 @@ std::atomic<bool> fakeCaptureIntro{false};
 std::wstring timerKey;
 // N13: the update check runs on its own thread so a slow network never holds up data writes.
 std::unique_ptr<delo::Worker> netWorker;
+std::wstring updatePhase;int updatePercent{};
+auto updateCancel=std::make_shared<std::atomic<bool>>(false);
 void Log(std::string const& kind,std::string const& value){if(!trace)return;JsonObject r;SYSTEMTIME now{};GetLocalTime(&now);wchar_t when[32]{};swprintf_s(when,L"%04u-%02u-%02uT%02u:%02u:%02u.%03u",now.wYear,now.wMonth,now.wDay,now.wHour,now.wMinute,now.wSecond,now.wMilliseconds);r.Insert(L"time",JsonValue::CreateStringValue(when));r.Insert(L"event",JsonValue::CreateStringValue(to_hstring(kind)));r.Insert(L"value",JsonValue::CreateStringValue(to_hstring(value)));trace.Write(to_string(r.Stringify()));}
 JsonValue Number(double n){return JsonValue::CreateNumberValue(n);}JsonValue Text(std::wstring const& s){return JsonValue::CreateStringValue(s);}
 JsonValue Bool(bool b){return JsonValue::CreateBooleanValue(b);}
@@ -139,9 +142,13 @@ constexpr double UpdateIntervalMs=24.0*3600*1000;
 double WallMs(){FILETIME ft{};GetSystemTimeAsFileTime(&ft);return double(((ULONGLONG(ft.dwHighDateTime)<<32)|ft.dwLowDateTime)-116444736000000000ULL)/10000.0;}
 std::wstring NativeText(wchar_t const* key){return std::wstring(nativeSettings.GetNamedString(key,L"").c_str());}
 bool UpdateAvailable(){if(storeDistribution)return false;auto latest=NativeText(L"updateLatest");return !latest.empty()&&delo::NewerVersion(latest,delo::OwnVersion());}
-JsonObject UpdateResult(bool cached){JsonObject r;r.Insert(L"current",Text(delo::OwnVersion()));r.Insert(L"latest",Text(NativeText(L"updateLatest")));r.Insert(L"url",Text(NativeText(L"updateUrl")));r.Insert(L"newer",Bool(UpdateAvailable()));r.Insert(L"cached",Bool(cached));r.Insert(L"checkedAt",Number(nativeSettings.GetNamedNumber(L"updateCheckedAt",0)));return r;}
-// Only this project's release pages are opened; the address comes from the network.
-void OpenReleasePage(){if(storeDistribution){ShellExecuteW(nullptr,L"open",L"ms-windows-store://pdp/?productid=9MSPF2LJL0V2",nullptr,nullptr,SW_SHOWNORMAL);return;}auto url=NativeText(L"updateUrl");constexpr wchar_t prefix[]=L"https://github.com/smmisha/Delo/";if(url.size()>std::size(prefix)-1&&_wcsnicmp(url.c_str(),prefix,std::size(prefix)-1)==0)ShellExecuteW(nullptr,L"open",url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
+JsonObject DownloadState(){JsonObject r;r.Insert(L"phase",Text(updatePhase));r.Insert(L"percent",Number(updatePercent));r.Insert(L"current",Text(delo::OwnVersion()));r.Insert(L"latest",Text(NativeText(L"updateLatest")));r.Insert(L"newer",Bool(UpdateAvailable()));return r;}
+void SetDownloadState(wchar_t const* phase,int percent=0){updatePhase=phase;updatePercent=percent;Broadcast(L"updateDownload",DownloadState());}
+void ResumeCancelledUpdate(){if(updatePhase==L"checking"||updatePhase==L"downloading")SetDownloadState(L"error");}
+JsonObject UpdateResult(bool cached){auto r=DownloadState();r.Insert(L"url",Text(NativeText(L"updateUrl")));r.Insert(L"cached",Bool(cached));r.Insert(L"checkedAt",Number(nativeSettings.GetNamedNumber(L"updateCheckedAt",0)));return r;}
+void BeginUpdate();
+// Store owns packaged updates; ordinary installations update without opening a website.
+void OpenReleasePage(){if(storeDistribution){ShellExecuteW(nullptr,L"open",L"ms-windows-store://pdp/?productid=9MSPF2LJL0V2",nullptr,nullptr,SW_SHOWNORMAL);return;}BeginUpdate();}
 std::wstring UpdateMenuLabel(std::wstring const& language){if(!UpdateAvailable())return {};auto version=NativeText(L"updateLatest");if(!version.empty()&&(version[0]==L'v'||version[0]==L'V'))version.erase(0,1);return (language==L"uk"?L"Доступна версія ":language==L"en"?L"Version available: ":L"Доступна версия ")+version;}
 // Own global shortcuts must not swallow keys while their recorder has focus.
 // Leaving the window restores them even when the renderer has not delivered blur yet.
@@ -177,7 +184,7 @@ JsonObject OsSurfaceDiagnostics(){
 }
 void RefreshPackageStartup(){if(storeDistribution&&!harness){auto status=delo::PackageStartup();nativeSettings.Insert(L"autostart",Bool(status.enabled));nativeSettings.Insert(L"startupBlocked",Bool(status.blocked));}}
 void SetAutostart(bool enabled){if(harness){Log("autostart_simulated",enabled?"true":"false");return;}if(storeDistribution){delo::PackageStartup(true,enabled);return;}HKEY raw{};check_hresult(HRESULT_FROM_WIN32(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&raw,nullptr)));auto exe=appRoot/L"Delo.exe";auto value=L"\""+exe.wstring()+L"\"";LSTATUS error=enabled?RegSetValueExW(raw,L"Delo",0,REG_SZ,reinterpret_cast<BYTE const*>(value.c_str()),DWORD((value.size()+1)*sizeof(wchar_t))):RegDeleteValueW(raw,L"Delo");RegCloseKey(raw);if(error!=ERROR_SUCCESS&&error!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("Could not change autostart");}
-void RequestExit(){if(exiting)return;CancelVoice();exiting=true;Broadcast(L"beforeExit");SetTimer(control,4,20000,nullptr);}
+void RequestExit(){if(exiting)return;updateCancel->store(true);CancelVoice();exiting=true;Broadcast(L"beforeExit");SetTimer(control,4,20000,nullptr);}
 void FinishScreenshot(){
     // Exclude every widget before restarting either monitor session: otherwise the
     // other view could copy the temporarily visible glass into its own background.
@@ -225,9 +232,43 @@ void SetDemoMode(bool on){
     demoMode=on;UpdateTrayTip();JsonObject changed;changed.Insert(L"on",Bool(on));Broadcast(L"demo",changed);Log("demo_mode",on?"on":"off");
 }
 void Reply(View& v,IJsonValue const& id,bool ok,JsonObject const& result,std::string const& error={}){JsonObject response;response.Insert(L"id",id);response.Insert(L"ok",Bool(ok));if(ok)response.Insert(L"result",result);else response.Insert(L"error",JsonValue::CreateStringValue(to_hstring(error)));Send(v,response);}
-struct UpdateJob{View* v{};IJsonValue id{nullptr};std::string body,error;DWORD status{};bool ok{};};
+struct UpdateJob{View* v{};IJsonValue id{nullptr};std::string body,error;DWORD status{};bool ok{},install{};std::shared_ptr<std::atomic<bool>> cancel;};
+struct DownloadJob{delo::InstallerAsset asset;fs::path file;std::string error;bool ok{};std::shared_ptr<std::atomic<bool>> cancel;};
+void QueueUpdateCheck(UpdateJob* job){
+    if(!netWorker)netWorker=std::make_unique<delo::Worker>();auto target=control;
+    netWorker->Post([job,target]{try{job->body=delo::HttpsGet(L"api.github.com",L"/repos/smmisha/Delo/releases/latest",job->status);job->ok=true;}catch(std::exception const& e){job->error=e.what();}catch(...){job->error="Update check failed";}if(!PostMessageW(target,UpdateDone,0,reinterpret_cast<LPARAM>(job)))delete job;});
+}
+void BeginUpdate(){
+    if(storeDistribution||exiting||updatePhase==L"checking"||updatePhase==L"downloading"||updatePhase==L"installing")return;
+    updateCancel=std::make_shared<std::atomic<bool>>(false);SetDownloadState(L"checking");auto* job=new UpdateJob{};job->install=true;job->cancel=updateCancel;QueueUpdateCheck(job);
+}
+void StartDownload(delo::InstallerAsset const& asset){
+    delo::CleanUpdateCache(dataRoot/L"updates");
+    auto directory=dataRoot/L"updates"/(L"download-"+std::to_wstring(GetCurrentProcessId())+L"-"+std::to_wstring(GetTickCount64()));
+    fs::create_directories(directory.parent_path());if(!fs::create_directory(directory))throw std::runtime_error("Could not prepare update directory");
+    auto* job=new DownloadJob{};job->asset=asset;job->file=directory/L"Delo-setup.exe";job->cancel=updateCancel;auto target=control;auto cancel=updateCancel;
+    SetDownloadState(L"downloading");
+    netWorker->Post([job,target,cancel]{try{delo::DownloadInstaller(job->asset,job->file,*cancel,[target](int percent){PostMessageW(target,DownloadProgress,WPARAM(percent),0);});job->ok=true;}catch(std::exception const& e){job->error=e.what();}catch(...){job->error="Update download failed";}if(!job->ok){std::error_code ignored;fs::remove(job->file.parent_path(),ignored);}if(!PostMessageW(target,DownloadDone,0,reinterpret_cast<LPARAM>(job)))delete job;});
+}
+void FinishDownload(DownloadJob* raw){
+    std::unique_ptr<DownloadJob> job(raw);
+    if(exiting||job->cancel!=updateCancel||job->cancel->load())return;
+    try{
+        if(!job->ok)throw std::runtime_error(job->error);
+        Log("update_verified",to_string(job->asset.version));
+        // Harness verifies the real network/download/hash path, but never installs over personal data.
+        if(harness){Log("update_install_simulated",to_string(job->file.wstring()));SetDownloadState(L"ready",100);return;}
+        auto arguments=delo::InstallerArguments(job->file.parent_path()/L"setup.log");
+        SHELLEXECUTEINFOW setup{sizeof(setup)};setup.fMask=SEE_MASK_NOCLOSEPROCESS|SEE_MASK_NOASYNC;setup.lpVerb=L"open";setup.lpFile=job->file.c_str();setup.lpParameters=arguments.c_str();setup.nShow=SW_HIDE;
+        if(!ShellExecuteExW(&setup)||!setup.hProcess)throw std::runtime_error("Could not start update installer");
+        SetDownloadState(L"installing",100);Log("update_install_started",to_string(job->asset.version));
+        auto process=setup.hProcess;auto target=control;
+        netWorker->Post([process,target]{WaitForSingleObject(process,INFINITE);DWORD code=1;GetExitCodeProcess(process,&code);CloseHandle(process);PostMessageW(target,InstallerDone,WPARAM(code),0);});
+    }catch(std::exception const& e){Log("update_install_error",e.what());SetDownloadState(L"error");}
+}
 void FinishUpdate(UpdateJob* raw){
     std::unique_ptr<UpdateJob> job(raw);
+    if(job->install&&(job->cancel!=updateCancel||job->cancel->load()))return;
     // Every attempt counts toward the once-a-day limit, so an offline morning does not turn into retries.
     nativeSettings.Insert(L"updateCheckedAt",Number(WallMs()));
     try{
@@ -236,9 +277,11 @@ void FinishUpdate(UpdateJob* raw){
         auto release=JsonObject::Parse(to_hstring(job->body));auto tag=release.GetNamedString(L"tag_name",L"");
         if(tag.empty())throw std::runtime_error("Update response has no version");
         nativeSettings.Insert(L"updateLatest",JsonValue::CreateStringValue(tag));nativeSettings.Insert(L"updateUrl",JsonValue::CreateStringValue(release.GetNamedString(L"html_url",L"")));
-        SaveNativeLater();Log("update_check",to_string(tag));Reply(*job->v,job->id,true,UpdateResult(false));
-    }catch(hresult_error const& e){SaveNativeLater();Log("update_check_error",to_string(e.message()));Reply(*job->v,job->id,false,{},to_string(e.message()));}
-    catch(std::exception const& e){SaveNativeLater();Log("update_check_error",e.what());Reply(*job->v,job->id,false,{},e.what());}
+        SaveNativeLater();Log("update_check",to_string(tag));
+        if(job->install){if(exiting)return;if(!UpdateAvailable()){SetDownloadState(L"current");return;}StartDownload(delo::InstallerRelease(release));}
+        else{if(updatePhase==L"current"&&UpdateAvailable())updatePhase.clear();Reply(*job->v,job->id,true,UpdateResult(false));}
+    }catch(hresult_error const& e){SaveNativeLater();Log("update_check_error",to_string(e.message()));if(job->install)SetDownloadState(L"error");else Reply(*job->v,job->id,false,{},to_string(e.message()));}
+    catch(std::exception const& e){SaveNativeLater();Log("update_check_error",e.what());if(job->install)SetDownloadState(L"error");else Reply(*job->v,job->id,false,{},e.what());}
 }
 // Data operations run one at a time, in the order the pages sent them. A save is checked and
 // serialized on the window thread, written on the worker, and adopted and answered only once
@@ -404,15 +447,16 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
         }
         // N13: off by default. On, at most one request a day; otherwise the last answer is returned.
         else if(action==L"openRelease")OpenReleasePage();
+        else if(action==L"installUpdate"){OpenReleasePage();result=DownloadState();}
+        else if(action==L"updateState")result=DownloadState();
         else if(action==L"privacy"){auto policy=appRoot/L"privacy.html";ShellExecuteW(nullptr,L"open",policy.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
         else if(action==L"updates"){
             if(storeDistribution){result.Insert(L"storeManaged",Bool(true));}
-            else if(!payload.GetNamedBoolean(L"enabled",false)){for(auto key:{L"updateLatest",L"updateUrl"})if(nativeSettings.HasKey(key))nativeSettings.Remove(key);SaveNativeLater();}
+            else if(!payload.GetNamedBoolean(L"enabled",false)){for(auto key:{L"updateLatest",L"updateUrl"})if(nativeSettings.HasKey(key))nativeSettings.Remove(key);SaveNativeLater();result=DownloadState();}
             else if(WallMs()-nativeSettings.GetNamedNumber(L"updateCheckedAt",0)<UpdateIntervalMs)result=UpdateResult(true);
             else{
-                if(!netWorker)netWorker=std::make_unique<delo::Worker>();
                 auto* job=new UpdateJob{};job->v=&v;job->id=id;
-                netWorker->Post([job]{try{job->body=delo::HttpsGet(L"api.github.com",L"/repos/smmisha/Delo/releases/latest",job->status);job->ok=true;}catch(std::exception const& e){job->error=e.what();}catch(...){job->error="Update check failed";}PostMessageW(control,UpdateDone,0,reinterpret_cast<LPARAM>(job));});
+                QueueUpdateCheck(job);
                 return;
             }
         }
@@ -422,7 +466,7 @@ void Handle(View& v,std::wstring const& json){IJsonValue id=JsonValue::CreateNul
         else if(action==L"sound"){MessageBeep(payload.GetNamedString(L"kind",L"complete")==L"complete"?MB_OK:MB_ICONEXCLAMATION);}
         else if(action==L"exit")RequestExit();
         else if(action==L"exitReady"){if(exiting)PostQuitMessage(0);}
-        else if(action==L"cancelExit"){exiting=false;KillTimer(control,4);Focus(mainView);}
+        else if(action==L"cancelExit"){exiting=false;KillTimer(control,4);ResumeCancelledUpdate();Focus(mainView);}
         else throw std::runtime_error("Unknown window action");
     }else throw std::runtime_error("Unknown bridge command");Reply(v,id,true,result);
 }catch(hresult_error const& e){Reply(v,id,false,{},to_string(e.message()));}catch(std::exception const& e){Reply(v,id,false,{},e.what());}}
@@ -520,6 +564,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         if(message==ShowMessage){ShowList();return 0;}
         if(message==WM_HOTKEY){if(w==1)ShowList();else if(w==2)Quick();else if(w==3)Event(mainView,L"timerToggle");return 0;}
         if(message==UpdateDone){FinishUpdate(reinterpret_cast<UpdateJob*>(l));return 0;}
+        if(message==DownloadProgress){if(updatePhase==L"downloading")SetDownloadState(L"downloading",int(w));return 0;}
+        if(message==DownloadDone){FinishDownload(reinterpret_cast<DownloadJob*>(l));return 0;}
+        if(message==InstallerDone){if(updatePhase==L"installing"){Log("update_installer_exit",std::to_string(w));SetDownloadState(L"error");}return 0;}
         if(message==WM_SETTINGCHANGE){SyncDpi(mainView,"settingchange");SyncDpi(quickView,"settingchange");}
         if(message==WM_DISPLAYCHANGE){SyncDpi(mainView,"displaychange");SyncDpi(quickView,"displaychange");if(mainView.hwnd)ClampWindow(mainView);if(quickView.hwnd)ClampWindow(quickView);if(mainView.glass)mainView.glass->Rebuild();if(quickView.glass)quickView.glass->Rebuild();return 0;}
         if(message==WM_POWERBROADCAST||message==WM_WTSSESSION_CHANGE){
@@ -547,7 +594,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         // the request was understood, so it waits for the exit instead of forcing a session end.
         if(RequestExitMessage&&message==RequestExitMessage){RequestExit();return RequestExitAccepted;}
         if(message==NativeSaveFailed){std::unique_ptr<std::string> text(reinterpret_cast<std::string*>(l));Log("window_save_error",*text);return 0;}
-        if(message==WM_TIMER&&w==4){KillTimer(control,4);exiting=false;Focus(mainView);Event(mainView,L"exitFailed");Log("exit_cancelled","No save acknowledgement");return 0;}
+        if(message==WM_TIMER&&w==4){KillTimer(control,4);exiting=false;ResumeCancelledUpdate();Focus(mainView);Event(mainView,L"exitFailed");Log("exit_cancelled","No save acknowledgement");return 0;}
         if(message==WM_TIMER&&w==5){try{FinishScreenshot();}catch(hresult_error const& e){Log("screenshot_restore_error",to_string(e.message()));SetTimer(control,5,1000,nullptr);}return 0;}
     }
     return DefWindowProcW(hwnd,message,w,l);
