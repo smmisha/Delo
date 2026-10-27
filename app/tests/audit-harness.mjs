@@ -18,7 +18,7 @@ export async function connect(quick=false){
  ws.onmessage=event=>{const data=JSON.parse(event.data),request=pending.get(data.id);if(request){pending.delete(data.id);clearTimeout(request.timer);data.error?request.reject(Error(JSON.stringify(data.error))):request.resolve(data.result);}};
  const call=(method,params={})=>new Promise((resolve,reject)=>{
   if(closed||ws.readyState!==1){reject(Error('CDP connection closed'));return;}
-  const id=++seq,timer=setTimeout(()=>{pending.delete(id);const error=Error(`Timeout: ${method}`);error.code='CDP_TIMEOUT';reject(error);},45000);
+  const id=++seq,timer=setTimeout(()=>{pending.delete(id);const error=Error(`Timeout: ${method}`);error.code='CDP_TIMEOUT';reject(error);close();},45000);
   pending.set(id,{resolve,reject,timer});
   try{ws.send(JSON.stringify({id,method,params}));}catch(error){pending.delete(id);clearTimeout(timer);reject(error);}
  });
@@ -27,7 +27,6 @@ export async function connect(quick=false){
    const global=await call('Runtime.evaluate',{expression:'globalThis',returnByValue:false});
    if(global.exceptionDetails)throw Error(JSON.stringify(global.exceptionDetails));
    const objectId=global.result.objectId;
-   let timedOut=false;
    try{
     const result=await call('Runtime.callFunctionOn',{
      objectId,
@@ -38,8 +37,7 @@ export async function connect(quick=false){
     });
     if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));
     return result.result.value;
-   }catch(error){timedOut=error?.code==='CDP_TIMEOUT';throw error;}
-   finally{if(timedOut)close();else await call('Runtime.releaseObject',{objectId});}
+   }finally{if(!closed)await call('Runtime.releaseObject',{objectId});}
   }
   const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});
   if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));
