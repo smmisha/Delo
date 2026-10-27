@@ -10,7 +10,7 @@ async function prepare(page){
  await page.evaluate(`(()=>{window.voiceUpdates=[];chrome.webview.addEventListener('message',event=>{if(event.data.event==='voiceState')voiceUpdates.push({...event.data.payload,at:performance.now()});});const original=chrome.webview.postMessage.bind(chrome.webview);chrome.webview.postMessage=message=>{if(message.type==='voice'&&message.payload.action==='start'&&window.voiceFixture){message.payload.fixture=window.voiceFixture;}original(message);};document.querySelectorAll('dialog[open]').forEach(d=>d.close());return true;})()`);
 }
 async function fixtureRun(page,language){
- await page.evaluate(`(()=>{window.voiceUpdates=[];window.voiceFixture=${JSON.stringify(language+'.wav')};const input=document.querySelector('#task-input');input.value='Draft:';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#voice-input').click();return true;})()`);
+ await page.evaluate((fixtureName)=>{window.voiceUpdates=[];window.voiceFixture=fixtureName;const input=document.querySelector('#task-input');input.value='Draft:';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#voice-input').click();return true;},language+'.wav');
  await until(page,`voiceUpdates.some(x=>['result','error'].includes(x.state))`);
  return page.evaluate(`({updates:voiceUpdates,draft:document.querySelector('#task-input').value})`);
 }
