@@ -128,3 +128,16 @@ test('V32 interval start rounding does not turn a legitimate untimed pause into 
   assert.equal(untimedPause(task),true);
   assert.deepEqual(timerToggle(recoverState(JSON.parse(JSON.stringify(state)))),{type:'work',id:'a'});
 });
+
+test('V32 successive legacy working pauses resume the most recently paused task',()=>{
+  let state=add(add(createState(),'a'),'b');
+  Object.assign(state.tasks[0],{workState:'working',touchedAt:base+10});
+  Object.assign(state.tasks[1],{workState:'working',touchedAt:base+20});
+  assert.equal(validateState(state).valid,true);
+  assert.deepEqual(timerToggle(state),{type:'pause',id:'b'});
+  state=run(state,timerToggle(state),base+100,100);
+  assert.deepEqual(timerToggle(state),{type:'pause',id:'a'});
+  state=run(state,timerToggle(state),base+200,200);
+  state=recoverState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(timerToggle(state),{type:'work',id:'a'});
+});
