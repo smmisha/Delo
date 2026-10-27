@@ -1,4 +1,4 @@
-﻿# П16 live check: "in work" without the timer pauses and resumes, one task stays in focus, and the
+# П16 live check: "in work" without the timer pauses and resumes, one task stays in focus, and the
 # timer shortcut (F05) acts while another program's window has the focus. One named session is
 # launched three times by audit-work-pause.mjs: before (shortcut, RU/UK/EN, dark and light, the
 # pause glyph), after a saved exit and relaunch, and stale, once the profile has been made to look
@@ -23,12 +23,17 @@ New-Item -ItemType Directory -Path $profile,$out -Force | Out-Null
 $driver=Join-Path $PSScriptRoot 'audit-work-pause.mjs'
 function Launch{
  $p=Start-Process -FilePath $exe -ArgumentList "--harness=$SessionName" -WindowStyle Hidden -PassThru
+ try{
  for($i=0;$i -lt 120;$i++){
   if($p.HasExited){throw "Harness exited early ($($p.ExitCode))"}
   try{$j=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:9223/json/list' -TimeoutSec 1).Content;if(([regex]::Matches($j,'delo\.local/ui/')).Count -ge 2){Start-Sleep -Milliseconds 800;return $p}}catch{}
   Start-Sleep -Milliseconds 250
  }
  throw 'Harness not ready within 30 seconds'
+ }catch{
+  if(-not $p.HasExited){try{$p.Kill();$p.WaitForExit()}catch{}}
+  throw
+ }
 }
 function Phase([string]$Name){
  if($Name -eq 'older'){& node $driver $Name $out $profile;if($LASTEXITCODE -ne 0){throw "Phase '$Name' failed; see $out\$Name.json"};return}
