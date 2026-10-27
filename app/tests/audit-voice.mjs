@@ -17,7 +17,7 @@ async function fixtureRun(page,language){
 try{
  await main.host('show');await main.host('pin',{pinned:true});await prepare(main);await prepare(quick);
  for(const language of ['ru','uk','en']){
-  await main.evaluate(`(()=>{document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();const form=document.querySelector('#settings-form');form.elements.listShortcut.value='Ctrl+Alt+Shift+J';form.elements.quickShortcut.value='Ctrl+Alt+Shift+K';const field=form.elements.language;field.value=${JSON.stringify(language)};field.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+  await main.evaluate((lang)=>{document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();const form=document.querySelector('#settings-form');form.elements.listShortcut.value='Ctrl+Alt+Shift+J';form.elements.quickShortcut.value='Ctrl+Alt+Shift+K';const field=form.elements.language;field.value=lang;field.dispatchEvent(new Event('change',{bubbles:true}));return true;},language);
   await until(main,`document.documentElement.lang===${JSON.stringify(language)}&&document.querySelector('#widget').getAttribute('aria-busy')==='false'`);
   await main.evaluate(`document.querySelector('#settings [data-close]').click()`);
   const start=Date.now(),result=await fixtureRun(main,language),terminal=result.updates.at(-1);
