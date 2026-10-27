@@ -11,6 +11,7 @@ import {notificationFor} from './notification-policy.mjs';
 import {installGroupFade} from './group-fade.mjs';
 import {VoiceInput} from './voice.mjs';
 import {createDraft} from './draft.mjs';
+import {updatePresentation} from './update-view.mjs';
 const $=selector=>document.querySelector(selector), $$=selector=>[...document.querySelectorAll(selector)];
 const refreshGroupFade=installGroupFade($('#task-scroll'));
 const host=new HostBridge();
@@ -53,7 +54,7 @@ function setBusy(value){busy=value;const hasDraft=!!$('#task-input').value.trim(
 const collapsedGroups=new Set((()=>{try{return JSON.parse(localStorage.getItem('delo.collapsedGroups'))||[];}catch{return [];}})());
 function persistCollapsed(){try{localStorage.setItem('delo.collapsedGroups',JSON.stringify([...collapsedGroups]));}catch{}}
 function toggleGroup(key,section,toggle){const next=!section.classList.contains('collapsed');section.classList.toggle('collapsed',next);toggle.setAttribute('aria-expanded',String(!next));if(next)collapsedGroups.add(key);else collapsedGroups.delete(key);persistCollapsed();}
-function localize(){t=translator(state?.settings.language);locale=localeFor(state?.settings.language);document.documentElement.lang=state?.settings.language||'ru';$$('[data-text]').forEach(node=>text(node,t(node.dataset.text)));$$('[data-label]').forEach(node=>{const label=t(node.dataset.label);node.setAttribute('aria-label',label);node.removeAttribute('title');if(node.tagName==='BUTTON'&&!node.textContent.trim())node.dataset.tooltip=label;else delete node.dataset.tooltip;});$$('[data-placeholder]').forEach(node=>node.placeholder=t(node.dataset.placeholder));applyTheme();renderDueHint();if(native.storeManagedUpdates)renderUpdate();}
+function localize(){t=translator(state?.settings.language);locale=localeFor(state?.settings.language);document.documentElement.lang=state?.settings.language||'ru';$$('[data-text]').forEach(node=>text(node,t(node.dataset.text)));$$('[data-label]').forEach(node=>{const label=t(node.dataset.label);node.setAttribute('aria-label',label);node.removeAttribute('title');if(node.tagName==='BUTTON'&&!node.textContent.trim())node.dataset.tooltip=label;else delete node.dataset.tooltip;});$$('[data-placeholder]').forEach(node=>node.placeholder=t(node.dataset.placeholder));applyTheme();renderDueHint();renderUpdate();}
 function applyTheme(){const theme=state?.settings.theme||'system',dark=theme==='dark'||(theme==='system'&&systemTheme.matches);document.body.classList.toggle('dark',dark);document.body.classList.toggle('reduced',!!state?.settings.reducedMotion);if(dark!==lastTheme){lastTheme=dark;host.window('theme',{dark}).catch(()=>{});}}
 systemTheme.addEventListener('change',applyTheme);
 function dateText(task){if(!task.due)return t('dueNone');const due=task.due;let value=new Intl.DateTimeFormat(locale,{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(`${due.date}T12:00:00Z`));if(due.time)value+=` · ${due.time}`;if(due.timeZone!==context().timeZone)value+=` · ${due.timeZone}`;return value;}
@@ -339,10 +340,18 @@ async function importFile(file){
 }
 // N13: the host asks GitHub at most once a day and otherwise returns its last answer, so the
 // page may ask on start and every hour. Turning the setting off makes the host forget it.
-let updateInfo=null,lastUpdateAsk=0;
-function renderUpdate(){const store=!!native.storeManagedUpdates;$('#settings-form').elements.checkUpdates.closest('label').hidden=store;const startup=$('#startup-status');startup.hidden=!native.startupBlocked;const autostart=$('#settings-form').elements.autostart;autostart.disabled=!!native.startupBlocked;const node=$('#update-status'),on=store||!!state?.settings.checkUpdates&&!!updateInfo?.latest;node.hidden=!on;if(!on)return;if(store){text($('#update-text'),t('storeUpdates'));text($('#open-release'),t('openStore'));$('#open-release').hidden=false;return;}text($('#open-release'),t('openRelease'));const version=String(updateInfo.newer?updateInfo.latest:updateInfo.current).replace(/^v/i,'');text($('#update-text'),fill(updateInfo.newer?'updateAvailable':'updateCurrent',{version}));$('#open-release').hidden=!updateInfo.newer;}
-async function checkUpdates(force=false){if(quick||!state)return;if(native.storeManagedUpdates){renderUpdate();return;}const enabled=!!state.settings.checkUpdates;if(!force&&(!enabled||Date.now()-lastUpdateAsk<3600000))return;lastUpdateAsk=Date.now();try{const result=await host.window('updates',{enabled});updateInfo=enabled?result:null;}catch{/* Offline or refused: nothing to show, nothing breaks (V26). */}renderUpdate();}
-$('#open-release').addEventListener('click',()=>host.window('openRelease').catch(()=>{}));
+let updateInfo=null,updateDownload={},lastUpdateAsk=0;
+function renderUpdate(){
+  const store=!!native.storeManagedUpdates;$('#settings-form').elements.checkUpdates.closest('label').hidden=store;
+  $('#startup-status').hidden=!native.startupBlocked;$('#settings-form').elements.autostart.disabled=!!native.startupBlocked;
+  const view=updatePresentation({store,enabled:!!state?.settings.checkUpdates,info:updateInfo,download:updateDownload});
+  $('#update-status').hidden=!view.visible;if(!view.visible)return;
+  text($('#update-text'),fill(view.key,view.args??{}));const button=$('#open-release');button.hidden=!view.action;button.disabled=!!view.disabled;if(view.action)text(button,t(view.action));
+  const progress=$('#update-progress');progress.hidden=view.progress===null;if(view.progress!==null){progress.value=view.progress;progress.setAttribute('aria-label',fill('updateDownloading',{percent:view.progress}));}
+}
+async function checkUpdates(force=false){if(quick||!state)return;if(native.storeManagedUpdates){renderUpdate();return;}const enabled=!!state.settings.checkUpdates;if(!force&&(!enabled||Date.now()-lastUpdateAsk<3600000))return;lastUpdateAsk=Date.now();try{const result=await host.window('updates',{enabled});updateInfo=enabled?result:null;updateDownload=result;}catch{/* Offline or refused: nothing to show, nothing breaks (V26). */}renderUpdate();}
+host.addEventListener('updateDownload',event=>{updateDownload=event.detail;updateInfo={...updateInfo,...event.detail};renderUpdate();});
+$('#open-release').addEventListener('click',async()=>{if(!native.storeManagedUpdates){updateDownload={phase:'checking'};renderUpdate();}try{await host.window('installUpdate');}catch{updateDownload={phase:'error'};renderUpdate();}});
 $('#open-privacy').addEventListener('click',()=>host.window('privacy').catch(error=>report(error)));
 // T07: reminders are marked in the data first, then shown, so each deadline is announced once
 // even with two windows; several at the same moment become one notification.

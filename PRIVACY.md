@@ -1,6 +1,6 @@
 # Delo privacy policy
 
-Publisher: socialmediamisha. Effective date: September 30, 2026.
+Publisher: socialmediamisha. Effective date: October 11, 2026.
 
 Delo is a local desktop task planner for Windows. It does not require a Delo account and has no publisher-operated cloud storage, advertising, analytics, or task synchronization service. The publisher does not receive your task text, work history, recordings, or desktop images through the app.
 
@@ -20,7 +20,7 @@ The glass effect uses Windows Graphics Capture to render the background behind t
 
 The Store version receives app updates through Microsoft Store. Windows, Microsoft Store, and the Microsoft Edge WebView2 Runtime may use Microsoft's update, diagnostic, and backup services according to your system settings and Microsoft's privacy statement: https://privacy.microsoft.com/privacystatement.
 
-The standalone version offers optional GitHub release checks, disabled by default. When enabled, GitHub receives an ordinary request for the latest Delo release, including connection information such as your IP address. No task data is included. Opening support or project links uses your browser and is subject to that site's privacy policy.
+The standalone version offers optional GitHub release checks, disabled by default. When enabled, GitHub receives an ordinary request for the latest Delo release, including connection information such as your IP address. Clicking Update downloads the Windows installer from this project's GitHub release and its GitHub asset servers, verifies its SHA-256 checksum, and starts the installer locally. No task data is included in these requests. Opening support or project links uses your browser and is subject to that site's privacy policy.
 
 If you export data, choose a folder synchronized by another service, or post information in a support issue, you control that sharing. Public GitHub issues are visible to others; avoid posting private tasks, recordings, or identifying information.
 
