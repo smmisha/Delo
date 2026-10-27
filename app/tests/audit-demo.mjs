@@ -15,10 +15,13 @@ try{
  {const d=await main.host('diagnostics'),scale=d.width/await main.evaluate('innerWidth');native(d.window,'resize',{Width:Math.round(420*scale),Height:Math.round(620*scale)});await ready(main);}
  // Text over the widget region makes the difference between "shown" and "hidden" large even
  // over a dark desktop.
- for(const title of ['Позвонить в сервис','Купить продукты','Оплатить интернет']){
+ const titles=['Позвонить в сервис','Купить продукты','Оплатить интернет'];
+ const counts=()=>main.evaluate(titles=>titles.map(title=>[...document.querySelectorAll('.task-title')].filter(node=>node.textContent===title).length),titles);
+ const beforeCounts=await counts();
+ for(const title of titles){
   await main.evaluate((taskTitle)=>{const input=document.querySelector('#task-input');input.value=taskTitle;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);await wait(650);
-  await main.evaluate(title=>{const input=document.querySelector('#task-input');input.value=title;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);await wait(650);
  }
+ const afterCounts=await counts();check('each demo title is added exactly once',afterCounts.every((n,i)=>n===beforeCounts[i]+1),{before:beforeCounts,after:afterCounts});
  await main.host('theme',{dark:false});await main.evaluate(`document.body.classList.toggle('dark',false)`);await wait(500);
  const window_=(await main.host('diagnostics')).window;
  const capture=async name=>{const file=path.join(output,name);native(window_,'capture',{OutputPath:file});return file;};
