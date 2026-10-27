@@ -4,6 +4,8 @@ import {connect,native,wait,screenshot,ready} from './audit-harness.mjs';
 
 const output=path.resolve(process.argv[2]||'app/test-output/sessions/tooltip-audit'),main=await connect(),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
+const unsafeJsCharMap={'<':'\\u003C','>':'\\u003E','/':'\\u002F','\u2028':'\\u2028','\u2029':'\\u2029'};
+const escapeUnsafeJsChars=str=>str.replace(/[<>/\u2028\u2029]/g,char=>unsafeJsCharMap[char]);
 async function until(expression,ms=5000){const end=Date.now()+ms;while(Date.now()<end){if(await main.evaluate(expression))return;await wait(50);}throw Error(`Timeout: ${expression}`);}
 try{
   await main.host('show');await main.host('pin',{pinned:true});
@@ -22,7 +24,7 @@ try{
     native(point.window,'move',{X:point.x,Y:point.y});await wait(1150);
   };
   const title=`Harness tooltip ${Date.now()}`;
-  await main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${JSON.stringify(title)};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
+  await main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${escapeUnsafeJsChars(JSON.stringify(title))};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
   await until(`([...document.querySelectorAll('.task-title')].some(node=>node.textContent===${JSON.stringify(title)}))`);
   // Hover this test's own row: the first row in the list belongs to whichever audit ran before.
   const taskId=await main.evaluate(`[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===${JSON.stringify(title)}).dataset.task`);
