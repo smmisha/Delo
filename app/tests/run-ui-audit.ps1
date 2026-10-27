@@ -93,7 +93,10 @@ console.log(JSON.stringify(identities));
   if(-not $owned){$p.Kill();$p.WaitForExit()}
   else{
    & node "$PSScriptRoot/devtools.mjs" --script "$PSScriptRoot/ui-exit.js"
-   if($LASTEXITCODE -ne 0 -or -not $p.WaitForExit(10000)){throw "Harness did not complete saved exit; left running for inspection (PID $($p.Id))"}
+   if($LASTEXITCODE -ne 0 -or -not $p.WaitForExit(10000)){
+    if(-not $p.HasExited){$p.Kill();$p.WaitForExit()}
+    throw "Harness did not complete saved exit (PID $($p.Id))"
+   }
   }
  }
 }

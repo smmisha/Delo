@@ -9,10 +9,19 @@ export async function connect(quick=false){
  if(matches.length>1)throw Error('Multiple Delo harness pages; close the other harness session');
  const page=matches[0];
  if(!page)throw Error('Named Delo harness page not found');
- const ws=new WebSocket(page.webSocketDebuggerUrl),pending=new Map();let seq=0;
+ const ws=new WebSocket(page.webSocketDebuggerUrl),pending=new Map();let seq=0,closed=false;
  await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+ const fail=error=>{closed=true;for(const request of pending.values()){clearTimeout(request.timer);request.reject(error);}pending.clear();};
+ const close=()=>{fail(Error('CDP connection closed'));ws.close();};
+ ws.onclose=()=>fail(Error('CDP connection closed'));
+ ws.onerror=()=>fail(Error('CDP connection error'));
  ws.onmessage=event=>{const data=JSON.parse(event.data),request=pending.get(data.id);if(request){pending.delete(data.id);clearTimeout(request.timer);data.error?request.reject(Error(JSON.stringify(data.error))):request.resolve(data.result);}};
- const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq,timer=setTimeout(()=>{pending.delete(id);reject(Error(`Timeout: ${method}`));},45000);pending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method,params}));});
+ const call=(method,params={})=>new Promise((resolve,reject)=>{
+  if(closed||ws.readyState!==1){reject(Error('CDP connection closed'));return;}
+  const id=++seq,timer=setTimeout(()=>{pending.delete(id);reject(Error(`Timeout: ${method}`));},45000);
+  pending.set(id,{resolve,reject,timer});
+  try{ws.send(JSON.stringify({id,method,params}));}catch(error){pending.delete(id);clearTimeout(timer);reject(error);}
+ });
  const evaluate=async (expression,...args)=>{
   if(typeof expression==='function'){
    const global=await call('Runtime.evaluate',{expression:'globalThis',returnByValue:false});
@@ -50,10 +59,10 @@ export async function connect(quick=false){
  const click=async selector=>{let p=await point(selector);for(const end=Date.now()+5000;native(p.window,'probe',{X:p.x,Y:p.y}).probe.covered&&Date.now()<end;p=await point(selector))await wait(200);native(p.window,'click',{X:p.x,Y:p.y});await wait(150);};
  const deadline=Date.now()+5000;
  while(!await evaluate(`document.readyState==='complete'&&!!document.querySelector('#task-input')`)){
-  if(Date.now()>deadline){ws.close();throw Error('Delo harness document did not finish loading');}
+  if(Date.now()>deadline){close();throw Error('Delo harness document did not finish loading');}
   await wait(50);
  }
- return {call,evaluate,host,point,click,close:()=>ws.close()};
+ return {call,evaluate,host,point,click,close};
 }
 export function native(window,action,options={}){
  const script=path.join(import.meta.dirname,'native-input.ps1');

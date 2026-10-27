@@ -27,7 +27,9 @@ try{
   const expected={ru:/молоко.*врачу/i,en:/milk.*doctor/i,uk:/ініціативу.*співі/i}[language];
   check(`Whisper ${language}: native process to editable draft`,terminal.state==='result'&&expected.test(result.draft)&&result.draft.startsWith('Draft:'),{...result,elapsedMs:Date.now()-start});
  }
- if(!fixturesOnly){
+ if(fixturesOnly){
+  await main.evaluate('window.voiceFixture=null');
+ }else{
  // Cancellation during real inference must not insert a late result into a changed draft.
  await main.evaluate(`(()=>{voiceUpdates=[];voiceFixture='en.wav';document.querySelector('#task-input').value='Keep this';document.querySelector('#voice-input').click();return true;})()`);
  await until(main,`voiceUpdates.some(x=>x.state==='transcribing')`);
@@ -87,4 +89,9 @@ try{
  check('Enter saves the visible draft while a voice error is shown',true);
  }
  const diagnostics=await main.host('diagnostics');check('renderer remains healthy',diagnostics.healthy&&diagnostics.errors===0,{healthy:diagnostics.healthy,errors:diagnostics.errors});
-}finally{await fs.writeFile(path.join(output,'checks.json'),JSON.stringify(checks,null,2));main.close();quick.close();}
+}finally{
+ let cleanupTimer;
+ try{await Promise.race([Promise.allSettled([main.evaluate('window.voiceFixture=null'),quick.evaluate('window.voiceFixture=null')]),new Promise(resolve=>{cleanupTimer=setTimeout(resolve,2000);})]);}catch{}
+ finally{clearTimeout(cleanupTimer);main.close();quick.close();}
+ await fs.writeFile(path.join(output,'checks.json'),JSON.stringify(checks,null,2));
+}
