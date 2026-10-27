@@ -152,3 +152,64 @@ test('V32 an automatic working pause ranks after an older timer pause',()=>{
   assert.equal(validateState(state).valid,true);
   assert.deepEqual(timerToggle(recoverState(JSON.parse(JSON.stringify(state)))),{type:'work',id:'working'});
 });
+
+
+test('V32 clock rollback preserves untimed resume and latest-pause order',()=>{
+  for(const other of [false,true]){
+    let s=add(add(createState(),'a'),'z');
+    s=run(s,{type:'start',id:'a'},base,0);s=run(s,{type:'work',id:'a'},base+100,100);
+    if(other)Object.assign(s.tasks[1],{workState:'paused',touchedAt:base+200});
+    s=run(s,{type:'pause',id:'a'},base-1000,200);
+    assert.equal(s.tasks[0].untimed,base-1000);
+    assert.equal(validateState(s).valid,true);
+    assert.deepEqual(timerToggle(recoverState(JSON.parse(JSON.stringify(s)))),{type:'work',id:'a'});
+  }
+});
+
+test('V32 short merged timer runs record the real automatic pause',()=>{
+  for(const command of [{type:'start',id:'new'},{type:'work',id:'new'},{type:'suspend'}]){
+    let s=add(add(add(createState(),'a'),'z'),'new');
+    s=run(s,{type:'start',id:'z'},base,0);s=run(s,{type:'pause',id:'z'},base+100,100);
+    s=run(s,{type:'work',id:'a'},base+200,100);s=run(s,{type:'start',id:'z'},base+300,100);
+    s=run(s,command,base+400,110);
+    if(command.id)s=run(s,{type:'stop',id:'new'},base+500,120);
+    assert.equal(s.tasks.find(t=>t.id==='z').elapsedMs,110);
+    assert.deepEqual(timerToggle(s),{type:'start',id:'z'});
+  }
+});
+
+test('V32 equal or backwards wall clocks retain causal focus order after recovery',()=>{
+  for(const now of [base,base-10000]){
+    let s=add(add(createState(),'a'),'z');s=run(s,{type:'work',id:'a'},base,0);
+    s=run(s,{type:'start',id:'z'},now,0);s=recoverState(JSON.parse(JSON.stringify(s)));
+    assert.deepEqual(timerToggle(s),{type:'start',id:'z'});
+  }
+});
+
+test('V32 an older timer invalidates an untimed snapshot in either clock direction',()=>{
+  let s=add(createState(),'a');s=run(s,{type:'start',id:'a'},base,0);s=run(s,{type:'work',id:'a'},base+100,100);s=run(s,{type:'pause',id:'a'},base-1000,200);
+  for(const touchedAt of [base+1000,base-2000,s.tasks[0].touchedAt]){
+    const old=structuredClone(s),task=old.tasks[0];Object.assign(task,{touchedAt,elapsedMs:task.elapsedMs+10,intervals:[[base-2010,task.elapsedMs+10]]});
+    assert.equal(untimedPause(task),false);const recovered=recoverState(old);
+    assert.equal('untimed' in recovered.tasks[0],false);assert.equal('untimedState' in recovered.tasks[0],false);
+    assert.deepEqual(timerToggle(recovered),{type:'start',id:'a'});
+  }
+});
+
+test('V32 pause snapshots survive ticks, repeated pause and correction of earlier idle time',()=>{
+  let s=add(createState(),'a');s=run(s,{type:'start',id:'a'},base,0);s=run(s,{type:'work',id:'a'},base+100,100);s=run(s,{type:'pause',id:'a'},base-1000,200);
+  s=run(s,{type:'tick'},base-900,300);s=run(s,{type:'pause',id:'a'},base-800,400);
+  assert.deepEqual(timerToggle(s),{type:'work',id:'a'});
+  s.tasks[0].idle={from:base,to:base+50,ms:50};s=run(s,{type:'idleSubtract',id:'a'},base-700,500);
+  assert.equal(s.tasks[0].elapsedMs,50);assert.equal(validateState(s).valid,true);
+  assert.deepEqual(timerToggle(recoverState(JSON.parse(JSON.stringify(s)))),{type:'work',id:'a'});
+});
+
+test('V32 legacy numeric markers remain readable and snapshots are validated and cleared',()=>{
+  let s=add(createState(),'a');s=run(s,{type:'start',id:'a'},base,0);s=run(s,{type:'work',id:'a'},base+100,100.4);s=run(s,{type:'pause',id:'a'},base+100,100.6);
+  const legacy=structuredClone(s);delete legacy.tasks[0].untimedState;legacy.tasks[0].touchedAt=legacy.tasks[0].untimed;
+  assert.equal(untimedPause(legacy.tasks[0]),true);assert.deepEqual(timerToggle(recoverState(legacy)),{type:'work',id:'a'});
+  for(const value of [null,[],[0],[0,0,0],['0',0],[0,-1],[Infinity,0],Array(2),[,0]]){const bad=structuredClone(s);bad.tasks[0].untimedState=value;assert.equal(validateState(bad).valid,false);}
+  for(const type of ['start','work','stop','complete']){const next=run(s,{type,id:'a'},base+200,200);assert.equal('untimed' in next.tasks[0],false);assert.equal('untimedState' in next.tasks[0],false);}
+  const orphan=structuredClone(s);delete orphan.tasks[0].untimed;assert.equal('untimedState' in recoverState(orphan).tasks[0],false);
+});
