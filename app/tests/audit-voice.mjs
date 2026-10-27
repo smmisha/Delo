@@ -2,7 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {connect,wait,screenshot} from './audit-harness.mjs';
-const output=path.resolve(process.argv[2]||'app/test-output/voice-audit');await fs.mkdir(output,{recursive:true});
+const args=process.argv.slice(2),fixturesOnly=args.includes('--fixtures-only');
+const positional=args.filter(arg=>arg!=='--fixtures-only');
+if(positional.length>1||positional[0]?.startsWith('-'))throw Error('Usage: audit-voice.mjs [output] [--fixtures-only]');
+const output=path.resolve(positional[0]||'app/test-output/voice-audit');await fs.mkdir(output,{recursive:true});
 const main=await connect(),quick=await connect(true),checks=[];
 function check(name,pass,details){checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));assert(pass,name);}
 async function until(page,expression,ms=30000,...args){const end=Date.now()+ms;while(Date.now()<end){if(await page.evaluate(expression,...args))return;await wait(100);}throw Error(`Timeout: ${String(expression)}`);}
@@ -24,6 +27,7 @@ try{
   const expected={ru:/молоко.*врачу/i,en:/milk.*doctor/i,uk:/ініціативу.*співі/i}[language];
   check(`Whisper ${language}: native process to editable draft`,terminal.state==='result'&&expected.test(result.draft)&&result.draft.startsWith('Draft:'),{...result,elapsedMs:Date.now()-start});
  }
+ if(!fixturesOnly){
  // Cancellation during real inference must not insert a late result into a changed draft.
  await main.evaluate(`(()=>{voiceUpdates=[];voiceFixture='en.wav';document.querySelector('#task-input').value='Keep this';document.querySelector('#voice-input').click();return true;})()`);
  await until(main,`voiceUpdates.some(x=>x.state==='transcribing')`);
@@ -81,5 +85,6 @@ try{
  await main.host('show');
  await until(main,`[...document.querySelectorAll('.task-title')].some(x=>x.textContent==='Сохранить черновик!')`);
  check('Enter saves the visible draft while a voice error is shown',true);
+ }
  const diagnostics=await main.host('diagnostics');check('renderer remains healthy',diagnostics.healthy&&diagnostics.errors===0,{healthy:diagnostics.healthy,errors:diagnostics.errors});
 }finally{await fs.writeFile(path.join(output,'checks.json'),JSON.stringify(checks,null,2));main.close();quick.close();}
