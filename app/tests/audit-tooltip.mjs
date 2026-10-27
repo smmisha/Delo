@@ -47,7 +47,7 @@ try{
     const centred=Math.abs((result.rect.top+result.rect.bottom)/2-(result.button.top+result.button.bottom)/2)<=1;
     check(`${sheet.name}: close label is in the top layer beside the button, clear of the first row`,result.modal&&result.open&&result.popover&&result.placement==='left'&&result.rect.right<=result.button.left&&centred&&result.rect.top>=result.head.top&&result.rect.bottom<=result.head.bottom&&result.rect.bottom<=result.firstTop,result);
     await screenshot(main,path.join(output,`${sheet.name}-close-tooltip.png`));
-    await main.evaluate(`(()=>{document.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));document.querySelector(${JSON.stringify(selector)}).click();return true;})()`);await wait(300);
+    await main.evaluate((sel)=>{document.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));document.querySelector(sel).click();return true;},selector);await wait(300);
   }
 }finally{await fs.mkdir(output,{recursive:true});await fs.writeFile(path.join(output,'tooltip.json'),JSON.stringify(checks,null,2));main.close();}
 if(checks.some(check=>!check.pass))process.exitCode=1;
