@@ -9,7 +9,7 @@ import {connect,wait} from './audit-harness.mjs';
 const output=path.resolve(process.argv[2]||'app/test-output/store-timing'),main=await connect(),quick=await connect(true),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
 const load=()=>main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const r=await new HostBridge().request('load');return {revision:r.revision,titles:r.state.tasks.map(t=>t.title),running:r.state.tasks.filter(t=>t.workState==='running').map(t=>t.title)};})()`);
-const add=(title,page=main)=>page.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${JSON.stringify(title)};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
+const add=(title,page=main)=>page.evaluate(safeTitle=>{const input=document.querySelector('#task-input');input.value=safeTitle;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);
 // Round trip of a request the host answers without touching the disk.
 const clockMs=()=>main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const t=performance.now();await new HostBridge().request('clock');return Math.round(performance.now()-t);})()`);
 const titled=title=>`[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===${JSON.stringify(title)})`;
