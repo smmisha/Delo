@@ -13,8 +13,10 @@ const output=path.resolve(process.argv[2]||'app/test-output/stall'),main=await c
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
 const stallHost=mode=>execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(import.meta.dirname,'stall-harness.ps1'),'-Mode',mode],{encoding:'utf8',windowsHide:true,timeout:30000});
 const banner=()=>main.evaluate(`document.querySelector('#error').hidden?null:document.querySelector('#error-text').textContent`);
-const titled=title=>`[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===${JSON.stringify(title)})`;
-const add=title=>main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${JSON.stringify(title)};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
+const unsafeJsCharMap={'<':'\\u003C','>':'\\u003E','/':'\\u002F','\\':'\\\\','\b':'\\b','\f':'\\f','\n':'\\n','\r':'\\r','\t':'\\t','\0':'\\0','\u2028':'\\u2028','\u2029':'\\u2029'};
+const escapeUnsafeChars=str=>str.replace(/[<>\/\\\b\f\n\r\t\0\u2028\u2029]/g,char=>unsafeJsCharMap[char]);
+const titled=title=>`[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===${escapeUnsafeChars(JSON.stringify(title))})`;
+const add=title=>main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${escapeUnsafeChars(JSON.stringify(title))};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
 // Only saves the host acknowledged in time are counted.
 const saves=()=>main.evaluate(`window.__stallSaves`);
 const arm=type=>main.evaluate(`(window.__stallRelease.delete(${JSON.stringify(type)}),window.__stallArmed.add(${JSON.stringify(type)}),true)`);
