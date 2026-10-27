@@ -30,7 +30,9 @@ test('V32 in work without the timer pauses and resumes, and only one task is in 
   s=at(s,{type:'start',id:'b'},8);assert.equal('untimed' in task(s,'b'),false);
   s=at(s,{type:'stop',id:'a'},9);assert.equal(task(s,'a').workState,'idle');assert.equal('untimed' in task(s,'a'),false);
   assert.equal(validateState(s).valid,true);
-  const bad=structuredClone(s);task(bad,'a').untimed=true;assert.equal(validateState(bad).valid,false);
+  // A version without П16 keeps the flag when it resumes the task: still valid, and the next command drops it.
+  const stale=structuredClone(s);task(stale,'a').untimed=true;assert.equal(validateState(stale).valid,true);assert.equal('untimed' in task(at(stale,{type:'tick'},10),'a'),false);
+  const bad=structuredClone(s);task(bad,'a').untimed='yes';assert.equal(validateState(bad).valid,false);
 });
 test('V06 no deadline and in-time rewards, restoration evaluates only missing penalties',()=>{let s=add(add(createState(),'plain'),'dated',makeDeadline('2026-01-02'));s=run(s,{type:'complete',id:'plain'});s=run(s,{type:'complete',id:'dated'});assert.equal(s.reputation,10);s=add(s,'old',makeDeadline('2026-01-01','13:00'));s=run(s,{type:'delete',id:'old'});s=run(s,{type:'finalizeDeletes'});s=run(s,{type:'restore',id:'old'},base+8*DAY);assert.equal(s.reputation,7);s=run(s,{type:'tick'},base+8*DAY);assert.equal(s.reputation,7);assert.equal(validateState(s).valid,true);});
 const deleteEvent=event=>({type:'deleteEvent',eventId:event.id,taskId:event.taskId,kind:event.kind,at:event.at,delta:event.delta});
