@@ -19,7 +19,7 @@ try{
     await main.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'center'})`);
     const away=await main.point('#today');native(away.window,'move',{X:away.x,Y:away.y});await wait(60);
     const point=await main.point(selector);
-    const hit=await main.evaluate(`(()=>{const t=document.querySelector(${JSON.stringify(selector)}),r=t.getBoundingClientRect(),n=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return !!n&&t.contains(n);})()`);
+    const hit=await main.evaluate((selector)=>{const t=document.querySelector(selector),r=t.getBoundingClientRect(),n=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return !!n&&t.contains(n);},selector);
     if(!hit)throw Error(`${selector} is covered at its centre; refusing to hover`);
     native(point.window,'move',{X:point.x,Y:point.y});await wait(1150);
   };
