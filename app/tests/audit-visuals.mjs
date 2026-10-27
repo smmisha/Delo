@@ -25,7 +25,8 @@ try{
     await page.evaluate(filled=>{const input=document.querySelector('#task-input');input.value=filled?'Тест стрелки':'';input.dispatchEvent(new Event('input',{bubbles:true}));return true;},filled);
     await page.click('#task-input');
     const name=`${theme}-${mode}-${filled?'filled':'empty'}`,directory=path.join(output,name);await fs.mkdir(directory,{recursive:true});
-    const boxes=await page.evaluate(`(()=>{const a=document.querySelector('#add-task').getBoundingClientRect(),i=document.querySelector('#task-input').getBoundingClientRect();return {width:innerWidth,height:innerHeight,arrow:{x:a.x+3,y:a.y+3,width:a.width-6,height:a.height-6},input:{x:i.x+2,y:i.y+2,width:i.width-4,height:i.height-4}};})()`);
+    // Measure the arrow itself: corners of the circular button contain the changing capsule behind it.
+    const boxes=await page.evaluate(`(()=>{const a=document.querySelector('#add-task svg').getBoundingClientRect(),i=document.querySelector('#task-input').getBoundingClientRect();return {width:innerWidth,height:innerHeight,arrow:{x:a.x,y:a.y,width:a.width,height:a.height},input:{x:i.x+2,y:i.y+2,width:i.width-4,height:i.height-4}};})()`);
     if(!filled){
      // The maker's mark lives in the bezel band under the capsule: never over it, never in
      // the fixed-height quick capsule, and never as anything a pointer or reader can reach.
