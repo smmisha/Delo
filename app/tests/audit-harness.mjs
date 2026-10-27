@@ -3,6 +3,22 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 export const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const UNSAFE_JS_CHAR_MAP={
+ '<':'\\u003C',
+ '>':'\\u003E',
+ '/':'\\u002F',
+ '\\':'\\\\',
+ '\b':'\\b',
+ '\f':'\\f',
+ '\n':'\\n',
+ '\r':'\\r',
+ '\t':'\\t',
+ '\0':'\\0',
+ '\u2028':'\\u2028',
+ '\u2029':'\\u2029'
+};
+const escapeUnsafeJsChars=str=>str.replace(/[<>\/\\\b\f\n\r\t\0\u2028\u2029]/g,ch=>UNSAFE_JS_CHAR_MAP[ch]);
+const stringifyForEvaluate=value=>escapeUnsafeJsChars(JSON.stringify(value));
 export async function connect(quick=false){
  const pages=await(await fetch('http://127.0.0.1:9223/json/list')).json();
  const matches=pages.filter(p=>p.url.startsWith('https://delo.local/ui/')&&p.url.includes('view=quick')===quick);
@@ -14,7 +30,7 @@ export async function connect(quick=false){
  ws.onmessage=event=>{const data=JSON.parse(event.data),request=pending.get(data.id);if(request){pending.delete(data.id);clearTimeout(request.timer);data.error?request.reject(Error(JSON.stringify(data.error))):request.resolve(data.result);}};
  const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq,timer=setTimeout(()=>{pending.delete(id);reject(Error(`Timeout: ${method}`));},45000);pending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value;};
- const host=async(action,payload={})=>evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');globalThis.__deloHarnessBridge??=new HostBridge();return globalThis.__deloHarnessBridge.window(${JSON.stringify(action)},${JSON.stringify(payload)});})()`);
+ const host=async(action,payload={})=>evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');globalThis.__deloHarnessBridge??=new HostBridge();return globalThis.__deloHarnessBridge.window(${stringifyForEvaluate(action)},${stringifyForEvaluate(payload)});})()`);
  const geometry=async selector=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,width:innerWidth,height:innerHeight};})()`);
  const point=async selector=>{const p=await geometry(selector),d=await host('diagnostics');return {window:d.window,x:Math.round(d.x+p.x*d.width/p.width),y:Math.round(d.y+p.y*d.height/p.height)};};
  // A toast or another app can briefly cover the widget. Wait for it to leave (bounded);
