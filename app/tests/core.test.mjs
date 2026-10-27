@@ -105,3 +105,26 @@ test('V31 data without touchedAt loads; old paused tasks rank by their last run;
   assert.deepEqual(groups(old,{now:base+9000,timeZone:'UTC'})[0].tasks.map(task=>task.id),['b','a','c']);
   for(const value of [-1,'1',Infinity,null]){const broken=structuredClone(s);broken.tasks[0].touchedAt=value;assert.equal(validateState(broken).valid,false);}
 });
+
+test('V32 a sub-second timed run invalidates an older untimed pause',()=>{
+  const paused=run(run(add(createState(),'a'),{type:'work',id:'a'},base),{type:'pause',id:'a'},base+100,100);
+  const marker=paused.tasks[0].untimed;
+  for(const delta of [1,250,999]){
+    const stale=structuredClone(paused),task=stale.tasks[0];
+    Object.assign(task,{touchedAt:marker+delta,elapsedMs:delta/2,intervals:[[marker+delta/2,delta/2]]});
+    assert.equal(validateState(stale).valid,true);
+    assert.equal(untimedPause(task),false);
+    assert.deepEqual(timerToggle(stale),{type:'start',id:'a'});
+    assert.equal('untimed' in run(stale,{type:'tick'},marker+delta+1,delta+101).tasks[0],false);
+  }
+});
+test('V32 interval start rounding does not turn a legitimate untimed pause into a timer',()=>{
+  let state=add(createState(),'a');
+  state=run(state,{type:'start',id:'a'},base,0);
+  state=run(state,{type:'work',id:'a'},base+100,100.4);
+  state=run(state,{type:'pause',id:'a'},base+100,100.6);
+  const task=state.tasks[0],interval=task.intervals.at(-1);
+  assert(interval[0]+interval[1]>task.untimed);
+  assert.equal(untimedPause(task),true);
+  assert.deepEqual(timerToggle(recoverState(JSON.parse(JSON.stringify(state)))),{type:'work',id:'a'});
+});

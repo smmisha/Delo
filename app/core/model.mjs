@@ -49,10 +49,11 @@ function freeze(task,mono,now) { if(task.workState==='running') record(task,now,
 // A task paused from "in work" keeps `untimed`, the moment of that pause, so resuming it goes back
 // to "in work" rather than starting the timer. The flag holds only while nothing touched the task
 // after it: a version without П16 keeps the field when it starts the timer, and that start (its
-// touchedAt or run interval) comes later; a second covers a run that ended at the same moment.
+// touchedAt or run interval) comes later. A later touch always invalidates it; an interval end
+// gets only the half-millisecond rounding error from record(), which rounds its wall-clock start.
 // Every command drops the flag where it does not hold.
 function hold(task,mono,now) { freeze(task,mono,now); if(task.workState==='working') {task.workState='paused';task.untimed=now;} }
-export const untimedPause=t=>t.workState==='paused'&&Number.isFinite(t.untimed)&&t.untimed+1000>=lastTouch(t);
+export const untimedPause=t=>t.workState==='paused'&&Number.isFinite(t.untimed)&&t.untimed>=(t.touchedAt??0)&&t.untimed+0.5>=lastTouch(t);
 function event(state,task,kind,at,delta) { state.reputation+=delta; state.events.push({id:state.events.length+1,taskId:task.id,kind,at,delta}); }
 function archiveAt(task,settings) { if(task.completedAt!==null) return task.completedDayEnd; if(settings.autoArchive==='off' || settings.autoArchive==='dated'&&!task.due || settings.autoArchive==='undated'&&task.due) return Infinity; return Math.max(task.archiveAnchor+settings.archiveDays*DAY,task.due?.at??-Infinity); }
 function process(state,now,mono) {

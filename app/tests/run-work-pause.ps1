@@ -22,7 +22,7 @@ New-Item -ItemType Directory -Path $profile,$out -Force | Out-Null
 [IO.File]::WriteAllText((Join-Path $profile 'window.json'),'{"pinned":true,"autostart":false,"quickFrameReduced":true,"hotkeys":{"list":"Ctrl+Alt+Shift+J","quick":"Ctrl+Alt+Shift+K"},"timerKey":"Ctrl+Alt+Shift+P"}')
 $driver=Join-Path $PSScriptRoot 'audit-work-pause.mjs'
 function Launch{
- $p=Start-Process -FilePath $exe -ArgumentList "--harness=$SessionName" -PassThru
+ $p=Start-Process -FilePath $exe -ArgumentList "--harness=$SessionName" -WindowStyle Hidden -PassThru
  for($i=0;$i -lt 120;$i++){
   if($p.HasExited){throw "Harness exited early ($($p.ExitCode))"}
   try{$j=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:9223/json/list' -TimeoutSec 1).Content;if(([regex]::Matches($j,'delo\.local/ui/')).Count -ge 2){Start-Sleep -Milliseconds 800;return $p}}catch{}
