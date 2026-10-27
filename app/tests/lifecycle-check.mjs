@@ -14,10 +14,12 @@ const [mode='baseline',label=mode,outArg]=process.argv.slice(2);
 if(!['baseline','sleep','scale','monitor','explorer','desktop'].includes(mode))throw Error(`Unknown mode ${mode}`);
 const out=path.resolve(outArg||'test-output/lifecycle');await fs.mkdir(out,{recursive:true});
 const TITLE='Lifecycle timer';
+const charMap={'<':'\\u003C','>':'\\u003E','/':'\\u002F','\\':'\\\\','\b':'\\b','\f':'\\f','\n':'\\n','\r':'\\r','\t':'\\t','\0':'\\0','\u2028':'\\u2028','\u2029':'\\u2029'};
+const escapeUnsafeChars=str=>str.replace(/[<>\/\\\b\f\n\r\t\0\u2028\u2029]/g,x=>charMap[x]);
 const main=await connect(),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify({name,pass:!!pass,details}));};
 const native=(hwnd,since)=>JSON.parse(execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(import.meta.dirname,'lifecycle-native.ps1'),'-Window',String(hwnd),...(since?['-Since',since]:[])],{encoding:'utf8',windowsHide:true}));
-const load=()=>main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const r=await new HostBridge().request('load');const tasks=r.state?.tasks??[];const t=tasks.find(t=>t.title===${JSON.stringify(TITLE)});return {revision:r.revision,count:tasks.length,monotonic:r.monotonicMs,timer:t?{workState:t.workState,elapsedMs:t.elapsedMs,timerAnchor:t.timerAnchor}:null};})()`);
+const load=()=>main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');const r=await new HostBridge().request('load');const tasks=r.state?.tasks??[];const t=tasks.find(t=>t.title===${escapeUnsafeChars(JSON.stringify(TITLE))});return {revision:r.revision,count:tasks.length,monotonic:r.monotonicMs,timer:t?{workState:t.workState,elapsedMs:t.elapsedMs,timerAnchor:t.timerAnchor}:null};})()`);
 // Time the timer shows right now: saved time plus the running stretch since its anchor.
 const shown=data=>data.timer?data.timer.elapsedMs+(data.timer.workState==='running'?data.monotonic-data.timer.timerAnchor:0):0;
 const row=`[...document.querySelectorAll('.task[data-task]')].find(r=>r.querySelector('.task-title')?.textContent===${JSON.stringify(TITLE)})`;
