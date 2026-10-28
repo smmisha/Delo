@@ -2,6 +2,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
+import {channel} from 'node:diagnostics_channel';
+import {randomUUID} from 'node:crypto';
 export const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export async function connect(quick=false){
  const pages=await(await fetch('http://127.0.0.1:9223/json/list')).json();
@@ -9,10 +11,23 @@ export async function connect(quick=false){
  if(matches.length>1)throw Error('Multiple Delo harness pages; close the other harness session');
  const page=matches[0];
  if(!page)throw Error('Named Delo harness page not found');
- const ws=new WebSocket(page.webSocketDebuggerUrl),pending=new Map();let seq=0,closed=false;
- await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+ // Match the upgrade by a per-connection nonce, including concurrent connections
+ // to the same page. Keep the socket so cleanup need not await a peer's close frame.
+ const nonce=randomUUID(),headers=channel('undici:client:sendHeaders');let ws,transport,openingTimer;
+ const capture=event=>{if(typeof event.headers==='string'&&event.headers.toLowerCase().includes(`\r\nx-delo-audit-transport: ${nonce}\r\n`)){transport=event.socket;headers.unsubscribe(capture);}};
+ headers.subscribe(capture);
+ try{
+  ws=new WebSocket(page.webSocketDebuggerUrl,{headers:{'x-delo-audit-transport':nonce}});
+  await new Promise((resolve,reject)=>{
+   openingTimer=setTimeout(()=>{const error=Error('Timeout: CDP connection');error.code='CDP_TIMEOUT';reject(error);},45000);
+   ws.onopen=resolve;ws.onerror=reject;
+  });
+  if(!transport)throw Error('CDP transport capture unavailable; use supported Node.js 22 or later');
+ }catch(error){ws?.close();transport?.destroy();throw error;}
+ finally{clearTimeout(openingTimer);headers.unsubscribe(capture);}
+ const pending=new Map();let seq=0,closed=false;
  const fail=error=>{closed=true;for(const request of pending.values()){clearTimeout(request.timer);request.reject(error);}pending.clear();};
- const close=()=>{fail(Error('CDP connection closed'));ws.close();};
+ const close=()=>{fail(Error('CDP connection closed'));ws.close();transport.destroy();};
  ws.onclose=()=>fail(Error('CDP connection closed'));
  ws.onerror=()=>fail(Error('CDP connection error'));
  ws.onmessage=event=>{const data=JSON.parse(event.data),request=pending.get(data.id);if(request){pending.delete(data.id);clearTimeout(request.timer);data.error?request.reject(Error(JSON.stringify(data.error))):request.resolve(data.result);}};

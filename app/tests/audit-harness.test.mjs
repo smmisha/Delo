@@ -57,4 +57,9 @@ test('audit harness evaluates callbacks through CDP without embedding their argu
     await assert.rejects(page.evaluate(()=>{throw Error('audit-sentinel');}),/audit-sentinel/);
     assert.equal(await page.evaluate(()=>true),true);
   });
+  await t.test('closing one concurrent connection keeps the other connections usable',async()=>{
+    const peers=await Promise.all([connect(),connect()]);
+    try{peers[0].close();assert.equal(await peers[1].evaluate('42'),42);assert.equal(await page.evaluate('42'),42);}
+    finally{for(const peer of peers)peer.close();}
+  });
 });

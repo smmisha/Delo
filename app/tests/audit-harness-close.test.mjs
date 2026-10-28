@@ -23,8 +23,8 @@ try{
  const methods=[];let stalled=false;
  if(mode.startsWith('callback-')||mode==='request-timeout'){
   const NativeWebSocket=globalThis.WebSocket;
-  globalThis.WebSocket=function(url){
-   const socket=new NativeWebSocket(url),send=socket.send.bind(socket);
+  globalThis.WebSocket=function(url,options){
+   const socket=new NativeWebSocket(url,options),send=socket.send.bind(socket);
    socket.send=data=>{const request=JSON.parse(data);methods.push(request.method);if(mode==='callback-release-timeout'&&request.method==='Runtime.releaseObject')stalled=true;if(stalled||mode==='callback-timeout'&&['Runtime.callFunctionOn','Runtime.releaseObject'].includes(request.method))return;send(data);};
    return socket;
   };
