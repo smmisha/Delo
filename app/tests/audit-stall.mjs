@@ -13,16 +13,13 @@ const output=path.resolve(process.argv[2]||'app/test-output/stall'),main=await c
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
 const stallHost=mode=>execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(import.meta.dirname,'stall-harness.ps1'),'-Mode',mode],{encoding:'utf8',windowsHide:true,timeout:30000});
 const banner=()=>main.evaluate(`document.querySelector('#error').hidden?null:document.querySelector('#error-text').textContent`);
-const unsafeJsCharMap={'<':'\\u003C','>':'\\u003E','/':'\\u002F','\\':'\\\\','\b':'\\b','\f':'\\f','\n':'\\n','\r':'\\r','\t':'\\t','\0':'\\0','\u2028':'\\u2028','\u2029':'\\u2029'};
-const escapeUnsafeChars=str=>str.replace(/[<>\/\\\b\f\n\r\t\0\u2028\u2029]/g,char=>unsafeJsCharMap[char]);
-const titled=title=>`[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===${escapeUnsafeChars(JSON.stringify(title))})`;
-const add=title=>main.evaluate(`(()=>{const input=document.querySelector('#task-input');input.value=${escapeUnsafeChars(JSON.stringify(title))};input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;})()`);
+const add=title=>main.evaluate(title=>{const input=document.querySelector('#task-input');input.value=title;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#entry').requestSubmit();return true;},title);
 // Only saves the host acknowledged in time are counted.
 const saves=()=>main.evaluate(`window.__stallSaves`);
-const arm=type=>main.evaluate(`(window.__stallRelease.delete(${JSON.stringify(type)}),window.__stallArmed.add(${JSON.stringify(type)}),true)`);
-const held=async type=>{const end=Date.now()+30000;while(!await main.evaluate(`window.__stallRelease.has(${JSON.stringify(type)})`)){if(Date.now()>end)throw Error(`The page never sent ${type}`);await wait(50);}};
+const arm=type=>main.evaluate(type=>(window.__stallRelease.delete(type),window.__stallArmed.add(type),true),type);
+const held=async type=>{const end=Date.now()+30000;while(!await main.evaluate(type=>window.__stallRelease.has(type),type)){if(Date.now()>end)throw Error(`The page never sent ${type}`);await wait(50);}};
 // Longer than the page's 15 s reply timeout.
-const stall=async type=>{stallHost('suspend');try{await main.evaluate(`window.__stallRelease.get(${JSON.stringify(type)})()`);await wait(18000);}finally{stallHost('resume');}};
+const stall=async type=>{stallHost('suspend');try{await main.evaluate(type=>window.__stallRelease.get(type)(),type);await wait(18000);}finally{stallHost('resume');}};
 // A running timer checkpoints every 15 s, so one more acknowledged save is the sign.
 const savesResume=async ms=>{const from=await saves(),end=Date.now()+ms;while(Date.now()<end){if(await saves()>=from+1)return true;await wait(250);}return false;};
 const timer='Проверка зависшего хоста',action='Проверка повтора после сбоя';
@@ -33,8 +30,8 @@ try{
   window.__stallArmed=new Set();window.__stallRelease=new Map();window.__stallSaves=0;
   HostBridge.prototype.request=function(type,payload){const send=()=>{const reply=original.call(this,type,payload);if(type==='save')reply.then(()=>window.__stallSaves++,()=>{});return reply;};
    if(!window.__stallArmed.delete(type))return send();return new Promise(resolve=>window.__stallRelease.set(type,resolve)).then(send);};return true;})()`);
- if(!await main.evaluate(`!!${titled(timer)}`)){await add(timer);await wait(700);}
- await main.evaluate(`${titled(timer)}.querySelector('.timer').click()`);
+ if(!await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].some(row=>row.querySelector('.task-title')?.textContent===title),timer)){await add(timer);await wait(700);}
+ await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===title).querySelector('.timer').click(),timer);
  check('a running timer checkpoints in the background',await savesResume(20000),{saves:await saves()});
 
  // 1. One save answered late. It landed, so it counts as saved: no conflict, no message.
@@ -48,11 +45,11 @@ try{
  check('after a failed reload the page reloads by itself and saves again',await savesResume(25000),{saves:await saves()});
  const recovered=await banner();
  check('a background failure leaves no error once recovered',recovered===null,{banner:recovered});
- const before=await main.evaluate(`${titled(timer)}.classList.contains('done')`);
- await main.evaluate(`${titled(timer)}.querySelector('.complete').click()`);await wait(1500);
- const after=await main.evaluate(`${titled(timer)}.classList.contains('done')`);
+ const before=await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===title).classList.contains('done'),timer);
+ await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===title).querySelector('.complete').click(),timer);await wait(1500);
+ const after=await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===title).classList.contains('done'),timer);
  check('the widget responds to input again',before===false&&after===true,{before,after});
- await main.evaluate(`${titled(timer)}.querySelector('.complete').click()`);await wait(1000);
+ await main.evaluate(title=>[...document.querySelectorAll('.task[data-task]')].find(row=>row.querySelector('.task-title')?.textContent===title).querySelector('.complete').click(),timer);await wait(1000);
 
  // 3. A user's action whose reload fails: the message must not claim the data was refreshed,
  // and Retry must save the action once the host answers again.
@@ -60,7 +57,7 @@ try{
  const failed=await banner();
  check('the message does not claim the data was refreshed',failed!==null&&!/Обновлены|Оновлено|refreshed/i.test(failed),{banner:failed});
  await wait(4000);await main.evaluate(`document.querySelector('#retry').click()`);await wait(2500);
- const count=await main.evaluate(`[...document.querySelectorAll('.task-title')].filter(node=>node.textContent===${JSON.stringify(action)}).length`);
+ const count=await main.evaluate(title=>[...document.querySelectorAll('.task-title')].filter(node=>node.textContent===title).length,action);
  check('Retry saves the action once the host answers',count===1&&await banner()===null,{count,banner:await banner()});
 }finally{
  try{stallHost('resume');}catch{}

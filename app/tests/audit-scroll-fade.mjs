@@ -12,7 +12,7 @@ try{
  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:15,y:15});
  const points=await page.evaluate(`(()=>{const s=document.querySelector('#task-scroll');s.scrollTop=0;const groups=s.querySelectorAll('.task-group');const boundary=groups[1].offsetTop;return [0,150,boundary-22,boundary+22,s.scrollHeight];})()`);
  for(const [i,y] of points.entries()){
-  await page.evaluate(`document.querySelector('#task-scroll').scrollTop=${y}`);await wait(100);
+  await page.evaluate(y=>{document.querySelector('#task-scroll').scrollTop=y;},y);await wait(100);
   const state=await page.evaluate(inspect);
   for(const g of state.groups){
    assert.equal(g.background,'rgba(0, 0, 0, 0)');assert.equal(g.blur,'none');assert.equal(g.shadow,'none');
@@ -24,11 +24,12 @@ try{
   if(i===2||i===3)await screenshot(page,path.join(output,`group-transition-${i}.png`));
  }
  await page.evaluate(`document.querySelector('.task-group .task-title').focus()`);await wait(150);
- const focus=await page.evaluate(`(()=>{const e=document.activeElement,r=e.closest('.task-group-rows'),y=e.getBoundingClientRect().top;return {className:e.className,visible:y>=r.getBoundingClientRect().top+parseFloat(r.style.getPropertyValue('--group-fade-start'))+14-1};})()`);
+ const focus=await page.evaluate(`(()=>{const s=document.querySelector('#task-scroll'),e=s.querySelector('.task-group .task-title'),rows=e.closest('.task-group-rows'),r=e.getBoundingClientRect(),v=s.getBoundingClientRect(),fade=rows.getBoundingClientRect().top+parseFloat(rows.style.getPropertyValue('--group-fade-start'))+14;return {className:e.className,selected:document.activeElement===e,visible:document.activeElement===e&&r.width>0&&r.height>0&&r.top>=Math.max(v.top,0,fade)-1&&r.bottom<=Math.min(v.bottom,innerHeight)+1&&r.left>=Math.max(v.left,0)-1&&r.right<=Math.min(v.right,innerWidth)+1};})()`);
  assert(focus.visible,'Keyboard focus must not sit in the faded part');checks.push({name:'keyboard focus is readable',focus});
- const p=await page.evaluate(`(()=>{const r=document.querySelector('#task-scroll').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,scroll:document.querySelector('#task-scroll').scrollTop};})()`);
+ const p=await page.evaluate(`(()=>{const s=document.querySelector('#task-scroll'),r=s.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,scroll:s.scrollTop,max:s.scrollHeight-s.clientHeight,focused:document.hasFocus(),visibility:document.visibilityState,hit:document.elementFromPoint(x,y)?.tagName};})()`);
+ assert(p.max-p.scroll>=1,'Wheel scenario must have room to scroll down: '+JSON.stringify(p));
  await page.call('Input.dispatchMouseEvent',{type:'mouseWheel',x:p.x,y:p.y,deltaX:0,deltaY:180});await wait(180);
- const wheel=await page.evaluate(inspect);assert(wheel.scroll>p.scroll,'Wheel scroll must remain functional');checks.push({name:'wheel scrolling',state:wheel});
+ const wheel=await page.evaluate(inspect);checks.push({name:'wheel scrolling',pass:wheel.scroll>p.scroll,before:p,state:wheel});assert(wheel.scroll>p.scroll,'Wheel scroll must remain functional: '+JSON.stringify({before:p,after:wheel}));
  await page.host('quick');await wait(250);
  const capsule=await quick.evaluate(`['#widget','.inline-entry'].map(s=>{const e=document.querySelector(s),r=e.getBoundingClientRect();return {selector:s,height:r.height,radius:parseFloat(getComputedStyle(e).borderTopLeftRadius)};})`);
  assert(capsule.every(c=>c.radius>=c.height/2));checks.push({name:'quick capsule uses round ends',capsule});
