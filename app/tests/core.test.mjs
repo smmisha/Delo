@@ -188,6 +188,12 @@ test('V32 equal or backwards wall clocks retain causal focus order after recover
 
 test('V32 an older timer invalidates an untimed snapshot in either clock direction',()=>{
   let s=add(createState(),'a');s=run(s,{type:'start',id:'a'},base,0);s=run(s,{type:'work',id:'a'},base+100,100);s=run(s,{type:'pause',id:'a'},base-1000,200);
+  for(const touchedAt of [base+1000,base-2000]){
+    const old=structuredClone(s);old.tasks[0].touchedAt=touchedAt;
+    assert.equal(untimedPause(old.tasks[0]),false);const recovered=recoverState(old);
+    assert.equal('untimed' in recovered.tasks[0],false);assert.equal('untimedState' in recovered.tasks[0],false);
+    assert.deepEqual(timerToggle(recovered),{type:'start',id:'a'});
+  }
   for(const touchedAt of [base+1000,base-2000,s.tasks[0].touchedAt]){
     const old=structuredClone(s),task=old.tasks[0];Object.assign(task,{touchedAt,elapsedMs:task.elapsedMs+10,intervals:[[base-2010,task.elapsedMs+10]]});
     assert.equal(untimedPause(task),false);const recovered=recoverState(old);
