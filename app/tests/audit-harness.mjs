@@ -52,7 +52,7 @@ export async function connect(quick=false){
     });
     if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));
     return result.result.value;
-   }finally{if(!closed)await call('Runtime.releaseObject',{objectId});}
+   }finally{if(!closed)await call('Runtime.releaseObject',{objectId}).catch(()=>{});}
   }
   const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});
   if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));

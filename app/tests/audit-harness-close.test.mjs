@@ -25,14 +25,19 @@ try{
   const NativeWebSocket=globalThis.WebSocket;
   globalThis.WebSocket=function(url,options){
    const socket=new NativeWebSocket(url,options),send=socket.send.bind(socket);
-   socket.send=data=>{const request=JSON.parse(data);methods.push(request.method);if(mode==='callback-release-timeout'&&request.method==='Runtime.releaseObject')stalled=true;if(stalled||mode==='callback-timeout'&&['Runtime.callFunctionOn','Runtime.releaseObject'].includes(request.method))return;send(data);};
+   socket.send=data=>{const request=JSON.parse(data);methods.push(request.method);if(mode.startsWith('callback-release-error-')&&request.method==='Runtime.releaseObject'){request.params.objectId='invalid-audit-object';send(JSON.stringify(request));return;}if(mode==='callback-release-timeout'&&request.method==='Runtime.releaseObject')stalled=true;if(stalled||mode==='callback-timeout'&&['Runtime.callFunctionOn','Runtime.releaseObject'].includes(request.method))return;send(data);};
    return socket;
   };
   // Keep real transport and shorten only the CDP deadline for the dropped-response probe.
   if(mode.endsWith('-timeout')){const schedule=globalThis.setTimeout;globalThis.setTimeout=(callback,ms,...args)=>schedule(callback,ms===45000?2000:ms,...args);}
  }
  const {connect,wait}=await import(HARNESS_URL);page=await connect();
- if(mode==='callback-timeout'){
+ if(mode.startsWith('callback-release-error-')){
+  if(mode==='callback-release-error-result')assert.equal(await page.evaluate(()=>42),42);
+  else await assert.rejects(page.evaluate(()=>{throw Error('primary-callback-error');}),/primary-callback-error/);
+  assert.equal(methods.filter(method=>method==='Runtime.releaseObject').length,1);
+  assert.equal(await page.evaluate('42'),42,'A release protocol error must keep the session usable');
+ }else if(mode==='callback-timeout'){
   const started=performance.now();let failure;
   try{await page.evaluate(value=>value,42);}catch(error){failure=error;}
   console.log(JSON.stringify({mode,elapsedMs:Math.round(performance.now()-started),code:failure?.code,methods}));
@@ -41,9 +46,10 @@ try{
   await assert.rejects(page.evaluate('42'),/CDP.*closed/i);
  }else if(mode==='callback-release-timeout'||mode==='request-timeout'){
   if(mode==='request-timeout')stalled=true;
-  const started=performance.now();let failure;
-  try{if(mode==='request-timeout')await page.evaluate('42');else await page.evaluate(value=>value,42);}catch(error){failure=error;}
-  assert.equal(failure?.code,'CDP_TIMEOUT');
+  const started=performance.now();let failure,value;
+  try{value=mode==='request-timeout'?await page.evaluate('42'):await page.evaluate(value=>value,42);}catch(error){failure=error;}
+  if(mode==='request-timeout')assert.equal(failure?.code,'CDP_TIMEOUT');
+  else{assert.equal(failure,undefined,'Release timeout must preserve the completed callback');assert.equal(value,42);}
   const sent=methods.length,cleanupStarted=performance.now();let cleanupError;
   try{await page.host('storeDelay',{ms:0});}catch(error){cleanupError=error;}
   console.log(JSON.stringify({mode,elapsedMs:Math.round(performance.now()-started),cleanupMs:Math.round(performance.now()-cleanupStarted),methods}));
@@ -71,7 +77,7 @@ try{
  console.log('AUDIT_CLOSE_BODY_FINISHED');
 }
 `.replace('HARNESS_URL',JSON.stringify(harness));
-for(const mode of ['local','peer','serialize','callback-timeout','callback-serialize','callback-release-timeout','request-timeout'])test('CDP '+mode+' cleanup releases the Node process',{timeout:15000},async()=>{
+for(const mode of ['local','peer','serialize','callback-timeout','callback-serialize','callback-release-timeout','request-timeout','callback-release-error-result','callback-release-error-original'])test('CDP '+mode+' cleanup releases the Node process',{timeout:15000},async()=>{
  const child=spawn(process.execPath,['--input-type=module','--eval',childSource,mode],{stdio:['ignore','pipe','pipe'],windowsHide:true});
  let stdout='',stderr='',closedTimer,timeoutReason;
  const wholeTimer=setTimeout(()=>{timeoutReason='startup/body timeout';child.kill();},10000);
