@@ -142,11 +142,16 @@ try {
   $rect=New-Object DeloInput+RECT
   if(-not[DeloInput]::GetWindowRect($target,[ref]$rect)){throw 'Cannot read harness bounds for backdrop'}
   $margin=96
-  $backdrop=[DeloInput]::CreateWindowEx(0x08000088,'STATIC','Delo harness backdrop',[uint32]2147483648,$rect.Left-$margin,$rect.Top-$margin,($rect.Right-$rect.Left)+2*$margin,($rect.Bottom-$rect.Top)+2*$margin,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
+  $backdrop=[DeloInput]::CreateWindowEx(0x08000088,'STATIC','Delo harness backdrop',[uint32]2147483652,$rect.Left-$margin,$rect.Top-$margin,($rect.Right-$rect.Left)+2*$margin,($rect.Bottom-$rect.Top)+2*$margin,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero) # WS_POPUP | SS_BLACKRECT: stable, high-contrast capture background.
   if($backdrop -eq [IntPtr]::Zero){throw 'Cannot create harness backdrop'}
   try{
    # Directly below the widget (SWP_NOACTIVATE|SWP_SHOWWINDOW), above everything else.
-   [void][DeloInput]::SetWindowPos($backdrop,$target,0,0,0,0,0x0053)
+   if(-not[DeloInput]::SetWindowPos($backdrop,$target,0,0,0,0,0x0053)){throw 'Cannot position harness backdrop'}
+   # Optional readiness output lets capture callers wait for the owned window's first paint.
+   if($OutputPath){
+    [DeloInput]::Pump(50)
+    [IO.File]::WriteAllText([IO.Path]::GetFullPath($OutputPath),(@{pid=$PID;window=$backdrop.ToInt64()} | ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+   }
    [DeloInput]::Pump($HoldMs)
   }finally{[void][DeloInput]::DestroyWindow($backdrop)}
  }

@@ -29,9 +29,21 @@ if($Extra){
 }
 $window=@{pinned=$true;autostart=$false;quickFrameReduced=$true;hotkeys=@{list='Ctrl+Alt+Shift+J';quick='Ctrl+Alt+Shift+K'}} | ConvertTo-Json -Compress
 [IO.File]::WriteAllText((Join-Path $profile 'window.json'),$window,[Text.UTF8Encoding]::new($false))
-$p=Start-Process -FilePath (Join-Path $runtime 'Delo.exe') -ArgumentList "--harness=$SessionName" -WindowStyle Hidden -PassThru
-$owned=$false
+# CDP input and GPU captures do not reset Windows' display idle timer. Keep the
+# interactive audit awake, then restore this thread's previous execution state.
+if(-not('DeloUiAuditPower' -as [type])){
+ Add-Type @'
+using System.Runtime.InteropServices;
+public static class DeloUiAuditPower {
+ [DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);
+}
+'@
+}
+$previousExecutionState=[DeloUiAuditPower]::SetThreadExecutionState(2147483651) # CONTINUOUS | SYSTEM_REQUIRED | DISPLAY_REQUIRED
+if($previousExecutionState -eq 0){throw 'Cannot keep the UI audit display awake'}
+$p=$null;$owned=$false
 try {
+ $p=Start-Process -FilePath (Join-Path $runtime 'Delo.exe') -ArgumentList "--harness=$SessionName" -WindowStyle Hidden -PassThru
  $ready=$false
  for($attempt=0;$attempt -lt 120;$attempt++){
   if($p.HasExited){throw "Harness exited before WebView was ready (code $($p.ExitCode))"}
@@ -89,7 +101,8 @@ console.log(JSON.stringify(identities));
  }
  Get-ChildItem -LiteralPath $runtime -Recurse -File | Where-Object {$_.FullName -notlike "$runtime\test-output\*" -and $_.Extension -in '.exe','.css','.mjs','.html'} | ForEach-Object {@{file=$_.FullName.Substring($runtime.Length+1);sha256=(Get-FileHash -LiteralPath $_.FullName).Hash}} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $out 'runtime-manifest.json') -Encoding utf8
 } finally {
- if(-not $p.HasExited){
+ try {
+ if($p -and -not $p.HasExited){
   if(-not $owned){$p.Kill();$p.WaitForExit()}
   else{
    & node "$PSScriptRoot/devtools.mjs" --script "$PSScriptRoot/ui-exit.js"
@@ -98,5 +111,8 @@ console.log(JSON.stringify(identities));
     throw "Harness did not complete saved exit (PID $($p.Id))"
    }
   }
+ }
+ } finally {
+  if([DeloUiAuditPower]::SetThreadExecutionState($previousExecutionState) -eq 0){throw 'Cannot restore the UI audit execution state'}
  }
 }
