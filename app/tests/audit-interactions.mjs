@@ -12,10 +12,13 @@ try{
  await main.click('#settings-open');
  await main.click('#open-settings');
  await main.click('[name=listShortcut]');
- let d=await main.host('diagnostics');native(d.window,'keys',{Keys:'CTRL+ALT+Z'});await wait(200);
+ let d=await main.host('diagnostics');native(d.window,'keys',{Keys:'CTRL+ALT+Z'});
+ // Native input is queued; CDP can read the field before WebView handles the last key.
+ await until(main,`document.querySelector('[name=listShortcut]').value==='Ctrl+Alt+Z'&&window.auditKeys.some(e=>e.trusted&&e.code==='KeyZ')`);
  let result=await main.evaluate(`({value:document.querySelector('[name=listShortcut]').value,active:document.activeElement.name,events:window.auditKeys})`);
  check('physical shortcut recorder accepts Ctrl+Alt+Z',result.value==='Ctrl+Alt+Z'&&result.events.some(e=>e.trusted&&e.code==='KeyZ'),result);
- native(d.window,'keys',{Keys:'CTRL+ALT+SHIFT+K'});await wait(250);
+ native(d.window,'keys',{Keys:'CTRL+ALT+SHIFT+K'});
+ await until(main,`document.querySelector('[name=listShortcut]').value==='Ctrl+Alt+Shift+K'&&window.auditKeys.some(e=>e.trusted&&e.code==='KeyK')`);
  result=await main.evaluate(`({value:document.querySelector('[name=listShortcut]').value,settings:document.querySelector('#settings').open,events:window.auditKeys})`);
  const qd=await quick.host('diagnostics');check('assigning an existing own hotkey does not open quick entry',!qd.visible&&result.value==='Ctrl+Alt+Shift+K',{...result,quickVisible:qd.visible});
  if(qd.visible)await quick.host('quickDone');
