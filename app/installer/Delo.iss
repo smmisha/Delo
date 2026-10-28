@@ -1,21 +1,50 @@
 #ifndef AppVersion
-  #define AppVersion "0.3.6"
+  #define AppVersion "0.3.7"
+#endif
+#ifdef UpdateInstallerTest
+  ; Test builds must provide isolated identities; they must never touch a live installation.
+  #ifndef TestAppId
+    #error TestAppId is required for UpdateInstallerTest
+  #endif
+  #ifndef TestDir
+    #error TestDir is required for UpdateInstallerTest
+  #endif
+  #ifndef TestRunKey
+    #error TestRunKey is required for UpdateInstallerTest
+  #endif
+  #ifndef TestGroup
+    #error TestGroup is required for UpdateInstallerTest
+  #endif
+  #define InstallerAppId TestAppId
+  #define InstallerDir TestDir
+  #define InstallerGroup TestGroup
+  #define StartupRunKey TestRunKey
+#else
+  #define InstallerAppId "{{CE9AAB6D-03AE-43FB-A87E-48BF58868D12}"
+  #define InstallerDir "{localappdata}\Programs\Delo"
+  #define InstallerGroup "Delo"
+  #define StartupRunKey "Software\Microsoft\Windows\CurrentVersion\Run"
 #endif
 [Setup]
-AppId={{CE9AAB6D-03AE-43FB-A87E-48BF58868D12}
+AppId={#InstallerAppId}
 AppName=Delo
 AppVersion={#AppVersion}
 AppPublisher=Delo contributors
-DefaultDirName={localappdata}\Programs\Delo
-DefaultGroupName=Delo
+DefaultDirName={#InstallerDir}
+DefaultGroupName={#InstallerGroup}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0.22000
 WizardStyle=modern
+#ifdef UpdateInstallerTest
+Compression=none
+SolidCompression=no
+#else
 Compression=lzma2
 SolidCompression=yes
+#endif
 OutputDir=..\dist
 OutputBaseFilename=Delo-{#AppVersion}-windows-x64-setup
 UninstallDisplayIcon={app}\Delo.exe
@@ -83,8 +112,14 @@ Filename: "{app}\Delo.exe"; Description: "{cm:LaunchDelo}"; Flags: nowait postin
 // makes it pause and save, and the session end quits it. Only the widget that holds the app
 // mutex counts as running; it is started again after an update.
 const
+#ifdef UpdateInstallerTest
+  DeloMutex = 'Local\Delo.UpdateInstallerTest';
+  DeloControl = 'Delo.UpdateInstallerTest.Control';
+#else
   DeloMutex = 'Local\Delo.Widget';
   DeloControl = 'Delo.Control';
+#endif
+  StartupRunKey = '{#StartupRunKey}';
   WM_QUERYENDSESSION = $0011;
   WM_ENDSESSION = $0016;
   SMTO_ABORTIFHUNG = $0002;
@@ -138,11 +173,65 @@ begin
   if not Result then SuppressibleMsgBox(CustomMessage('CloseFailed'), mbError, MB_OK, IDOK);
 end;
 
+// Run entries written by Delo are quoted. Also accept legacy unquoted paths,
+// including spaces, but never reinterpret a different executable as Delo.
+function ParseStartupCommand(Command: String; var Executable, Arguments: String): Boolean;
+var Boundary, Index: Integer;
+begin
+  Result := False;
+  Executable := '';
+  Arguments := '';
+  Command := Trim(Command);
+  if Command = '' then exit;
+  if Command[1] = '"' then begin
+    Boundary := Pos('"', Copy(Command, 2, Length(Command)));
+    if Boundary = 0 then exit;
+    Boundary := Boundary + 1;
+    if Boundary < Length(Command) then
+      if (Command[Boundary + 1] <> ' ') and (Command[Boundary + 1] <> #9) then exit;
+    Executable := Copy(Command, 2, Boundary - 2);
+    Arguments := Copy(Command, Boundary + 1, Length(Command));
+  end else begin
+    Boundary := 0;
+    for Index := 1 to Length(Command) - 3 do
+      if CompareText(Copy(Command, Index, 4), '.exe') = 0 then begin
+        if Index + 3 = Length(Command) then
+          Boundary := Index + 3
+        else if (Command[Index + 4] = ' ') or (Command[Index + 4] = #9) then
+          Boundary := Index + 3;
+        if Boundary > 0 then break;
+      end;
+    if Boundary = 0 then exit;
+    Executable := Copy(Command, 1, Boundary);
+    Arguments := Copy(Command, Boundary + 1, Length(Command));
+  end;
+  Result := Executable <> '';
+end;
+
+procedure RepairAutostart;
+var Command, Executable, Arguments, UpdatedCommand: String;
+begin
+  // Keep the existing value name and leave Windows' StartupApproved state alone.
+  // Autostart opt-in/opt-out and Task Manager disable flags belong to the user.
+  if not RegQueryStringValue(HKCU, StartupRunKey, 'Delo', Command) then exit;
+  if not ParseStartupCommand(Command, Executable, Arguments) then exit;
+  if CompareText(ExtractFileName(Executable), 'Delo.exe') <> 0 then exit;
+  UpdatedCommand := '"' + ExpandConstant('{app}\Delo.exe') + '"' + Arguments;
+  if CompareText(Command, UpdatedCommand) = 0 then exit;
+  if RegWriteStringValue(HKCU, StartupRunKey, 'Delo', UpdatedCommand) then
+    Log('Updated the existing Delo autostart path.')
+  else
+    Log('Could not update the existing Delo autostart path.');
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var Code: Integer;
 begin
-  if (CurStep = ssPostInstall) and WasRunning then
-    ExecAsOriginalUser(ExpandConstant('{app}\Delo.exe'), '', '', SW_SHOWNORMAL, ewNoWait, Code);
+  if CurStep = ssPostInstall then begin
+    RepairAutostart;
+    if WasRunning then
+      ExecAsOriginalUser(ExpandConstant('{app}\Delo.exe'), '', '', SW_SHOWNORMAL, ewNoWait, Code);
+  end;
 end;
 
 function HasRuntimeAt(Root: Integer): Boolean;
@@ -184,11 +273,12 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var Command: String;
+var Command, Executable, Arguments: String;
 begin
   if CurUninstallStep = usUninstall then begin
-    if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Delo', Command) then
-      if CompareText(Command, '"' + ExpandConstant('{app}\Delo.exe') + '"') = 0 then
-        RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Delo');
+    if RegQueryStringValue(HKCU, StartupRunKey, 'Delo', Command) then
+      if ParseStartupCommand(Command, Executable, Arguments) then
+        if CompareText(Executable, ExpandConstant('{app}\Delo.exe')) = 0 then
+          RegDeleteValue(HKCU, StartupRunKey, 'Delo');
   end;
 end;
