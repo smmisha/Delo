@@ -63,15 +63,23 @@ export async function connect(quick=false){
   globalThis.__deloHarnessBridge??=new HostBridge();
   return globalThis.__deloHarnessBridge.window(action,payload);
  },action,payload);
- const geometry=async selector=>evaluate(selector=>{
-  const e=document.querySelector(selector);e.scrollIntoView({block:'nearest'});
+ const geometry=async(selector,hitTest=false)=>evaluate((selector,hitTest)=>{
+  const e=document.querySelector(selector);
+  if(!e)throw Error(`Harness target is missing: ${selector}`);
+  e.scrollIntoView({block:'nearest'});
   const r=e.getBoundingClientRect();
+  if(r.width<=0||r.height<=0)throw Error(`Harness target is hidden: ${selector}`);
+  if(hitTest){
+   const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
+   if(!hit||!e.contains(hit))throw Error(`Harness target is covered at its centre: ${selector}`);
+  }
   return {x:r.x+r.width/2,y:r.y+r.height/2,width:innerWidth,height:innerHeight};
- },selector);
- const point=async selector=>{const p=await geometry(selector),d=await host('diagnostics');return {window:d.window,x:Math.round(d.x+p.x*d.width/p.width),y:Math.round(d.y+p.y*d.height/p.height)};};
+ },selector,hitTest);
+ // Drag handles can intentionally have pointer-events:none; only clicks require a DOM hit.
+ const point=async(selector,hitTest=false)=>{const p=await geometry(selector,hitTest),d=await host('diagnostics');return {window:d.window,x:Math.round(d.x+p.x*d.width/p.width),y:Math.round(d.y+p.y*d.height/p.height)};};
  // A toast or another app can briefly cover the widget. Wait for it to leave (bounded);
  // the native helper still refuses to click through anything that stays.
- const click=async selector=>{let p=await point(selector);for(const end=Date.now()+5000;native(p.window,'probe',{X:p.x,Y:p.y}).probe.covered&&Date.now()<end;p=await point(selector))await wait(200);native(p.window,'click',{X:p.x,Y:p.y});await wait(150);};
+ const click=async selector=>{let p=await point(selector,true);for(const end=Date.now()+5000;native(p.window,'probe',{X:p.x,Y:p.y}).probe.covered&&Date.now()<end;p=await point(selector,true))await wait(200);native(p.window,'click',{X:p.x,Y:p.y});await wait(150);};
  const deadline=Date.now()+5000;
  while(!await evaluate(`document.readyState==='complete'&&!!document.querySelector('#task-input')`)){
   if(Date.now()>deadline){close();throw Error('Delo harness document did not finish loading');}

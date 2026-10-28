@@ -5,7 +5,11 @@ const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});consol
 try{
  await main.evaluate(`(()=>{document.querySelectorAll('dialog[open]').forEach(d=>d.close());return true;})()`);
  await main.host('show');await main.host('pin',{pinned:true});
- await main.click('#settings-open');await main.click('[name=listShortcut]');await main.click('#settings [data-close]');
+ await main.click('#settings-open');await main.click('#open-settings');
+ if(!await main.evaluate(()=>document.querySelector('#settings').open))throw Error('Settings did not open; refusing recorder check');
+ await main.click('[name=listShortcut]');
+ if(!await main.evaluate(()=>document.hasFocus()&&document.activeElement?.matches('[name=listShortcut]')&&document.activeElement.classList.contains('recording')))throw Error('Shortcut recorder did not receive focus; refusing restoration check');
+ await main.click('#settings [data-close]');
  let d=await main.host('diagnostics');const keys=await main.evaluate(`(async()=>{const {HostBridge}=await import('./bridge.mjs');return(await new HostBridge().request('load')).native.hotkeys;})()`);
  native(d.window,'keys',{Keys:keys.quick.toUpperCase()});await wait(200);let q=await quick.host('diagnostics');check('global shortcut is restored after recorder closes',q.visible,q);
  if(!q.visible)await main.host('quick');
