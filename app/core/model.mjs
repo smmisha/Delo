@@ -45,6 +45,23 @@ function cut(task,from,to) {
   if(task.intervals)task.intervals=kept;return removed;
 }
 function freeze(task,mono,now) { if(task.workState==='running') record(task,now,Math.max(0,mono-task.timerAnchor)); task.elapsedMs=elapsed(task,mono); task.timerAnchor=null; if(task.workState==='running') task.workState='paused'; }
+// П16. One focus: taking a task into work, with or without the timer, pauses every other one.
+// A task paused from "in work" keeps `untimed`, the moment of that pause, so resuming it goes back
+// to "in work" rather than starting the timer. The flag holds only while nothing touched the task
+// after it: older versions keep unknown fields. New pauses snapshot [touch, elapsedMs], so a
+// changed touch or measured run invalidates them even after a wall-clock rollback. Numeric-only
+// legacy markers retain their timestamp check and record()'s half-millisecond rounding allowance.
+// Every command drops both fields where the marker no longer holds.
+function hold(task,mono,now,touchedAt) {
+  const working=task.workState==='working',running=task.workState==='running';
+  freeze(task,mono,now);if(working||running)task.touchedAt=touchedAt;
+  if(working){task.workState='paused';task.untimed=now;task.untimedState=[touchedAt,task.elapsedMs];}
+}
+const validUntimedState=value=>Array.isArray(value)&&value.length===2&&Number.isFinite(value[0])&&value[0]>=0&&Number.isFinite(value[1])&&value[1]>=0;
+export const untimedPause=t=>t.workState==='paused'&&Number.isFinite(t.untimed)&&(t.untimedState!==undefined
+  ? validUntimedState(t.untimedState)&&t.untimedState[0]===t.touchedAt&&t.untimedState[1]===t.elapsedMs
+  : t.untimed>=(t.touchedAt??0)&&t.untimed+0.5>=lastTouch(t));
+function clearUntimed(task){delete task.untimed;delete task.untimedState;}
 function event(state,task,kind,at,delta) { state.reputation+=delta; state.events.push({id:state.events.length+1,taskId:task.id,kind,at,delta}); }
 function archiveAt(task,settings) { if(task.completedAt!==null) return task.completedDayEnd; if(settings.autoArchive==='off' || settings.autoArchive==='dated'&&!task.due || settings.autoArchive==='undated'&&task.due) return Infinity; return Math.max(task.archiveAnchor+settings.archiveDays*DAY,task.due?.at??-Infinity); }
 function process(state,now,mono) {
@@ -88,19 +105,21 @@ export function dueReminders(state,{now}) {
   const minutes=remindMinutes(state.settings);
   return state.tasks.filter(t=>t.lifecycle==='active'&&t.completedAt===null&&t.due&&t.reminded!==t.due.at&&reminderAt(t.due,minutes)<=now&&now<t.due.at).sort((a,b)=>a.due.at-b.due.at||a.id.localeCompare(b.id));
 }
-// F05. The global shortcut pauses the running timer, or resumes the task in work whose timer
-// ran last (the latest interval end; tasks without intervals by creation time).
+// F05, П16. The global shortcut pauses the task in focus (a running timer or "in work"), or
+// resumes the paused task touched last (П15): the timer again, or "in work" for one paused from it.
 export function timerToggle(state) {
-  const running=state.tasks.find(t=>t.workState==='running');
-  if(running) return {type:'pause',id:running.id};
-  const lastRun=t=>{const last=(t.intervals??[]).at(-1);return last?last[0]+last[1]:t.createdAt;};
-  const next=state.tasks.filter(t=>t.lifecycle==='active'&&t.completedAt===null&&['paused','working'].includes(t.workState)).sort((a,b)=>lastRun(b)-lastRun(a)||a.id.localeCompare(b.id))[0];
-  return next?{type:'start',id:next.id}:null;
+  const open=state.tasks.filter(t=>t.lifecycle==='active'&&t.completedAt===null).sort((a,b)=>lastTouch(b)-lastTouch(a)||a.id.localeCompare(b.id));
+  const focus=open.find(t=>t.workState==='running')??open.find(t=>t.workState==='working');
+  if(focus) return {type:'pause',id:focus.id};
+  const next=open.find(t=>t.workState==='paused');
+  return next?{type:untimedPause(next)?'work':'start',id:next.id}:null;
 }
 export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
   if(!Number.isFinite(now)||!Number.isFinite(monotonic)) fail('Explicit clocks required');
   const s=structuredClone(source); process(s,now,monotonic);
   const t=s.tasks.find(t=>t.id===command.id);
+  // Causal touch order survives wall-clock rollback and equal-time commands.
+  const touchAt=()=>s.tasks.reduce((at,task)=>Math.max(at,lastTouch(task)+1),now);
   const required=()=>{if(!t) fail('Unknown task');return t;};
   const active=()=>{required();if(t.lifecycle!=='active')fail('Task is not active');};
   const unfinished=()=>{active();if(t.completedAt!==null)fail('Task is completed');};
@@ -111,10 +130,10 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     }
     case 'edit': active();t.title=title(command.title);break;
     case 'deadline': active();t.due=deadline(command.due);armReminder(t,now,s.settings);break;
-    case 'start': unfinished();for(const other of s.tasks)freeze(other,monotonic,now);t.workState='running';t.timerAnchor=monotonic;t.touchedAt=now;break;
-    case 'pause': unfinished();freeze(t,monotonic,now);t.touchedAt=now;break;
+    case 'start': {unfinished();const at=touchAt();for(const other of s.tasks)hold(other,monotonic,now,at);t.workState='running';t.timerAnchor=monotonic;t.touchedAt=touchAt();break;}
+    case 'pause': unfinished();if(t.workState!=='paused')hold(t,monotonic,now,touchAt());break;
     case 'stop': unfinished();freeze(t,monotonic,now);t.workState='idle';break;
-    case 'work': unfinished();freeze(t,monotonic,now);t.workState='working';t.touchedAt=now;break;
+    case 'work': {unfinished();const at=touchAt();for(const other of s.tasks)if(other!==t)hold(other,monotonic,now,at);freeze(t,monotonic,now);t.workState='working';t.touchedAt=touchAt();break;}
     // F06. pinnedAt is optional: data without it loads as unpinned, and older versions keep it as is.
     case 'pin': unfinished();if(t.pinnedAt==null)t.pinnedAt=now;break;
     case 'unpin': required();delete t.pinnedAt;break;
@@ -144,7 +163,7 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     }
     case 'restore': required();if(!['archive','trash'].includes(t.lifecycle))fail('Not restorable');t.lifecycle='active';t.deletedAt=null;t.archiveAnchor=now;t.undoRemaining=null;delete t.pinnedAt;if(t.completedAt!==null)t.completedDayEnd=dayEnd(now,timeZone);break;
     case 'settings': for(const key of Object.keys(command.patch))if(!(key in DEFAULT_SETTINGS))fail('Unknown setting');Object.assign(s.settings,command.patch);settingsCheck(s.settings);break;
-    case 'suspend': for(const t of s.tasks)freeze(t,monotonic,now);break;
+    case 'suspend': {const at=touchAt();for(const t of s.tasks)if(t.workState==='running')hold(t,monotonic,now,at);break;}
     case 'checkpoint': for(const t of s.tasks)if(t.workState==='running'){record(t,now,Math.max(0,monotonic-t.timerAnchor));t.elapsedMs=elapsed(t,monotonic);t.timerAnchor=monotonic;}break;
     // F03. The host reports a stretch without input [from,to] while this task's timer ran. The
     // part of it the timer counted becomes a question on the task; subtracting removes exactly
@@ -159,9 +178,9 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
       break;
     }
     case 'idleSubtract': {
-      active();if(!t.idle)fail('No idle question');
+      active();if(!t.idle)fail('No idle question');const pausedWork=untimedPause(t);
       if(t.workState==='running'){record(t,now,Math.max(0,monotonic-t.timerAnchor));t.elapsedMs=elapsed(t,monotonic);t.timerAnchor=monotonic;}
-      const removed=cut(t,t.idle.from,t.idle.to);t.elapsedMs=Math.max(0,t.elapsedMs-removed);delete t.idle;break;
+      const removed=cut(t,t.idle.from,t.idle.to);t.elapsedMs=Math.max(0,t.elapsedMs-removed);if(pausedWork&&t.untimedState)t.untimedState[1]=t.elapsedMs;delete t.idle;break;
     }
     case 'idleKeep': active();delete t.idle;break;
     // T07. Marks the reminders the page has just shown, so each deadline is announced once.
@@ -169,12 +188,12 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     case 'tick': break;
     default: fail('Unknown command');
   }
-  process(s,now,monotonic); return s;
+  process(s,now,monotonic); for(const task of s.tasks) if(!untimedPause(task)) clearUntimed(task); return s;
 }
-// П15. Without a deadline, a task in work leads: the running one first, then paused or marked
-// in work by the latest touch (start, pause, "in work", or the end of its last run), then
-// the rest newest first. Groups with a deadline keep the deadline order.
-const inWork=t=>t.workState==='running'?0:t.workState==='paused'||t.workState==='working'?1:2;
+// П15. Without a deadline, a task in work leads: the one in focus first (running, or "in work"
+// under П16), then paused by the latest touch (start, pause, "in work", or the end of its last
+// run), then the rest newest first. Groups with a deadline keep the deadline order.
+const inWork=t=>t.workState==='running'||t.workState==='working'?0:t.workState==='paused'?1:2;
 const lastTouch=t=>{const last=(t.intervals??[]).at(-1);return Math.max(t.touchedAt??0,last?last[0]+last[1]:0,t.createdAt);};
 export function groups(state,{now,timeZone='UTC'}) {
   const result=['pinned','late','today','upcoming','any','done'].map(key=>({key,tasks:[]}));
@@ -186,11 +205,12 @@ export function validateState(s) {
   try {
     if(!s||s.schemaVersion!==1||!Array.isArray(s.tasks)||!Array.isArray(s.events)||!Number.isFinite(s.reputation))fail('Invalid database'); settingsCheck(s.settings);
     const ids=new Set();let running=0;
-    for(const t of s.tasks) {if(typeof t.id!=='string'||!t.id||ids.has(t.id))fail('Invalid task id');ids.add(t.id);title(t.title);if(!['active','archive','pending','trash'].includes(t.lifecycle)||!['idle','running','paused','working'].includes(t.workState))fail('Invalid task state');for(const k of ['createdAt','archiveAnchor','elapsedMs'])if(!Number.isFinite(t[k])||t[k]<0)fail('Invalid task time');if(t.pinnedAt!=null&&(!Number.isFinite(t.pinnedAt)||t.pinnedAt<0))fail('Invalid task time');if(t.reminded!==undefined&&!Number.isFinite(t.reminded))fail('Invalid reminder');if(t.touchedAt!==undefined&&(!Number.isFinite(t.touchedAt)||t.touchedAt<0))fail('Invalid task time');if(t.idle!==undefined&&(!t.idle||!Number.isFinite(t.idle.from)||!Number.isFinite(t.idle.to)||t.idle.to<=t.idle.from||!Number.isFinite(t.idle.ms)||t.idle.ms<=0))fail('Invalid idle');if(t.intervals!==undefined){if(!Array.isArray(t.intervals))fail('Invalid intervals');let tracked=0;for(const item of t.intervals){if(!Array.isArray(item)||item.length!==2||!Number.isFinite(item[0])||item[0]<0||!Number.isFinite(item[1])||item[1]<=0)fail('Invalid intervals');tracked+=item[1];}if(tracked>t.elapsedMs+1)fail('Intervals exceed elapsed time');}if(t.due){const d=deadline(t.due);if(d.date!==t.due.date||d.time!==t.due.time||d.timeZone!==t.due.timeZone||d.at!==t.due.at)fail('Invalid deadline');}if(!t.penalties||typeof t.penalties.first!=='boolean'||typeof t.penalties.week!=='boolean')fail('Invalid penalties');if(![0,2,5].includes(t.award))fail('Invalid award');if(t.completedAt!==null&&(!Number.isFinite(t.completedAt)||!Number.isFinite(t.completedDayEnd)||t.award===0))fail('Invalid completion');if(t.workState==='running'){running++;if(!Number.isFinite(t.timerAnchor)||t.lifecycle!=='active'||t.completedAt!==null)fail('Invalid timer');}else if(t.timerAnchor!==null)fail('Invalid timer');if(['pending','trash'].includes(t.lifecycle)&&!Number.isFinite(t.deletedAt))fail('Invalid deletion');if(t.lifecycle==='pending'&&(!Number.isFinite(t.undoRemaining)||t.undoRemaining<0||t.undoRemaining>5000))fail('Invalid undo');}
+    for(const t of s.tasks) {if(typeof t.id!=='string'||!t.id||ids.has(t.id))fail('Invalid task id');ids.add(t.id);title(t.title);if(!['active','archive','pending','trash'].includes(t.lifecycle)||!['idle','running','paused','working'].includes(t.workState))fail('Invalid task state');for(const k of ['createdAt','archiveAnchor','elapsedMs'])if(!Number.isFinite(t[k])||t[k]<0)fail('Invalid task time');if(t.pinnedAt!=null&&(!Number.isFinite(t.pinnedAt)||t.pinnedAt<0))fail('Invalid task time');if(t.reminded!==undefined&&!Number.isFinite(t.reminded))fail('Invalid reminder');if(t.touchedAt!==undefined&&(!Number.isFinite(t.touchedAt)||t.touchedAt<0))fail('Invalid task time');if(t.untimed!==undefined&&!(Number.isFinite(t.untimed)&&t.untimed>=0))fail('Invalid task state');if(t.untimedState!==undefined&&!validUntimedState(t.untimedState))fail('Invalid task state');if(t.idle!==undefined&&(!t.idle||!Number.isFinite(t.idle.from)||!Number.isFinite(t.idle.to)||t.idle.to<=t.idle.from||!Number.isFinite(t.idle.ms)||t.idle.ms<=0))fail('Invalid idle');if(t.intervals!==undefined){if(!Array.isArray(t.intervals))fail('Invalid intervals');let tracked=0;for(const item of t.intervals){if(!Array.isArray(item)||item.length!==2||!Number.isFinite(item[0])||item[0]<0||!Number.isFinite(item[1])||item[1]<=0)fail('Invalid intervals');tracked+=item[1];}if(tracked>t.elapsedMs+1)fail('Intervals exceed elapsed time');}if(t.due){const d=deadline(t.due);if(d.date!==t.due.date||d.time!==t.due.time||d.timeZone!==t.due.timeZone||d.at!==t.due.at)fail('Invalid deadline');}if(!t.penalties||typeof t.penalties.first!=='boolean'||typeof t.penalties.week!=='boolean')fail('Invalid penalties');if(![0,2,5].includes(t.award))fail('Invalid award');if(t.completedAt!==null&&(!Number.isFinite(t.completedAt)||!Number.isFinite(t.completedDayEnd)||t.award===0))fail('Invalid completion');if(t.workState==='running'){running++;if(!Number.isFinite(t.timerAnchor)||t.lifecycle!=='active'||t.completedAt!==null)fail('Invalid timer');}else if(t.timerAnchor!==null)fail('Invalid timer');if(['pending','trash'].includes(t.lifecycle)&&!Number.isFinite(t.deletedAt))fail('Invalid deletion');if(t.lifecycle==='pending'&&(!Number.isFinite(t.undoRemaining)||t.undoRemaining<0||t.undoRemaining>5000))fail('Invalid undo');}
     if(running>1)fail('Multiple timers');let sum=0;const penalties=new Set();for(let i=0;i<s.events.length;i++){const e=s.events[i];if(e.id!==i+1||typeof e.taskId!=='string'||!Number.isFinite(e.at)||!({first:[-2],week:[-1],complete:[2,5],uncomplete:[-2,-5]}[e.kind]?.includes(e.delta)))fail('Invalid event');if(['first','week'].includes(e.kind)){const key=e.taskId+':'+e.kind;if(penalties.has(key))fail('Repeated penalty');penalties.add(key);}sum+=e.delta;}if(sum!==s.reputation)fail('Reputation ledger mismatch');for(const t of s.tasks){for(const k of ['first','week'])if(penalties.has(t.id+':'+k)&&!t.penalties[k])fail('Penalty ledger mismatch');if(t.completedAt===null&&(t.award!==0||t.completedDayEnd!==null))fail('Invalid completion');}return {valid:true};
   } catch(error) {return {valid:false,error:error.message};}
 }
-export function recoverState(source) {const check=validateState(source);if(!check.valid)fail(check.error);const s=structuredClone(source);for(const t of s.tasks){if(t.workState==='running'){t.workState='paused';t.timerAnchor=null;}if(t.lifecycle==='pending'){t.lifecycle='trash';t.undoRemaining=null;}}return s;}
+// A timer left running becomes a timer pause; an П16 flag on it was kept by a version without П16 and goes.
+export function recoverState(source) {const check=validateState(source);if(!check.valid)fail(check.error);const s=structuredClone(source);for(const t of s.tasks){if(t.workState==='running'){t.workState='paused';t.timerAnchor=null;clearUntimed(t);}if(t.lifecycle==='pending'){t.lifecycle='trash';t.undoRemaining=null;}if(!untimedPause(t))clearUntimed(t);}return s;}
 
 // F04. Time per task today and this week (from Monday) in `timeZone`, including the run in
 // progress. `before` is time measured before tracking began: it belongs to no day.
