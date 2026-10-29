@@ -379,7 +379,7 @@ $('#open-release').addEventListener('click',installUpdate);$('#update-prompt-ins
 $('#update-prompt-later').addEventListener('click',()=>closeDialog($('#update-prompt')));
 $$('dialog').forEach(dialog=>dialog.addEventListener('close',scheduleUpdatePrompt));
 $$('#app-menu,#task-menu').forEach(menu=>menu.addEventListener('toggle',scheduleUpdatePrompt));
-window.addEventListener('focus',scheduleUpdatePrompt);document.addEventListener('visibilitychange',scheduleUpdatePrompt);
+window.addEventListener('focus',scheduleUpdatePrompt);document.addEventListener('focusin',scheduleUpdatePrompt);document.addEventListener('visibilitychange',scheduleUpdatePrompt);
 document.addEventListener('pointerdown',()=>{updatePointerDown=true;},true);
 for(const name of ['pointerup','pointercancel'])window.addEventListener(name,()=>{updatePointerDown=false;scheduleUpdatePrompt();},true);
 window.addEventListener('blur',()=>{updatePointerDown=false;});
