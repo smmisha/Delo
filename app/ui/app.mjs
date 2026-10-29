@@ -11,7 +11,7 @@ import {notificationFor} from './notification-policy.mjs';
 import {installGroupFade} from './group-fade.mjs';
 import {VoiceInput} from './voice.mjs';
 import {createDraft} from './draft.mjs';
-import {updatePresentation} from './update-view.mjs';
+import {updatePresentation,createUpdatePrompt} from './update-view.mjs';
 const $=selector=>document.querySelector(selector), $$=selector=>[...document.querySelectorAll(selector)];
 const refreshGroupFade=installGroupFade($('#task-scroll'));
 const host=new HostBridge();
@@ -46,7 +46,7 @@ function report(error,action=null,target=$('#error')){retryAction=action;const d
 function clearError(){ $('#error').hidden=true;$('#restore-backup').hidden=true;retryAction=null;silentError=false; }
 function announce(value){text($('#status'),value);}
 function setDisabled(node,value){if(node.disabled!==value)node.disabled=value;}
-function setBusy(value){busy=value;const hasDraft=!!$('#task-input').value.trim();$('#add-task').classList.toggle('has-draft',hasDraft);setDisabled($('#add-task'),!ready||busy||!hasDraft);setDisabled($('#editor-save'),busy);setDisabled($('#settings-form .save'),busy);$('#widget').setAttribute('aria-busy',String(value));}
+function setBusy(value){busy=value;const hasDraft=!!$('#task-input').value.trim();$('#add-task').classList.toggle('has-draft',hasDraft);setDisabled($('#add-task'),!ready||busy||!hasDraft);setDisabled($('#editor-save'),busy);setDisabled($('#settings-form .save'),busy);$('#widget').setAttribute('aria-busy',String(value));if(!value)scheduleUpdatePrompt();}
 // Collapsed groups live only in the UI layer: persisting them would mean touching the
 // stored schema, which carries its own version and tests. localStorage is per-window
 // and may be unavailable, so every access is guarded and a failure just means the
@@ -341,17 +341,48 @@ async function importFile(file){
 // N13: the host asks GitHub at most once a day and otherwise returns its last answer, so the
 // page may ask on start and every hour. Turning the setting off makes the host forget it.
 let updateInfo=null,updateDownload={},lastUpdateAsk=0;
+const updatePrompt=createUpdatePrompt();
+let startupDialogsReady=false,updatePointerDown=false,updatePromptTimer;
+function scheduleUpdatePrompt(){if(quick||updatePrompt.handled)return;clearTimeout(updatePromptTimer);updatePromptTimer=setTimeout(offerUpdatePrompt,0);}
+function offerUpdatePrompt(){
+  const input=$('#task-input');
+  const canShow=startupDialogsReady&&ready&&!busy&&nativeVisible&&!document.hidden&&document.hasFocus()&&!updatePointerDown&&!menuTrigger&&!$('#app-menu').matches(':popover-open')&&!$('dialog[open]')&&!(document.activeElement===input&&input.value.trim());
+  if(!updatePrompt.offer({quick,store:!!native.storeManagedUpdates,enabled:!!state?.settings.checkUpdates,info:updateInfo,download:updateDownload,canShow}))return;
+  openDialog($('#update-prompt'));renderUpdatePrompt();$('#update-prompt-later').focus();
+}
+function renderUpdatePrompt(view=updatePresentation({enabled:!!state?.settings.checkUpdates,info:updateInfo,download:updateDownload})){
+  if(!$('#update-prompt').open)return;
+  if(!view.visible){closeDialog($('#update-prompt'));return;}
+  const available=view.action==='updateInstall',active=['checking','downloading','installing'].includes(updateDownload.phase);
+  text($('#update-prompt-message'),available?fill('updatePromptMessage',view.args):fill(view.key??'updateCurrent',view.args??{}));
+  const install=$('#update-prompt-install');install.hidden=!view.action&&!active;install.disabled=!view.action||!!view.disabled;text(install,t(view.action??'updateInstall'));
+  text($('#update-prompt-later'),t(available||view.action==='updateRetry'?'updateLater':'close'));
+  const progress=$('#update-prompt-progress');progress.hidden=view.progress===null;if(view.progress!==null){progress.value=view.progress;progress.setAttribute('aria-label',fill('updateDownloading',{percent:view.progress}));}
+}
 function renderUpdate(){
   const store=!!native.storeManagedUpdates;$('#settings-form').elements.checkUpdates.closest('label').hidden=store;
   $('#startup-status').hidden=!native.startupBlocked;$('#settings-form').elements.autostart.disabled=!!native.startupBlocked;
   const view=updatePresentation({store,enabled:!!state?.settings.checkUpdates,info:updateInfo,download:updateDownload});
+  renderUpdatePrompt(view);scheduleUpdatePrompt();
   $('#update-status').hidden=!view.visible;if(!view.visible)return;
   text($('#update-text'),fill(view.key,view.args??{}));const button=$('#open-release');button.hidden=!view.action;button.disabled=!!view.disabled;if(view.action)text(button,t(view.action));
   const progress=$('#update-progress');progress.hidden=view.progress===null;if(view.progress!==null){progress.value=view.progress;progress.setAttribute('aria-label',fill('updateDownloading',{percent:view.progress}));}
 }
 async function checkUpdates(force=false){if(quick||!state)return;if(native.storeManagedUpdates){renderUpdate();return;}const enabled=!!state.settings.checkUpdates;if(!force&&(!enabled||Date.now()-lastUpdateAsk<3600000))return;lastUpdateAsk=Date.now();try{const result=await host.window('updates',{enabled});updateInfo=enabled?result:null;updateDownload=result;}catch{/* Offline or refused: nothing to show, nothing breaks (V26). */}renderUpdate();}
 host.addEventListener('updateDownload',event=>{updateDownload=event.detail;updateInfo={...updateInfo,...event.detail};renderUpdate();});
-$('#open-release').addEventListener('click',async()=>{if(!native.storeManagedUpdates){updateDownload={phase:'checking'};renderUpdate();}try{await host.window('installUpdate');}catch{updateDownload={phase:'error'};renderUpdate();}});
+async function installUpdate(){
+  if(!native.storeManagedUpdates&&['checking','downloading','installing','ready'].includes(updateDownload.phase))return;
+  updatePrompt.dismiss();if(!native.storeManagedUpdates){updateDownload={phase:'checking'};renderUpdate();}
+  try{await host.window('installUpdate');}catch{updateDownload={phase:'error'};renderUpdate();}
+}
+$('#open-release').addEventListener('click',installUpdate);$('#update-prompt-install').addEventListener('click',installUpdate);
+$('#update-prompt-later').addEventListener('click',()=>closeDialog($('#update-prompt')));
+$$('dialog').forEach(dialog=>dialog.addEventListener('close',scheduleUpdatePrompt));
+$$('#app-menu,#task-menu').forEach(menu=>menu.addEventListener('toggle',scheduleUpdatePrompt));
+window.addEventListener('focus',scheduleUpdatePrompt);document.addEventListener('visibilitychange',scheduleUpdatePrompt);
+document.addEventListener('pointerdown',()=>{updatePointerDown=true;},true);
+for(const name of ['pointerup','pointercancel'])window.addEventListener(name,()=>{updatePointerDown=false;scheduleUpdatePrompt();},true);
+window.addEventListener('blur',()=>{updatePointerDown=false;});
 $('#open-privacy').addEventListener('click',()=>host.window('privacy').catch(error=>report(error)));
 // T07: reminders are marked in the data first, then shown, so each deadline is announced once
 // even with two windows; several at the same moment become one notification.
@@ -448,13 +479,14 @@ function renderHistory(){const list=$('#history-list');list.replaceChildren();co
 $('#retry').addEventListener('click',async()=>{if(resyncPending&&(busy||!await resync()))return;retryAction?.();});$('#error-close').addEventListener('click',clearError);
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&!$('dialog[open]')){if(menuTrigger){event.preventDefault();closeMenu(true);}else if(quick){/* Escape closes the capsule but keeps the unsent text: it is there next time, and after a restart. */draft.flush();host.window('quickDone').catch(error=>report(error));}else host.window('hide').catch(error=>report(error));}});
 host.addEventListener('stateChanged',event=>{const payload=event.detail;if(!payload?.state||payload.revision<=revision)return;try{assertState(payload.state);}catch{return;}if(busy){latestExternal=payload;return;}state=payload.state;revision=payload.revision;render();});
-host.addEventListener('nativeChanged',event=>{native={...event.detail};render();if(native.hotkeyError&&!quick)report(Error(native.hotkeyError));});host.addEventListener('visibility',event=>{nativeVisible=event.detail.visible;if(!nativeVisible){pointerOverList=false;releaseOrder();}lastUndo=performance.now();renderUndo();if(nativeVisible&&quick)$('#task-input').focus();});host.addEventListener('focusQuick',()=>$('#task-input').focus());
+host.addEventListener('nativeChanged',event=>{native={...event.detail};render();if(native.hotkeyError&&!quick)report(Error(native.hotkeyError));});host.addEventListener('visibility',event=>{nativeVisible=event.detail.visible;if(!nativeVisible){pointerOverList=false;releaseOrder();}lastUndo=performance.now();renderUndo();if(nativeVisible)scheduleUpdatePrompt();if(nativeVisible&&quick)$('#task-input').focus();});host.addEventListener('focusQuick',()=>$('#task-input').focus());
 async function suspend(finalize=false){await draft.flush();if(quick)return;while(busy)await new Promise(resolve=>setTimeout(resolve,25));if(resyncPending)await resync();const saved=await transaction([{type:'suspend'},...(finalize?[{type:'finalizeDeletes'}]:[])],{silent:true});/* A page that cannot reach its state holds nothing newer than the host's last save, so it must not keep the app from closing. */if(finalize)await host.window(saved||!ready?'exitReady':'cancelExit');}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')draft.flush();});
 host.addEventListener('suspend',()=>suspend().catch(error=>report(error)));host.addEventListener('beforeExit',()=>suspend(true).catch(error=>report(error)));
 /* The loop is paced by performance.now(), which never jumps. mono() is re-derived from the host's clock at every command, and the host's clock does not count time the PC slept: after a sleep it steps back by the length of the sleep, `mono() - lastTick` then stays negative for that long and the seconds stop moving (the timer itself was right, and the true time showed up on pause). */
 setInterval(async()=>{const now=performance.now(),delta=Math.max(0,now-lastUndo);lastUndo=now;if(resyncPending){if(!busy&&!resyncing&&now-lastResync>=3000){resyncing=true;lastResync=now;try{if(await resync()&&silentError)clearError();}finally{resyncing=false;}}return;}if(!state||busy||!ready||quick)return;if(pendingTasks().length){const next=applyCommand(state,{type:'advanceUndo',delta,paused:undoPaused()},context());const expired=next.tasks.some(task=>task.lifecycle==='trash'&&state.tasks.find(old=>old.id===task.id)?.lifecycle==='pending');if(expired){setBusy(true);try{await commitState(next);}catch(error){report(error);}finally{setBusy(false);}}else{state=next;renderUndo();}}if(now-lastTick>=1000){lastTick=now;updateTimes();await mutate({type:'tick'},{silent:true,notifyOverdue:true});await remind();checkUpdates();}/* F03: while a timer runs, ask the host every 5 s how long there has been no input anywhere. */if(idleSupported&&now-lastIdle>=5000){lastIdle=now;const runner=state.tasks.find(task=>task.workState==='running');if(!runner)idleWatch.reset();else{try{const found=idleWatch.sample({idleMs:(await host.window('idle')).idleMs,now:Date.now()});if(found&&!busy)await mutate({type:'idle',id:runner.id,...found},{silent:true});}catch{idleSupported=false;}}}/* A running timer is written every 15 s (N07); pause, stop, completion, sleep and exit are saved at once, so a crash loses at most that interval. */if(now-lastCheckpoint>=15000){lastCheckpoint=now;if(state.tasks.some(task=>task.workState==='running'))await mutate({type:'checkpoint'},{silent:true});}},200);
 host.addEventListener('exitFailed',()=>report(Error('saveError')));
-localize();load({startup:true}).then(async()=>{await restoreDraft().catch(()=>{});if(quick)$('#task-input').focus();else offerCaptureIntro().catch(()=>{});}).catch(error=>{ready=false;report(error,()=>load({startup:true}));const empty=$('#empty');if(empty)text(empty,t('loadError'));});
+async function finishStartup(){await restoreDraft().catch(()=>{});if(quick)$('#task-input').focus();else{await offerCaptureIntro().catch(()=>{});startupDialogsReady=true;checkUpdates();scheduleUpdatePrompt();}}
+localize();load({startup:true}).then(finishStartup).catch(error=>{ready=false;report(error,()=>load({startup:true}).then(finishStartup));const empty=$('#empty');if(empty)text(empty,t('loadError'));});
 
 $('#restore-backup').addEventListener('click',async()=>{if(busy||!await askConfirmation('restoreConfirm','restoreBackup'))return;setBusy(true);try{await host.request('restoreBackup');await load({startup:true});clearError();}catch(error){ready=false;report(Error('dataCorrupt'));text($('#error-text'),t('restoreFailed'));}finally{setBusy(false);}});
