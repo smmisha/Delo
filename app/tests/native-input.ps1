@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','unpinOverlap','traySingle','trayDouble','trayLostUp','backdrop','probe','diff')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag,[ValidateRange(0,60000)][int]$HoldMs=0,[ValidateRange(0,765)][int]$Threshold=40)
+param([Parameter(Mandatory=$true)][long]$Window,[ValidateSet('click','move','keys','resize','capture','compose','drag','outside','outsideOverlap','unpinOverlap','traySingle','trayDouble','trayLostUp','backdrop','probe','diff')][string]$Action,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Keys,[string]$OutputPath,[string]$ContinuePath,[string]$Base,[string]$Overlay,[int]$Frames=1,[ValidateRange(1,600)][int]$DragSteps=1,[ValidateRange(1,500)][int]$DragStepMs=130,[switch]$PreciseDrag,[ValidateRange(0,60000)][int]$HoldMs=0,[ValidateRange(0,765)][int]$Threshold=40)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -14,6 +14,8 @@ public static class DeloInput {
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h,out RECT rect);
+ [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h,out RECT rect);
+ [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h,ref POINT point);
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
  [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint dx,uint dy,uint data,UIntPtr extra);
  [DllImport("user32.dll")] public static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
@@ -94,31 +96,44 @@ try {
    $targetRect=New-Object DeloInput+RECT
    if(-not[DeloInput]::GetWindowRect($target,[ref]$targetRect)){throw 'Cannot read harness bounds for overlap test'}
    $outsideX=$targetRect.Left;$outsideY=$targetRect.Top;$outsideWidth=($targetRect.Right-$targetRect.Left)+120;$outsideHeight=$targetRect.Bottom-$targetRect.Top
-   $outsideEx=0;$outsideStyle=[uint32]282001408 # WS_OVERLAPPEDWINDOW | WS_VISIBLE
-  }else{$outsideX=900;$outsideY=180;$outsideWidth=240;$outsideHeight=120;$outsideEx=0x88;$outsideStyle=[uint32]2415919104}
+   $outsideEx=0;$outsideStyle=[uint32]13565952 # WS_OVERLAPPEDWINDOW; initially hidden to preserve Delo's foreground.
+  }else{$outsideX=900;$outsideY=180;$outsideWidth=240;$outsideHeight=120;$outsideEx=0x88;$outsideStyle=[uint32]2147483648} # WS_POPUP
   # SS_NOTIFY makes the STATIC window receive clicks instead of returning HTTRANSPARENT.
   $outsideStyle=[uint32]($outsideStyle -bor 0x100)
   $outside=[DeloInput]::CreateWindowEx($outsideEx,'STATIC','Delo harness outside target',$outsideStyle,$outsideX,$outsideY,$outsideWidth,$outsideHeight,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
   if($outside -eq [IntPtr]::Zero){throw 'Cannot create harness outside-click target'}
   try{
-   # windowsHide:true can suppress the first WS_VISIBLE window. Show this owned target
-   # explicitly, just as the backdrop helper does, before relying on its input or z-order.
+   # Explicit show also works under windowsHide:true. SWP_NOACTIVATE preserves Delo's
+   # foreground: only the injected click may activate this owned target.
    if(-not[DeloInput]::SetWindowPos($outside,[IntPtr]::Zero,0,0,0,0,0x0053) -or -not[DeloInput]::IsWindowVisible($outside)){throw 'Cannot show harness outside-click target'}
-   [void][DeloInput]::SetForegroundWindow($outside)
+   if($Action -in 'outsideOverlap','unpinOverlap'){
+    $clientRect=New-Object DeloInput+RECT
+    if(-not[DeloInput]::GetClientRect($outside,[ref]$clientRect) -or $clientRect.Right -le 0 -or $clientRect.Bottom -le 0){throw 'Cannot read harness outside-click client area'}
+    $stripPoint=New-Object DeloInput+POINT;$stripPoint.X=$clientRect.Right-1;$stripPoint.Y=[int](($clientRect.Bottom-$clientRect.Top)/2)
+    if(-not[DeloInput]::ClientToScreen($outside,[ref]$stripPoint) -or $stripPoint.X -le $targetRect.Right){throw 'Cannot select exposed harness outside-click client point'}
+   }
    $clickOutside={param([int]$clickX,[int]$clickY)
     $point=New-Object DeloInput+POINT;$point.X=$clickX;$point.Y=$clickY
     if([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($point),2)-ne$outside){throw 'Harness outside-click target is covered; refusing to click'}
+    if([DeloInput]::GetForegroundWindow()-ne$target){throw 'Delo harness must be foreground before the outside click'}
     if(-not[DeloInput]::SetCursorPos($clickX,$clickY)){throw 'Cannot move pointer to harness outside-click target'}
     [DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
     [DeloInput]::Pump(250)
     if([DeloInput]::GetForegroundWindow()-ne$outside){throw 'Harness outside-click target did not activate'}
+   }
+   if($ContinuePath){
+    if(-not$OutputPath){throw 'Outside-click handshake requires a readiness output path'}
+    [DeloInput]::Pump(50)
+    [IO.File]::WriteAllText([IO.Path]::GetFullPath($OutputPath),(@{pid=$PID;window=$outside.ToInt64()} | ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+    $continueDeadline=[DateTime]::UtcNow.AddSeconds(15)
+    while(-not[IO.File]::Exists($ContinuePath)){if([DateTime]::UtcNow -ge $continueDeadline){throw 'Outside-click setup timed out'};[DeloInput]::Pump(25)}
    }
    if($Action -eq 'outside'){
     & $clickOutside 1000 230
    }elseif($Action -eq 'unpinOverlap'){
     # The ordinary window becomes active under the pinned widget, then the widget's own pin
     # button (X,Y) is really clicked: the user unpins the window they are working in.
-    $strip={& $clickOutside ($targetRect.Right+60) ($targetRect.Top+40)}
+    $strip={& $clickOutside ($stripPoint.X) ($stripPoint.Y)}
     $probe=New-Object DeloInput+POINT;$probe.X=$targetRect.Left+[int](($targetRect.Right-$targetRect.Left)/2);$probe.Y=$targetRect.Top+[int](($targetRect.Bottom-$targetRect.Top)/2)
     $measure={@{targetForeground=([DeloInput]::GetForegroundWindow()-eq$target);foreignForeground=([DeloInput]::GetForegroundWindow()-eq$outside);targetAbove=[DeloInput]::Above($target,$outside);targetVisibleAtCentre=([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)-eq$target);foreignVisibleAtCentre=([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)-eq$outside)}}
     & $strip
@@ -133,7 +148,7 @@ try {
    }elseif($Action -eq 'outsideOverlap'){
     # Activate the ordinary window through the strip protruding past Delo. The
     # overlapping centre then reveals which window really won the normal z-order.
-    & $clickOutside ($targetRect.Right+60) ($targetRect.Top+40)
+    & $clickOutside ($stripPoint.X) ($stripPoint.Y)
    }
    if($Action -eq 'outsideOverlap'){
     $probe=New-Object DeloInput+POINT;$probe.X=$targetRect.Left+[int](($targetRect.Right-$targetRect.Left)/2);$probe.Y=$targetRect.Top+[int](($targetRect.Bottom-$targetRect.Top)/2)
