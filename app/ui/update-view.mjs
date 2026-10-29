@@ -9,3 +9,16 @@ export function updatePresentation({store=false,enabled=false,info=null,download
   if(!enabled||!info?.latest)return {visible:false,progress:null};
   return {visible:true,key:info.newer?'updateAvailable':'updateCurrent',args:{version:String(info.newer?info.latest:info.current).replace(/^v/i,'')},action:info.newer?'updateInstall':null,disabled:false,progress:null};
 }
+
+// One automatic offer per main-view lifetime. Busy UI defers it without consuming it.
+export function createUpdatePrompt(){
+  let handled=false;
+  return {
+    get handled(){return handled;},
+    offer({quick=false,store=false,enabled=false,info=null,download={},canShow=false,voiceActive=false}={}){
+      if(handled||quick||store||!enabled||info?.newer!==true||!info.latest||!canShow||voiceActive||download.phase)return false;
+      handled=true;return true;
+    },
+    dismiss(){handled=true;}
+  };
+}

@@ -209,6 +209,12 @@ body.dark .tooltip-layer{border-color:#ffffff35;background:#20364bec;color:#f5f7
 #confirmation-accept{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,var(--small-surface));font-weight:620}
 /* An explanation, not a warning: the same sheet without the red of a destructive confirmation. */
 #confirmation.calm #confirmation-accept{color:var(--focus);background:color-mix(in srgb,var(--focus) 12%,var(--small-surface))}
+#update-prompt[open]{display:flex;overflow:hidden}
+#update-prompt .confirm-surface{max-height:calc(100vh - 24px)}
+#update-prompt-message{margin:18px 0 22px;color:var(--ink);font-size:14px;line-height:1.55;min-height:0;overflow:auto;overflow-wrap:anywhere}
+#update-prompt .capture-head,#update-prompt .confirm-actions{flex-shrink:0}
+#update-prompt .confirm-actions{flex-wrap:wrap}
+#update-prompt-install{color:var(--focus);background:color-mix(in srgb,var(--focus) 12%,var(--small-surface));font-weight:620}
 .shortcut-recorder.recording{border-color:color-mix(in srgb,var(--focus) 72%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--focus) 48%,transparent),0 0 0 3px color-mix(in srgb,var(--focus) 10%,transparent)}
 
 /* Actions get their own row before they can squeeze an archived title to zero. */
