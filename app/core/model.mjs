@@ -133,6 +133,13 @@ export function applyCommand(source,command,{now,monotonic,timeZone='UTC'}={}) {
     case 'start': {unfinished();const at=touchAt();for(const other of s.tasks)hold(other,monotonic,now,at);t.workState='running';t.timerAnchor=monotonic;t.touchedAt=touchAt();break;}
     case 'pause': unfinished();if(t.workState!=='paused')hold(t,monotonic,now,touchAt());break;
     case 'stop': unfinished();freeze(t,monotonic,now);t.workState='idle';break;
+    case 'resetTime': {
+      active();const pausedWork=untimedPause(t);
+      if(t.workState==='running')hold(t,monotonic,now,touchAt());
+      t.elapsedMs=0;t.intervals=[];t.timerAnchor=null;delete t.idle;
+      if(pausedWork&&t.untimedState)t.untimedState[1]=0;
+      break;
+    }
     case 'work': {unfinished();const at=touchAt();for(const other of s.tasks)if(other!==t)hold(other,monotonic,now,at);freeze(t,monotonic,now);t.workState='working';t.touchedAt=touchAt();break;}
     // F06. pinnedAt is optional: data without it loads as unpinned, and older versions keep it as is.
     case 'pin': unfinished();if(t.pinnedAt==null)t.pinnedAt=now;break;

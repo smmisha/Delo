@@ -44,18 +44,18 @@ const press=async label=>{const d=await main.host('diagnostics');const out=execF
 const setting=async(name,value)=>{const r=await ev(`(async()=>{${bridge}const s=ms=>new Promise(r=>setTimeout(r,ms));document.querySelector('#settings-open').click();document.querySelector('#open-settings').click();await s(300);const form=document.querySelector('#settings-form');form.elements.${name}.value='${value}';form.elements.${name}.dispatchEvent(new Event('change',{bubbles:true}));const end=Date.now()+5000;let saved=false;while(Date.now()<end){saved=(await hostBridge.request('load')).state.settings.${name}==='${value}'&&document.querySelector('#widget').getAttribute('aria-busy')==='false';if(saved)break;await s(25);}document.querySelector('#settings [data-close]').click();await s(250);return {saved,closed:!document.querySelector('#settings').open,lang:document.documentElement.lang,dark:document.body.classList.contains('dark')};})()`);
  check(`settings ${name}=${value} saved and dialog closed`,r.saved&&r.closed,r);steps.push({label:`setting ${name}=${value}`,...r});return r;};
 // The pause glyph in the strip is two lines; it must keep a stroke where the strip fills its glyphs.
-const glyph=async theme=>{const g=await ev(`(()=>{const b=document.querySelector('.task [data-action=pauseWork]');if(!b)return null;const use=b.querySelector('use'),box=use.getBoundingClientRect();return {dark:document.body.classList.contains('dark'),strokeWidth:getComputedStyle(use).strokeWidth,width:box.width,height:box.height};})()`);
+const glyph=async theme=>{const g=await ev(`(()=>{const b=document.querySelector('.task [data-action=workToggle][aria-pressed=true]');if(!b)return null;const use=b.querySelector('use'),box=use.getBoundingClientRect();return {dark:document.body.classList.contains('dark'),strokeWidth:getComputedStyle(use).strokeWidth,width:box.width,height:box.height};})()`);
  check(`${theme}: the pause glyph in the strip is drawn`,g&&g.dark===(theme==='dark')&&parseFloat(g.strokeWidth)>0&&g.width>0&&g.height>0,g);};
 const shot=async name=>{await main.host('show');await wait(300);await screenshot(main,path.join(outDir,`${name}.png`));};
 const strip=(r,t)=>r.rows.find(x=>x.task===t)?.strip??[];
 const status=(r,t)=>r.rows.find(x=>x.task===t)?.status;
 const paused=t=>t?.workState==='paused'&&typeof t.untimed==='number';
-const labels={ru:{working:'В работе без таймера',paused:'На паузе без таймера',pause:'Поставить на паузу',resume:'Вернуть в работу',stop:'Остановить',workPaused:'На паузе: P16 ',workResumed:'В работе: P16 '},
- uk:{working:'У роботі без таймера',paused:'На паузі без таймера',pause:'Поставити на паузу',resume:'Повернути в роботу',stop:'Зупинити',workPaused:'На паузі: P16 ',workResumed:'У роботі: P16 '},
- en:{working:'Working without timer',paused:'Paused without timer',pause:'Pause',resume:'Back to work',stop:'Stop',workPaused:'Paused: P16 ',workResumed:'Working: P16 '}};
+const labels={ru:{working:'Пауза',paused:'Продолжить',pause:'Приостановить работу без таймера',resume:'Продолжить без таймера',stop:'Остановить',workPaused:'На паузе: P16 ',workResumed:'В работе: P16 '},
+ uk:{working:'Пауза',paused:'Продовжити',pause:'Призупинити роботу без таймера',resume:'Продовжити без таймера',stop:'Зупинити',workPaused:'На паузі: P16 ',workResumed:'У роботі: P16 '},
+ en:{working:'Pause',paused:'Continue',pause:'Pause work without timer',resume:'Continue without timer',stop:'Stop',workPaused:'Paused: P16 ',workResumed:'Working: P16 '}};
 const rowsMatch=(r,lang,label)=>{const L=labels[lang],actions=t=>JSON.stringify(strip(r,t).map(s=>s.split('|').slice(0,2)));
- check(`${label}: C shows "${L.working}" with pause and stop`,status(r,'C')===L.working&&actions('C')===JSON.stringify([['pauseWork',L.pause],['stop',L.stop]]),r.rows);
- check(`${label}: A shows "${L.paused}" with resume and stop`,status(r,'A')===L.paused&&actions('A')===JSON.stringify([['resumeWork',L.resume],['stop',L.stop]]),r.rows);
+ check(`${label}: C shows "${L.working}" with pause and stop`,status(r,'C')===L.working&&actions('C')===JSON.stringify([['workToggle',L.pause],['stop',L.stop]]),r.rows);
+ check(`${label}: A shows "${L.paused}" with resume and stop`,status(r,'A')===L.paused&&actions('A')===JSON.stringify([['workToggle',L.resume],['stop',L.stop]]),r.rows);
  check(`${label}: tooltips repeat the labels`,[...strip(r,'A'),...strip(r,'C')].every(s=>{const [,text,tip]=s.split('|');return text===tip;}),r.rows);
  check(`${label}: B (timer paused) has only stop`,JSON.stringify(strip(r,'B').map(s=>s.split('|')[0]))==='["stop"]',r.rows);};
 const toggleUntimed=async(lang,label)=>{const L=labels[lang];
@@ -75,7 +75,7 @@ try {
   check('A taken into work without the timer',r.tasks.A.workState==='working',r.tasks);
   await press('ru A pause');r=await read('shortcut pauses A');
   check('shortcut pauses A from "in work", announced "На паузе: P16 A"',paused(r.tasks.A)&&r.tasks.A.elapsedMs===0&&r.status==='На паузе: P16 A',{A:r.tasks.A,status:r.status});
-  check('A row: "На паузе без таймера" with "Вернуть в работу"',status(r,'A')==='На паузе без таймера'&&strip(r,'A')[0]?.startsWith('resumeWork|Вернуть в работу'),r.rows);
+  check('A row: one Continue control for untimed work',status(r,'A')==='Продолжить'&&strip(r,'A')[0]?.startsWith('workToggle|Продолжить без таймера'),r.rows);
   await press('ru A resume');r=await read('shortcut resumes A');
   check('shortcut returns A to work without the timer, announced "В работе: P16 A"',r.tasks.A.workState==='working'&&r.tasks.A.untimed===null&&r.tasks.A.elapsedMs===0&&r.status==='В работе: P16 A',{A:r.tasks.A,status:r.status});
   await click('B','timer');r=await read('B timer started');
@@ -109,7 +109,7 @@ try {
   check('after relaunch: language and light theme kept, shortcut registered',r.settings.language==='ru'&&r.settings.theme==='light'&&r.dark===false&&r.native.timerKey==='Ctrl+Alt+Shift+P'&&!r.native.timerKeyError,{settings:r.settings,native:r.native});
   rowsMatch(r,'ru','after relaunch');await shot('6-ru-light-after-relaunch');
   await toggleUntimed('ru','after relaunch');
-  await click('A','resumeWork');r=await read('A back to work');
+  await click('A','workToggle');r=await read('A back to work');
   check('after relaunch: "Вернуть в работу" on A takes the focus from C',r.tasks.A.workState==='working'&&r.tasks.A.untimed===null&&paused(r.tasks.C),r.tasks);
  }else{
   let r=await read('after recovery');
