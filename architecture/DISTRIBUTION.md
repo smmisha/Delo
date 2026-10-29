@@ -105,3 +105,10 @@ TASKS.md фиксирует выполненное отключение `Contain
 - Inno Setup privileges: https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm
 - Inno Setup architecture directives: https://jrsoftware.org/ishelp/topic_setup_architecturesallowed.htm
 - Inno Setup downloads: https://jrsoftware.org/isdl.php
+
+
+Пакет 0.3.9 опубликован 29 октября: [GitHub Release v0.3.9](https://github.com/smmisha/Delo/releases/tag/v0.3.9), тег на `5921560439be1bb594c23e79448f935c2d1a1c0b` после слияния PR #45 и #46. Новое: предложение обновления при запуске с «Обновить / Отложить», единая кнопка паузы/продолжения без таймера и подтверждённое обнуление времени задачи и её вклада в статистику. Идущий таймер при сбросе остаётся на паузе.
+
+Установщик `Delo-0.3.9-windows-x64-setup.exe`: `185635678` байт, SHA-256 `3FE6E1A90761B787A0F706F44B462C9DEE92A685AB4E62821EE3A329FBC33A7A`. Установщик и SHA-256 sidecar загружены в релиз; GitHub подтвердил размер и оба digest, тег и latest endpoint проверены. MSIX 0.3.9.0 также собран: `189630899` байт, SHA-256 `6E697BF78A15E45CD27432269704320B0815317ECA3F8C027AF8551AAC95F39E`; в GitHub Release он не добавлен, публикация в Microsoft Store в этот этап не входит.
+
+Проверено: 160 JS-тестов; 38 проверок нового UI, 3 после сохранённого выхода/relaunch, 70 существующих work-pause; CI Windows/store/updater и CodeQL. Функциональный код прошёл Codex и CodeRabbit без actionable findings. В Sandbox прямые обновления работающих 0.3.7 и 0.3.8 до 0.3.9 сохранили тестовые задачи/настройки и перезапустили приложение; все 50 установленных файлов совпали с release-сборкой. Рабочая копия обновлена 29 октября с 0.3.8 до 0.3.9: штатный сохранённый выход, резервная копия, сохранение задач/настроек/черновиков/автозапуска, видимый отвечающий процесс, ошибок запуска нет. Доказательства и приватная резервная копия остаются в исключённом из Git `app/test-output/work-reset-20261029/`.
