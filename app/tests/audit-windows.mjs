@@ -30,8 +30,8 @@ try{
  // Unpinning with a real click keeps the widget the user is working in on screen; it goes
  // to the desktop layer only once another window becomes active.
  const pinPoint=await main.point('#pin'),unpin=native(d.window,'unpinOverlap',{X:pinPoint.x,Y:pinPoint.y}).unpin;await wait(100);d=await main.host('diagnostics');
- check('real unpin click keeps the active widget above the window behind it',unpin?.afterUnpin?.targetForeground&&unpin.afterUnpin.targetAbove&&unpin.afterUnpin.targetVisibleAtCentre&&d.owner!==0,{unpin,diagnostics:d});
- check('unpinned widget goes behind the next active window',unpin?.afterForeign&&!unpin.afterForeign.targetForeground&&!unpin.afterForeign.targetAbove&&!unpin.afterForeign.targetVisibleAtCentre,{unpin,diagnostics:d});
+ check('real unpin click keeps the active widget above the window behind it',unpin?.before?.foreignForeground&&unpin.before.targetAbove&&unpin.before.targetVisibleAtCentre&&unpin.afterUnpin?.targetForeground&&unpin.afterUnpin.targetAbove&&unpin.afterUnpin.targetVisibleAtCentre&&d.owner!==0,{unpin,diagnostics:d});
+ check('unpinned widget goes behind the next active window',unpin?.afterForeign?.foreignForeground&&!unpin.afterForeign.targetForeground&&!unpin.afterForeign.targetAbove&&!unpin.afterForeign.targetVisibleAtCentre&&unpin.afterForeign.foreignVisibleAtCentre,{unpin,diagnostics:d});
  await main.host('pin',{pinned:true});
  await main.click('#hide-widget');d=await main.host('diagnostics');check('one physical minimise click hides full planner',!d.visible&&!d.windowVisible,d);
 }finally{await fs.mkdir(path.dirname(output),{recursive:true});await fs.writeFile(output,JSON.stringify(checks,null,2));main.close();quick.close();}

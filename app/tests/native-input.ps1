@@ -21,6 +21,7 @@ public static class DeloInput {
  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int w,int height,uint flags);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr CreateWindowEx(uint ex,string cls,string title,uint style,int x,int y,int w,int h,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr parameter);
  [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h,uint message,IntPtr w,IntPtr l);
  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h,uint command);
  [StructLayout(LayoutKind.Sequential)] public struct MSG {public IntPtr hwnd;public uint message;public IntPtr wParam,lParam;public uint time;public POINT pt;}
@@ -95,23 +96,36 @@ try {
    $outsideX=$targetRect.Left;$outsideY=$targetRect.Top;$outsideWidth=($targetRect.Right-$targetRect.Left)+120;$outsideHeight=$targetRect.Bottom-$targetRect.Top
    $outsideEx=0;$outsideStyle=[uint32]282001408 # WS_OVERLAPPEDWINDOW | WS_VISIBLE
   }else{$outsideX=900;$outsideY=180;$outsideWidth=240;$outsideHeight=120;$outsideEx=0x88;$outsideStyle=[uint32]2415919104}
+  # SS_NOTIFY makes the STATIC window receive clicks instead of returning HTTRANSPARENT.
+  $outsideStyle=[uint32]($outsideStyle -bor 0x100)
   $outside=[DeloInput]::CreateWindowEx($outsideEx,'STATIC','Delo harness outside target',$outsideStyle,$outsideX,$outsideY,$outsideWidth,$outsideHeight,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
   if($outside -eq [IntPtr]::Zero){throw 'Cannot create harness outside-click target'}
   try{
+   # windowsHide:true can suppress the first WS_VISIBLE window. Show this owned target
+   # explicitly, just as the backdrop helper does, before relying on its input or z-order.
+   if(-not[DeloInput]::SetWindowPos($outside,[IntPtr]::Zero,0,0,0,0,0x0053) -or -not[DeloInput]::IsWindowVisible($outside)){throw 'Cannot show harness outside-click target'}
    [void][DeloInput]::SetForegroundWindow($outside)
+   $clickOutside={param([int]$clickX,[int]$clickY)
+    $point=New-Object DeloInput+POINT;$point.X=$clickX;$point.Y=$clickY
+    if([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($point),2)-ne$outside){throw 'Harness outside-click target is covered; refusing to click'}
+    if(-not[DeloInput]::SetCursorPos($clickX,$clickY)){throw 'Cannot move pointer to harness outside-click target'}
+    [DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+    [DeloInput]::Pump(250)
+    if([DeloInput]::GetForegroundWindow()-ne$outside){throw 'Harness outside-click target did not activate'}
+   }
    if($Action -eq 'outside'){
-    [void][DeloInput]::SetCursorPos(1000,230);[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+    & $clickOutside 1000 230
    }elseif($Action -eq 'unpinOverlap'){
     # The ordinary window becomes active under the pinned widget, then the widget's own pin
     # button (X,Y) is really clicked: the user unpins the window they are working in.
-    $strip={[void][DeloInput]::SetCursorPos(($targetRect.Right+60),($targetRect.Top+40));[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 250}
+    $strip={& $clickOutside ($targetRect.Right+60) ($targetRect.Top+40)}
     $probe=New-Object DeloInput+POINT;$probe.X=$targetRect.Left+[int](($targetRect.Right-$targetRect.Left)/2);$probe.Y=$targetRect.Top+[int](($targetRect.Bottom-$targetRect.Top)/2)
-    $measure={@{targetForeground=([DeloInput]::GetForegroundWindow()-eq$target);foreignForeground=([DeloInput]::GetForegroundWindow()-eq$outside);targetAbove=[DeloInput]::Above($target,$outside);targetVisibleAtCentre=([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)-eq$target)}}
+    $measure={@{targetForeground=([DeloInput]::GetForegroundWindow()-eq$target);foreignForeground=([DeloInput]::GetForegroundWindow()-eq$outside);targetAbove=[DeloInput]::Above($target,$outside);targetVisibleAtCentre=([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)-eq$target);foreignVisibleAtCentre=([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)-eq$outside)}}
     & $strip
     $before=& $measure
     $pin=New-Object DeloInput+POINT;$pin.X=$X;$pin.Y=$Y
     if([DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($pin),2)-ne$target){throw 'Pin button is covered; refusing to click'}
-    [void][DeloInput]::SetCursorPos($X,$Y);[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 400
+    [void][DeloInput]::SetCursorPos($X,$Y);[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero);[DeloInput]::Pump(400)
     $afterUnpin=& $measure
     & $strip
     $afterForeign=& $measure
@@ -119,13 +133,12 @@ try {
    }elseif($Action -eq 'outsideOverlap'){
     # Activate the ordinary window through the strip protruding past Delo. The
     # overlapping centre then reveals which window really won the normal z-order.
-    [void][DeloInput]::SetCursorPos(($targetRect.Right+60),($targetRect.Top+40));[DeloInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[DeloInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+    & $clickOutside ($targetRect.Right+60) ($targetRect.Top+40)
    }
-   Start-Sleep -Milliseconds 250
    if($Action -eq 'outsideOverlap'){
     $probe=New-Object DeloInput+POINT;$probe.X=$targetRect.Left+[int](($targetRect.Right-$targetRect.Left)/2);$probe.Y=$targetRect.Top+[int](($targetRect.Bottom-$targetRect.Top)/2)
     $hitRoot=[DeloInput]::GetAncestor([DeloInput]::WindowFromPoint($probe),2)
-    $outsideResult=@{foreignActivated=([DeloInput]::GetForegroundWindow()-ne$target);coversTarget=($hitRoot-ne$target)}
+    $outsideResult=@{foreignActivated=([DeloInput]::GetForegroundWindow()-eq$outside);coversTarget=($hitRoot-eq$outside)}
    }
   }finally{[void][DeloInput]::DestroyWindow($outside)}
  }
