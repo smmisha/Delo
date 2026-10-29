@@ -6,6 +6,7 @@ import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {connect,native,wait,ready} from './audit-harness.mjs';
+import {waitForBackdropReady} from './audit-backdrop.mjs';
 
 const output=path.resolve(process.argv[2]||'app/test-output/demo'),main=await connect(),quick=await connect(true),checks=[];
 const check=(name,pass,details)=>{checks.push({name,pass:!!pass,details});console.log(JSON.stringify(checks.at(-1)));};
@@ -33,14 +34,7 @@ try{
  backdrop=spawn('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(import.meta.dirname,'native-input.ps1'),'-Window',String(window_),'-Action','backdrop','-HoldMs','60000','-OutputPath',backdropReady],{windowsHide:true,stdio:['ignore','ignore','pipe']});
  let backdropError='';backdrop.stderr.on('data',data=>{backdropError+=data;});backdrop.on('error',error=>{backdropError+=error.message;});
  if(!backdrop.pid)throw Error('Cannot start harness backdrop');
- let backdropState;
- for(const end=Date.now()+5000;Date.now()<end;){
-  if(backdrop.exitCode!==null||backdrop.signalCode!==null)throw Error('Harness backdrop exited before capture: '+backdropError);
-  try{backdropState=JSON.parse(await fs.readFile(backdropReady,'utf8'));}catch(error){if(error.code!=='ENOENT'&&!(error instanceof SyntaxError))throw error;}
-  if(backdropState?.pid===backdrop.pid&&backdropState.window>0)break;
-  await wait(50);
- }
- if(backdropState?.pid!==backdrop.pid||!(backdropState.window>0))throw Error('Harness backdrop did not become ready');
+ try{await waitForBackdropReady(backdrop,backdropReady);}catch(error){throw Error(error.message+(backdropError?': '+backdropError:''));}
  const capture=async name=>{if(backdrop.exitCode!==null||backdrop.signalCode!==null)throw Error('Harness backdrop expired before capture');const file=path.join(output,name);native(window_,'capture',{OutputPath:file});if(backdrop.exitCode!==null||backdrop.signalCode!==null)throw Error('Harness backdrop expired during capture');return file;};
  const changed=(first,second)=>native(window_,'diff',{Base:first,Overlay:second}).diff.changed;
 
