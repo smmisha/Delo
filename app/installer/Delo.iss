@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.3.8"
+  #define AppVersion "0.3.9"
 #endif
 #ifdef UpdateInstallerTest
   ; Test builds must provide isolated identities; they must never touch a live installation.
