@@ -15,8 +15,8 @@ export function createUpdatePrompt(){
   let handled=false;
   return {
     get handled(){return handled;},
-    offer({quick=false,store=false,enabled=false,info=null,download={},canShow=false}={}){
-      if(handled||quick||store||!enabled||info?.newer!==true||!info.latest||!canShow||download.phase)return false;
+    offer({quick=false,store=false,enabled=false,info=null,download={},canShow=false,voiceActive=false}={}){
+      if(handled||quick||store||!enabled||info?.newer!==true||!info.latest||!canShow||voiceActive||download.phase)return false;
       handled=true;return true;
     },
     dismiss(){handled=true;}

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as updates from '../ui/update-view.mjs';
 import {translator} from '../ui/i18n.mjs';
+import {VoiceInput} from '../ui/voice.mjs';
 
 const available={enabled:true,info:{current:'0.3.7',latest:'v0.3.8',newer:true},canShow:true};
 function prompt(){assert.equal(typeof updates.createUpdatePrompt,'function');return updates.createUpdatePrompt();}
@@ -32,6 +33,17 @@ test('an update already in progress does not trigger a second installation promp
   const policy=prompt();
   assert.equal(policy.offer({...available,download:{phase}}),false);
  }
+});
+
+test('startup waits through voice recording and transcription, then offers after cancellation',async()=>{
+ const policy=prompt(),offers=[],host=new EventTarget();host.request=async()=>({});
+ const voice=new VoiceInput({host,input:{value:''},language:()=> 'ru',onChange:()=>offers.push(policy.offer({...available,voiceActive:voice.active}))});
+ await voice.start();
+ voice.receive({session:voice.session,state:'recording'});
+ await voice.stop();
+ voice.receive({session:voice.session,state:'transcribing'});
+ assert.deepEqual(offers,[false,false,false,false]);
+ voice.cancel();assert.equal(offers.at(-1),true);
 });
 test('starting an update from Settings consumes the automatic offer for this launch',()=>{
  const policy=prompt();policy.dismiss();

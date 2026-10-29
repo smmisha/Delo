@@ -346,8 +346,8 @@ let startupDialogsReady=false,updatePointerDown=false,updatePromptTimer;
 function scheduleUpdatePrompt(){if(quick||updatePrompt.handled)return;clearTimeout(updatePromptTimer);updatePromptTimer=setTimeout(offerUpdatePrompt,0);}
 function offerUpdatePrompt(){
   const input=$('#task-input');
-  const canShow=startupDialogsReady&&ready&&!busy&&nativeVisible&&!document.hidden&&document.hasFocus()&&!updatePointerDown&&!menuTrigger&&!$('#app-menu').matches(':popover-open')&&!$('dialog[open]')&&!(document.activeElement===input&&input.value.trim());
-  if(!updatePrompt.offer({quick,store:!!native.storeManagedUpdates,enabled:!!state?.settings.checkUpdates,info:updateInfo,download:updateDownload,canShow}))return;
+  const canShow=startupDialogsReady&&ready&&!busy&&voiceInput.phase!=='error'&&nativeVisible&&!document.hidden&&document.hasFocus()&&!updatePointerDown&&!menuTrigger&&!$('#app-menu').matches(':popover-open')&&!$('dialog[open]')&&!(document.activeElement===input&&input.value.trim());
+  if(!updatePrompt.offer({quick,store:!!native.storeManagedUpdates,enabled:!!state?.settings.checkUpdates,info:updateInfo,download:updateDownload,canShow,voiceActive:voiceInput.active}))return;
   openDialog($('#update-prompt'));renderUpdatePrompt();$('#update-prompt-later').focus();
 }
 function renderUpdatePrompt(view=updatePresentation({enabled:!!state?.settings.checkUpdates,info:updateInfo,download:updateDownload})){
