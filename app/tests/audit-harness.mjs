@@ -1,9 +1,10 @@
 // Runs only against the explicit development endpoint. Native helpers refuse production HWNDs.
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,spawn} from 'node:child_process';
 import {channel} from 'node:diagnostics_channel';
 import {randomUUID} from 'node:crypto';
+import {waitForBackdropReady} from './audit-backdrop.mjs';
 export const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export async function connect(quick=false){
  const pages=await(await fetch('http://127.0.0.1:9223/json/list')).json();
@@ -90,6 +91,36 @@ export async function connect(quick=false){
 export function native(window,action,options={}){
  const script=path.join(import.meta.dirname,'native-input.ps1');
  return JSON.parse(execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',script,'-Window',String(window),'-Action',action,...Object.entries(options).flatMap(([k,v])=>[`-${k}`,String(v)])],{encoding:'utf8',windowsHide:true,timeout:30000}).trim());
+}
+// Helper startup can deactivate Delo before its window even exists. Restore the tested
+// view after the painted-window handshake, then release the same process to inject input.
+export async function outsideClick(page,action,options={}){
+ if(!['outside','outsideOverlap','unpinOverlap'].includes(action))throw Error('Expected an outside-click action');
+ const identity=await page.host('osSurfaceDiagnostics'),d=await page.host('diagnostics');
+ if(!/[\\/]test-output[\\/]sessions[\\/][A-Za-z0-9_-]+$/.test(identity.profile))throw Error('Outside input requires a named harness profile');
+ const base=path.join(identity.profile,`outside-${randomUUID()}`),readyFile=base+'.ready.json',goFile=base+'.go';
+ let stdout='',stderr='',timedOut=false;
+ const child=spawn('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(import.meta.dirname,'native-input.ps1'),'-Window',String(d.window),'-Action',action,'-OutputPath',readyFile,'-ContinuePath',goFile,...Object.entries(options).flatMap(([k,v])=>[`-${k}`,String(v)])],{windowsHide:true,stdio:['ignore','pipe','pipe']});
+ child.stdout.on('data',data=>stdout+=data);child.stderr.on('data',data=>stderr+=data);
+ const exited=new Promise(resolve=>{child.once('close',(code,signal)=>resolve({code,signal}));child.once('error',error=>resolve({error}));});
+ const timer=setTimeout(()=>{timedOut=true;child.kill();},45000);
+ try{
+  await waitForBackdropReady(child,readyFile);
+  if(action==='outside'&&await page.evaluate(()=>new URL(location.href).searchParams.get('view')==='quick')){await page.host('quick');}
+  else{await page.host('hide');await page.host('show');}
+  const prepared=await page.host('diagnostics');
+  if(prepared.window!==d.window||!prepared.windowVisible||prepared.foreground!==d.window)throw Error('Delo did not receive foreground after outside-helper startup');
+  if(child.exitCode!==null||child.signalCode!==null)throw Error('Outside helper exited during view setup');
+  await fs.writeFile(goFile,'');
+  const result=await exited;
+  if(result.error||result.code!==0||timedOut)throw Error(result.error?.message||stderr||'Outside helper failed or timed out');
+  return JSON.parse(stdout.trim());
+ }catch(error){throw Error(error.message+(stderr&&!error.message.includes(stderr)?': '+stderr:''));}
+ finally{
+  clearTimeout(timer);
+  if(child.pid&&child.exitCode===null&&child.signalCode===null){child.kill();await exited;}
+  await Promise.all([fs.rm(readyFile,{force:true}),fs.rm(goFile,{force:true})]);
+ }
 }
 // A geometry, theme or visibility change is followed by a new material frame; until it
 // lands the renderer is either not ready or still holds the previous size. Waiting for
