@@ -234,7 +234,7 @@ function closeMenu(focus=false){if(!menuTrigger)return;$('#task-menu').hidePopov
 // The task's own "more" control in the list, which a render may have replaced.
 function rowMore(id){return $$('.task[data-task]').find(node=>node.dataset.task===id)?.querySelector('.task-more')??null;}
 function configureTaskMenu(task){
- const work=$('#task-menu [data-action=work]'),holding=task.workState==='working',paused=untimedPause(task),label=holding?'pause':paused?'continueWork':'work';
+ const work=$('#task-menu [data-action=work]'),holding=task.workState==='working',paused=untimedPause(task),label=holding?'pauseUntimed':paused?'resumeWork':'work';
  work.disabled=busy||task.completedAt!==null;work.dataset.command=holding?'pause':'work';
  const caption=work.querySelector('span');caption.dataset.text=label;text(caption,t(label));
  work.querySelector('use').setAttribute('href',holding?'#i-pause':'#i-play');
