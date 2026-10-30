@@ -37,7 +37,7 @@ try{
   });
   await until(()=>document.querySelectorAll('.task[data-task]').length===6);await settle();
   await main.evaluate(async()=>{const {HostBridge}=await import('./bridge.mjs');const original=HostBridge.prototype.request;HostBridge.prototype.request=function(type,...args){if(type==='clock'&&this!==window.__deloHarnessBridge)window.__workApp=this;return original.call(this,type,...args);};});
-  check('untimed row has passive status and no play/pause duplicate',await main.evaluate(()=>{const r=document.querySelector('[data-task="reset-a"]');return !r.querySelector('.work-toggle')&&!r.querySelector('.timer')&&r.querySelector('.work-status').tagName==='SPAN'&&r.querySelector('.work-status').textContent==='В работе без таймера';}));
+  check('untimed row has passive status and no play/pause duplicate',await main.evaluate(()=>{const r=document.querySelector('[data-task="reset-a"]');return !r.querySelector('.work-toggle')&&r.querySelector('.task-actions .timer')&&r.querySelector('.work-status').tagName==='SPAN'&&r.querySelector('.work-status').textContent==='В работе без таймера';}));
   await menu('reset-a');check('working menu item offers Pause',await main.evaluate(()=>{const b=document.querySelector('#task-menu [data-action=work]');return !b.disabled&&b.textContent.trim()==='Пауза'&&b.querySelector('use').getAttribute('href')==='#i-pause';}));
   await main.click('#task-menu [data-action=work]');await settle();const paused=await find('reset-a');await wait(250);
   check('pause keeps untimed mode and does not accumulate',paused.workState==='paused'&&paused.untimedState?.[1]===paused.elapsedMs&&(await find('reset-a')).elapsedMs===paused.elapsedMs);
@@ -57,7 +57,7 @@ try{
    for(const theme of ['dark','light']){
     const current=await load();current.state.settings.language=language;current.state.settings.theme=theme;await rpc(quick,'save',{state:current.state,revision:current.revision});
     await until("document.documentElement.lang==='"+language+"'&&document.body.classList.contains('dark')==="+(theme==='dark'));
-    check(language+'/'+theme+': untimed rows have no control duplicates',await main.evaluate(()=>['reset-a','reset-b'].every(id=>{const r=document.querySelector('[data-task="'+id+'"]');return !r.querySelector('.work-toggle,.timer')&&r.querySelector('.work-status').tagName==='SPAN';})));
+    check(language+'/'+theme+': untimed rows have no control duplicates',await main.evaluate(()=>['reset-a','reset-b'].every(id=>{const r=document.querySelector('[data-task="'+id+'"]');return !r.querySelector('.work-toggle')&&r.querySelector('.task-actions .timer')&&r.querySelector('.work-status').tagName==='SPAN';})));
     for(const [id,label,aria,icon] of [['reset-a',{ru:'Пауза',uk:'Пауза',en:'Pause'}[language],{ru:'Приостановить работу без таймера',uk:'Призупинити роботу без таймера',en:'Pause work without timer'}[language],'#i-pause'],['reset-b',{ru:'Продолжить',uk:'Продовжити',en:'Continue'}[language],{ru:'Продолжить без таймера',uk:'Продовжити без таймера',en:'Continue without timer'}[language],'#i-play']]){
      await menu(id);check(language+'/'+theme+': menu action '+id,await main.evaluate((label,aria,icon)=>{const b=document.querySelector('#task-menu [data-action=work]');return !b.disabled&&b.textContent.trim()===label&&b.getAttribute('aria-label')===aria&&b.querySelector('use').getAttribute('href')===icon;},label,aria,icon));
      await screenshot(main,path.join(out,'menu-'+id+'-'+language+'-'+theme+'.png'));await click(row(id)+' .task-more');
@@ -65,9 +65,8 @@ try{
     await screenshot(main,path.join(out,'work-'+language+'-'+theme+'.png'),{readyMs:10000});
    }
   }
-  await menu('reset-a');
-  check('untimed mode still offers explicit timer start',await main.evaluate(()=>{const b=document.querySelector('#task-menu [data-action=start]');return !b.hidden&&!b.disabled;}));
-  await click('#task-menu [data-action=start]');check('menu starts the real timer', (await find('reset-a')).workState==='running');
+  check('timer start stays on the task row, outside More',await main.evaluate(()=>!document.querySelector('#task-menu [data-action=start]')&&!document.querySelector('[data-task="reset-a"] .timer').disabled));
+  await click(row('reset-a')+' .timer');check('row starts the real timer', (await find('reset-a')).workState==='running');
   await click(row('reset-a')+' .timer');await menu('reset-a','work');await menu('reset-a','work');
   const beforeCancel=await find('reset-a');await confirmReset('reset-a',false);
   check('Cancel preserves the task and its measured intervals',JSON.stringify(await find('reset-a'))===JSON.stringify(beforeCancel));
@@ -103,7 +102,7 @@ try{
   check('new confirmation resets the current task',(await find('reset-f')).elapsedMs===0);
   const ledgerBefore=(await load()).state;await confirmReset('reset-c');const ledgerAfter=(await load()).state;
   check('completed-task reset preserves completion and reputation',ledgerAfter.reputation===ledgerBefore.reputation&&JSON.stringify(ledgerAfter.events)===JSON.stringify(ledgerBefore.events)&&ledgerAfter.tasks.find(t=>t.id==='reset-c').completedAt!==null);
-  await menu('reset-b','start');await wait(300);await menu('reset-b','resetTime');await until(()=>document.querySelector('#confirmation').open);
+  await click(row('reset-b')+' .timer');await wait(300);await menu('reset-b','resetTime');await until(()=>document.querySelector('#confirmation').open);
   check('running reset explains and offers a pause',await main.evaluate(()=>document.querySelector('#confirmation-accept').textContent==='Reset and pause'));
   const d=await main.host('diagnostics'),size=await main.evaluate(()=>({w:innerWidth,h:innerHeight}));
   native(d.window,'resize',{Width:Math.round(320*d.width/size.w),Height:Math.round(360*d.height/size.h)});await until(()=>innerWidth===320&&innerHeight===360);

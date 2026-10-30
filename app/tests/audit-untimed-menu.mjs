@@ -24,7 +24,7 @@ try{
  const d=await main.host('diagnostics'),width=await main.evaluate('innerWidth');native(d.window,'resize',{Width:Math.round(320*d.width/width),Height:Math.round(620*d.width/width)});await wait(300);
  for(const theme of ['dark','light']){
   await quick.evaluate(async theme=>{const {HostBridge}=await import('./bridge.mjs'),host=new HostBridge(),saved=await host.request('load');saved.state.settings.language='ru';saved.state.settings.theme=theme;await host.request('save',{state:saved.state,revision:saved.revision});},theme);await settle();await wait(150);
-  check(theme+': narrow long-title row has no duplicate controls',await main.evaluate(()=>{const r=document.querySelector('[data-task="menu-a"]');return innerWidth===320&&!r.querySelector('.timer,.work-toggle')&&r.querySelector('.work-status').tagName==='SPAN'&&document.documentElement.scrollWidth<=innerWidth&&r.scrollWidth<=r.clientWidth+1;}));
+  check(theme+': narrow long-title row has no duplicate controls',await main.evaluate(()=>{const r=document.querySelector('[data-task="menu-a"]');return innerWidth===320&&!r.querySelector('.work-toggle')&&r.querySelector('.task-actions .timer')&&!r.querySelector('.task-actions .timer').disabled&&!document.querySelector('#task-menu [data-action=start]')&&r.querySelector('.work-status').tagName==='SPAN'&&document.documentElement.scrollWidth<=innerWidth&&r.scrollWidth<=r.clientWidth+1;}));
   await menu();check(theme+': menu offers Pause',await main.evaluate(()=>{const b=document.querySelector('#task-menu [data-action=work]');return !b.disabled&&b.textContent.trim()==='Пауза'&&b.querySelector('use').getAttribute('href')==='#i-pause';}));
   await screenshot(main,path.join(out,theme+'-menu.png'));
   await action();let task=(await load()).state.tasks[0];check(theme+': menu pauses without counting',task.workState==='paused'&&task.elapsedMs===0);
@@ -32,10 +32,16 @@ try{
   await menu();check(theme+': same item offers Continue',await main.evaluate(()=>document.querySelector('#task-menu [data-action=work]').textContent.trim()==='Продолжить'));
   await action();task=(await load()).state.tasks[0];check(theme+': continue remains untimed',task.workState==='working'&&task.elapsedMs===0);
  }
- await menu();await main.evaluate(()=>document.querySelector('#task-menu [data-action=start]').click());await settle();await wait(200);
- check('explicit timer start retains the row timer control',await main.evaluate(()=>!!document.querySelector('[data-task="menu-a"] .timer')));
+ await main.click('[data-task="menu-a"] .timer');await settle();await wait(200);
+ check('row Play starts a real timer from untimed work', (await load()).state.tasks[0].workState==='running');
  await main.evaluate(()=>document.querySelector('[data-task="menu-a"] .timer').click());await settle();
  const task=(await load()).state.tasks[0];check('row timer still pauses measured time',task.workState==='paused'&&task.elapsedMs>0);
+ await menu();await action();await menu();await action();
+ const untimed=(await load()).state.tasks[0];check('untimed pause preserves previously measured time',untimed.workState==='paused'&&untimed.elapsedMs===task.elapsedMs&&untimed.untimedState?.[1]===untimed.elapsedMs);
+ await main.click('[data-task="menu-a"] .timer');await settle();await wait(200);
+ check('row Play also starts measuring from untimed pause',(await load()).state.tasks[0].workState==='running');
+ await main.click('[data-task="menu-a"] .timer');await settle();
+ check('row Pause preserves timer mode and accumulated time',await main.evaluate(async()=>{const {HostBridge}=await import('./bridge.mjs'),{untimedPause}=await import('../core/model.mjs');const t=(await new HostBridge().request('load')).state.tasks[0];return t.workState==='paused'&&!untimedPause(t)&&t.elapsedMs>0;}));
  const diagnostics=await main.host('diagnostics');check('renderer remains healthy',diagnostics.healthy&&diagnostics.errors===0);
 }finally{await fs.writeFile(path.join(out,'untimed-menu.json'),JSON.stringify(checks,null,2));main.close();quick.close();}
 console.log(JSON.stringify({passed:checks.length}));
