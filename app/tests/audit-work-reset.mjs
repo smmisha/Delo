@@ -24,7 +24,7 @@ try{
   const a=await find('reset-a');const {state}=await load();
   check('saved zero and untimed pause survive relaunch',a.elapsedMs===0&&a.workState==='paused'&&Array.isArray(a.untimedState)&&a.untimedState[1]===0);
   check('no task restarts its timer after relaunch',!state.tasks.some(t=>t.workState==='running'));
-  await click(row('reset-a')+' [data-action=workToggle]');const resumed=await find('reset-a');
+  await menu('reset-a','work');const resumed=await find('reset-a');
   check('relaunch resume stays untimed at zero',resumed.workState==='working'&&resumed.elapsedMs===0);
  }else{
   await quick.evaluate(async()=>{
@@ -37,31 +37,38 @@ try{
   });
   await until(()=>document.querySelectorAll('.task[data-task]').length===6);await settle();
   await main.evaluate(async()=>{const {HostBridge}=await import('./bridge.mjs');const original=HostBridge.prototype.request;HostBridge.prototype.request=function(type,...args){if(type==='clock'&&this!==window.__deloHarnessBridge)window.__workApp=this;return original.call(this,type,...args);};});
-  check('untimed row has one combined action and no timer duplicate',await main.evaluate(()=>{const r=document.querySelector('[data-task="reset-a"]');return r.querySelectorAll('.work-toggle').length===1&&!r.querySelector('.timer')&&r.querySelector('.work-toggle').textContent.trim()==='Пауза';}));
-  await main.click(row('reset-a')+' [data-action=workToggle]');await settle();const paused=await find('reset-a');await wait(250);
+  check('untimed row has passive status and no play/pause duplicate',await main.evaluate(()=>{const r=document.querySelector('[data-task="reset-a"]');return !r.querySelector('.work-toggle')&&!r.querySelector('.timer')&&r.querySelector('.work-status').tagName==='SPAN'&&r.querySelector('.work-status').textContent==='В работе без таймера';}));
+  await menu('reset-a');check('working menu item offers Pause',await main.evaluate(()=>{const b=document.querySelector('#task-menu [data-action=work]');return !b.disabled&&b.textContent.trim()==='Пауза'&&b.querySelector('use').getAttribute('href')==='#i-pause';}));
+  await main.click('#task-menu [data-action=work]');await settle();const paused=await find('reset-a');await wait(250);
   check('pause keeps untimed mode and does not accumulate',paused.workState==='paused'&&paused.untimedState?.[1]===paused.elapsedMs&&(await find('reset-a')).elapsedMs===paused.elapsedMs);
-  check('combined toggle keeps keyboard focus after rerender',await main.evaluate(()=>document.activeElement?.dataset.action==='workToggle'));
+  check('menu toggle returns focus to the same task More button',await main.evaluate(()=>document.activeElement?.dataset.action==='more'&&document.activeElement.closest('[data-task]')?.dataset.task==='reset-a'));
   const keyWindow=(await main.host('diagnostics')).window;
-  native(keyWindow,'keys',{Keys:'SPACE'});await until(()=>document.querySelector('[data-task="reset-a"] .work-toggle')?.getAttribute('aria-pressed')==='true');await settle();
+  await menu('reset-a');await main.evaluate(()=>document.querySelector('#task-menu [data-action=work]').focus());
+  native(keyWindow,'keys',{Keys:'SPACE'});await until(()=>!document.querySelector('#task-menu').matches(':popover-open'));await settle();
   check('Space resumes untimed work without starting a timer',(await find('reset-a')).workState==='working'&&(await find('reset-a')).elapsedMs===paused.elapsedMs);
-  native(keyWindow,'keys',{Keys:'ENTER'});await until(()=>document.querySelector('[data-task="reset-a"] .work-toggle')?.getAttribute('aria-pressed')==='false');await settle();
-  check('Enter pauses the same untimed work control',(await find('reset-a')).workState==='paused');
+  await menu('reset-a');await main.evaluate(()=>document.querySelector('#task-menu [data-action=work]').focus());
+  native(keyWindow,'keys',{Keys:'ENTER'});await until(()=>!document.querySelector('#task-menu').matches(':popover-open'));await settle();
+  check('Enter pauses the same untimed menu item',(await find('reset-a')).workState==='paused');
   native(keyWindow,'keys',{Keys:'TAB'});await until(()=>document.activeElement?.dataset.action==='stop');
-  native(keyWindow,'keys',{Keys:'SHIFT+TAB'});await until(()=>document.activeElement?.dataset.action==='workToggle');
-  check('Tab navigation includes the unified control and Stop',await main.evaluate(()=>document.activeElement?.closest('[data-task]')?.dataset.task==='reset-a'));
-  await click(row('reset-a')+' [data-action=workToggle]');
+  native(keyWindow,'keys',{Keys:'SHIFT+TAB'});await until(()=>document.activeElement?.dataset.action==='more');
+  check('Tab navigation includes More and Stop',await main.evaluate(()=>document.activeElement?.closest('[data-task]')?.dataset.task==='reset-a'));
+  await menu('reset-a','work');
   for(const language of ['ru','uk','en']){
    for(const theme of ['dark','light']){
     const current=await load();current.state.settings.language=language;current.state.settings.theme=theme;await rpc(quick,'save',{state:current.state,revision:current.revision});
     await until("document.documentElement.lang==='"+language+"'&&document.body.classList.contains('dark')==="+(theme==='dark'));
-    check(language+'/'+theme+': action text is visible and unique',await main.evaluate(language=>{const labels={ru:['Пауза','Продолжить','Приостановить работу без таймера','Продолжить без таймера'],uk:['Пауза','Продовжити','Призупинити роботу без таймера','Продовжити без таймера'],en:['Pause','Continue','Pause work without timer','Continue without timer']}[language],active=document.querySelector('[data-task="reset-a"]'),paused=document.querySelector('[data-task="reset-b"]');return active.querySelectorAll('.work-toggle').length===1&&paused.querySelectorAll('.work-toggle').length===1&&!active.querySelector('.timer')&&!paused.querySelector('.timer')&&active.querySelector('.work-toggle span').textContent.trim()===labels[0]&&paused.querySelector('.work-toggle span').textContent.trim()===labels[1]&&active.querySelector('.work-toggle').getAttribute('aria-label')===labels[2]&&paused.querySelector('.work-toggle').getAttribute('aria-label')===labels[3];},language));
+    check(language+'/'+theme+': untimed rows have no control duplicates',await main.evaluate(()=>['reset-a','reset-b'].every(id=>{const r=document.querySelector('[data-task="'+id+'"]');return !r.querySelector('.work-toggle,.timer')&&r.querySelector('.work-status').tagName==='SPAN';})));
+    for(const [id,label,aria,icon] of [['reset-a',{ru:'Пауза',uk:'Пауза',en:'Pause'}[language],{ru:'Приостановить работу без таймера',uk:'Призупинити роботу без таймера',en:'Pause work without timer'}[language],'#i-pause'],['reset-b',{ru:'Продолжить',uk:'Продовжити',en:'Continue'}[language],{ru:'Продолжить без таймера',uk:'Продовжити без таймера',en:'Continue without timer'}[language],'#i-play']]){
+     await menu(id);check(language+'/'+theme+': menu action '+id,await main.evaluate((label,aria,icon)=>{const b=document.querySelector('#task-menu [data-action=work]');return !b.disabled&&b.textContent.trim()===label&&b.getAttribute('aria-label')===aria&&b.querySelector('use').getAttribute('href')===icon;},label,aria,icon));
+     await screenshot(main,path.join(out,'menu-'+id+'-'+language+'-'+theme+'.png'));await click(row(id)+' .task-more');
+    }
     await screenshot(main,path.join(out,'work-'+language+'-'+theme+'.png'),{readyMs:10000});
    }
   }
   await menu('reset-a');
   check('untimed mode still offers explicit timer start',await main.evaluate(()=>{const b=document.querySelector('#task-menu [data-action=start]');return !b.hidden&&!b.disabled;}));
   await click('#task-menu [data-action=start]');check('menu starts the real timer', (await find('reset-a')).workState==='running');
-  await click(row('reset-a')+' .timer');await menu('reset-a','work');await click(row('reset-a')+' [data-action=workToggle]');
+  await click(row('reset-a')+' .timer');await menu('reset-a','work');await menu('reset-a','work');
   const beforeCancel=await find('reset-a');await confirmReset('reset-a',false);
   check('Cancel preserves the task and its measured intervals',JSON.stringify(await find('reset-a'))===JSON.stringify(beforeCancel));
   await menu('reset-a','resetTime');await until(()=>document.querySelector('#confirmation').open);
