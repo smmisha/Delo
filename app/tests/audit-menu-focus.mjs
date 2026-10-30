@@ -31,9 +31,11 @@ try{
   try{
    await until(()=>!!window.__menuFocusSave?.release);
    check(action+': store response is held while busy',await main.evaluate(()=>document.querySelector('#widget').getAttribute('aria-busy')==='true'));
-   const draft='Draft entered during '+action;
-   await main.evaluate(draft=>{const input=document.querySelector('#task-input');input.focus();input.value=draft;input.dispatchEvent(new Event('input',{bubbles:true}));},draft);
-   check(action+': task input accepts typing during save',await main.evaluate(()=>document.activeElement?.id==='task-input'));
+   const previousDraft=await main.evaluate(()=>document.querySelector('#task-input').value),inserted=(previousDraft?' ':'')+'Draft entered during '+action,draft=previousDraft+inserted;
+   await main.click('#task-input');
+   await main.evaluate(()=>{const input=document.querySelector('#task-input');input.setSelectionRange(input.value.length,input.value.length);});
+   await main.call('Input.insertText',{text:inserted});
+   check(action+': task input accepts typing during save',await main.evaluate(expected=>document.activeElement?.id==='task-input'&&document.querySelector('#task-input').value===expected,draft));
    await main.evaluate(()=>{window.__menuFocusSave.release();});await settle();
    const focus=await main.evaluate(async()=>{await new Promise(requestAnimationFrame);return {active:document.activeElement?.id,action:document.activeElement?.dataset.action,draft:document.querySelector('#task-input').value};});
    check(action+': acknowledgement preserves input focus and draft',focus.active==='task-input'&&focus.draft===draft,focus);
