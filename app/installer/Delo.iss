@@ -22,14 +22,15 @@
 #else
   #define InstallerAppId "{{CE9AAB6D-03AE-43FB-A87E-48BF58868D12}"
   #define InstallerDir "{localappdata}\Programs\Delo"
-  #define InstallerGroup "Delo"
+  #define InstallerGroup "myDelo"
   #define StartupRunKey "Software\Microsoft\Windows\CurrentVersion\Run"
 #endif
 [Setup]
 AppId={#InstallerAppId}
-AppName=Delo
+AppName=myDelo
 AppVersion={#AppVersion}
 AppPublisher=Delo contributors
+UsePreviousGroup=no
 DefaultDirName={#InstallerDir}
 DefaultGroupName={#InstallerGroup}
 DisableProgramGroupPage=yes
@@ -60,18 +61,18 @@ Name: "uk"; MessagesFile: "compiler:Languages\Ukrainian.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-ru.RuntimeFailed=Не удалось установить Microsoft WebView2. Установка Delo остановлена. Повторите установку; ваши задачи сохранены.
-uk.RuntimeFailed=Не вдалося встановити Microsoft WebView2. Встановлення Delo зупинено. Спробуйте ще раз; ваші завдання збережено.
-en.RuntimeFailed=Microsoft WebView2 could not be installed. Delo setup has stopped. Try again; your tasks are preserved.
-ru.DataNotice=Задачи хранятся отдельно от приложения. Обновление и удаление Delo сохраняют эти данные.
-uk.DataNotice=Завдання зберігаються окремо від програми. Оновлення та видалення Delo зберігають ці дані.
-en.DataNotice=Tasks are stored separately from the app. Updating or uninstalling Delo preserves this data.
-ru.LaunchDelo=Запустить Delo
-uk.LaunchDelo=Запустити Delo
-en.LaunchDelo=Launch Delo
-ru.CloseFailed=Не удалось закрыть Delo. Закройте его через меню значка в трее («Выход») и повторите.
-uk.CloseFailed=Не вдалося закрити Delo. Закрийте його через меню значка в треї («Вихід») і повторіть.
-en.CloseFailed=Delo could not be closed. Exit it from the tray icon menu and try again.
+ru.RuntimeFailed=Не удалось установить Microsoft WebView2. Установка myDelo остановлена. Повторите установку; ваши задачи сохранены.
+uk.RuntimeFailed=Не вдалося встановити Microsoft WebView2. Встановлення myDelo зупинено. Спробуйте ще раз; ваші завдання збережено.
+en.RuntimeFailed=Microsoft WebView2 could not be installed. myDelo setup has stopped. Try again; your tasks are preserved.
+ru.DataNotice=Задачи хранятся отдельно от приложения. Обновление и удаление myDelo сохраняют эти данные.
+uk.DataNotice=Завдання зберігаються окремо від програми. Оновлення та видалення myDelo зберігають ці дані.
+en.DataNotice=Tasks are stored separately from the app. Updating or uninstalling myDelo preserves this data.
+ru.LaunchDelo=Запустить myDelo
+uk.LaunchDelo=Запустити myDelo
+en.LaunchDelo=Launch myDelo
+ru.CloseFailed=Не удалось закрыть myDelo. Закройте его через меню значка в трее («Выход») и повторите.
+uk.CloseFailed=Не вдалося закрити myDelo. Закрийте його через меню значка в треї («Вихід») і повторіть.
+en.CloseFailed=myDelo could not be closed. Exit it from the tray icon menu and try again.
 
 [Files]
 Source: "..\bin\Delo.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -96,6 +97,13 @@ Source: "..\vendor\distribution\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; F
 ; Default: Microsoft's evergreen bootstrapper (~2 MB) fetches the runtime during
 ; install, and only on machines that do not already have WebView2.
 Source: "..\vendor\distribution\MicrosoftEdgeWebView2Setup.exe"; Flags: dontcopy
+#endif
+
+#ifndef UpdateInstallerTest
+[InstallDelete]
+; 0.3.x placed the shortcut in a Start Menu group named Delo; the product is now myDelo.
+Type: files; Name: "{autoprograms}\Delo\Delo.lnk"
+Type: dirifempty; Name: "{autoprograms}\Delo"
 #endif
 
 [Icons]

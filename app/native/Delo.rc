@@ -22,12 +22,12 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "Delo contributors\0"
-            VALUE "FileDescription", "Delo desktop planner\0"
+            VALUE "FileDescription", "myDelo desktop planner\0"
             VALUE "FileVersion", DELO_FILE_VERSION_STRING "\0"
             VALUE "InternalName", "Delo\0"
             VALUE "LegalCopyright", "Copyright (c) 2026 Delo contributors\0"
             VALUE "OriginalFilename", "Delo.exe\0"
-            VALUE "ProductName", "Delo\0"
+            VALUE "ProductName", "myDelo\0"
             VALUE "ProductVersion", DELO_PRODUCT_VERSION_STRING "\0"
         END
     END

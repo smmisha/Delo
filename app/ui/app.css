@@ -483,3 +483,4 @@ body.dark .settings-data-actions button:hover{background:#ffffff24}
 .link-button[hidden]{display:none}
 .update-progress{flex-basis:100%;width:100%;height:4px;accent-color:var(--focus)}
 .update-progress[hidden]{display:none}
+.lockup b .my{font-weight:430}

@@ -346,7 +346,7 @@ function dataStatus(message){const node=$('#data-status');text(node,message);nod
 async function exportFile(){
   if(!state)return;const name=exportName(),body=exportData(state);dataStatus('');$('#settings-error').hidden=true;
   try{
-    if(typeof showSaveFilePicker==='function'){try{const handle=await showSaveFilePicker({suggestedName:name,types:[{description:'Delo',accept:{'application/json':['.json']}}]});const writable=await handle.createWritable();await writable.write(body);await writable.close();dataStatus(fill('exported',{name:handle.name}));return;}catch(error){if(error?.name==='AbortError')return;}}
+    if(typeof showSaveFilePicker==='function'){try{const handle=await showSaveFilePicker({suggestedName:name,types:[{description:'myDelo',accept:{'application/json':['.json']}}]});const writable=await handle.createWritable();await writable.write(body);await writable.close();dataStatus(fill('exported',{name:handle.name}));return;}catch(error){if(error?.name==='AbortError')return;}}
     const url=URL.createObjectURL(new Blob([body],{type:'application/json'})),link=element('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);dataStatus(fill('exported',{name}));
   }catch{text($('#settings-error'),t('exportError'));$('#settings-error').hidden=false;}
 }
