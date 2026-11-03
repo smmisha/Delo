@@ -484,3 +484,17 @@ body.dark .settings-data-actions button:hover{background:#ffffff24}
 .update-progress{flex-basis:100%;width:100%;height:4px;accent-color:var(--focus)}
 .update-progress[hidden]{display:none}
 .lockup b .my{font-weight:430}
+
+/* A06: header search replaces the lockup while open; closed, the header is the 0.3.10 one. */
+.head-search{display:none;flex:1;min-width:0;align-items:center;gap:2px;height:44px;margin-right:4px;padding:0 2px 0 0;border:1px solid #ffffff70;border-radius:22px;background:var(--small-surface);box-shadow:inset 0 1px 2px #17385314}
+body.dark .head-search{border-color:#ffffff22;box-shadow:inset 0 1px 2px #0003}
+.widget-head.searching .lockup{display:none}
+.widget-head.searching .head-search{display:flex}
+.head-search[hidden]{display:none}
+#main-search{flex:1;min-width:0;height:42px;padding:0 6px 0 18px;border:0;background:transparent;color:var(--ink);font-size:14px;outline:none}
+#main-search::placeholder{color:var(--muted);opacity:.82}
+#main-search::-webkit-search-cancel-button{display:none}
+.head-search:focus-within{box-shadow:inset 0 0 0 2px var(--focus)}
+.head-search .round{width:36px;height:36px}
+.search-empty{display:grid;justify-items:center;gap:6px}.search-empty p{margin:0}
+#main-search,#main-search:focus,#main-search:focus-visible{outline:none;box-shadow:none;border-radius:0;background:transparent}
