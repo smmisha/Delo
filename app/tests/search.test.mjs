@@ -16,3 +16,14 @@ test('V24 an empty query shows everything, a missing word shows nothing',()=>{
   assert.deepEqual(find(titles,'отчёт банк'),[]);
   assert.deepEqual(searchTerms(null),[]);
 });
+
+import {matchingIds,filterGroups} from '../core/search.mjs';
+test('A06 filterGroups keeps order, drops empty groups and snapshots matches',()=>{
+  const groups=[{key:'today',tasks:[{id:'1',title:'Купить молоко'},{id:'2',title:'Позвонить'}]},{key:'later',tasks:[{id:'3',title:'Молоко для кота'}]},{key:'done',tasks:[{id:'4',title:'Налог'}]}];
+  const ids=matchingIds(groups,searchTerms('МОЛОКО'));
+  assert.deepEqual(filterGroups(groups,ids).map(g=>[g.key,g.tasks.map(t=>t.id)]),[['today',['1']],['later',['3']]]);
+  groups[0].tasks[0].title='Купить хлеб';
+  assert.deepEqual(filterGroups(groups,ids).map(g=>g.tasks.map(t=>t.id)),[['1'],['3']],'an edited task stays until the query changes');
+  assert.equal(filterGroups(groups,matchingIds(groups,searchTerms(''))).length,3);
+  assert.equal(filterGroups(groups,matchingIds(groups,searchTerms('zzz'))).length,0);
+});

@@ -1,6 +1,6 @@
-# Delo
+# myDelo
 
-Delo is a local Windows 11 desktop planner. It combines a Win32 host, a D3D11/Windows Graphics Capture live backdrop material, and a transparent WebView2 interface.
+myDelo is a local Windows 11 desktop planner. It combines a Win32 host, a D3D11/Windows Graphics Capture live backdrop material, and a transparent WebView2 interface.
 
 The app keeps a task list on the desktop, provides global shortcuts for the list and quick entry, tracks focused work, archives stale tasks, keeps deleted tasks for 30 days, and records a simple reputation score. The interface supports Russian, Ukrainian, and English, light and dark themes, keyboard operation, and reduced motion.
 
@@ -45,4 +45,4 @@ Physical multi-monitor/DPI scenarios and the missing-WebView2 branch on a clean 
 
 ## License
 
-Delo source code is available under the [MIT License](LICENSE). Dependency provenance and redistribution notes are in [THIRD_PARTY.md](THIRD_PARTY.md).
+myDelo source code is available under the [MIT License](LICENSE). Dependency provenance and redistribution notes are in [THIRD_PARTY.md](THIRD_PARTY.md).
