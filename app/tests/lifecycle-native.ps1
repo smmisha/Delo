@@ -23,7 +23,7 @@ public static class DeloLife{
  [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr h,StringBuilder s,int n);
  [DllImport("user32.dll")]public static extern IntPtr SendMessageTimeout(IntPtr h,uint m,IntPtr w,IntPtr l,uint f,uint t,out IntPtr r);
  public static int Monitors(){int n=0;EnumDisplayMonitors(IntPtr.Zero,IntPtr.Zero,(IntPtr h,IntPtr dc,ref RECT r,IntPtr d)=>{n++;return true;},IntPtr.Zero);return n;}
- public static IntPtr MainWindow(uint pid){IntPtr found=IntPtr.Zero;EnumWindows((h,l)=>{uint p;GetWindowThreadProcessId(h,out p);if(p==pid){var t=new StringBuilder(32);GetWindowText(h,t,32);if(t.ToString()=="Delo"){found=h;return false;}}return true;},IntPtr.Zero);return found;}
+ public static IntPtr MainWindow(uint pid){IntPtr found=IntPtr.Zero;EnumWindows((h,l)=>{uint p;GetWindowThreadProcessId(h,out p);if(p==pid){var t=new StringBuilder(32);GetWindowText(h,t,32);if(t.ToString()=="myDelo"){found=h;return false;}}return true;},IntPtr.Zero);return found;}
 }
 "@
 [void][DeloLife]::SetProcessDpiAwarenessContext([IntPtr]-4)

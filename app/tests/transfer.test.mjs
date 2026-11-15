@@ -18,7 +18,7 @@ test('V25 export then import returns the same data',()=>{
   const root=JSON.parse(text);assert.equal(root.format,'delo-export');assert.equal(root.version,1);assert.equal(root.exportedAt,'2026-09-27T10:00:00.000Z');
   const {state,summary}=parseImport(text,s);
   assert.deepEqual(state,s);assert.deepEqual(summary,{tasks:4,active:3,archive:0,trash:1,reputation:5});
-  assert.equal(exportName(new Date(2026,8,7)),'Delo-2026-09-07.json');
+  assert.equal(exportName(new Date(2026,8,7)),'myDelo-2026-09-07.json');
 });
 
 test('V25 import takes preferences but keeps the settings of this computer',()=>{

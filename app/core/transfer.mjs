@@ -14,7 +14,7 @@ export function exportData(state,{now=Date.now()}={}){
   const check=validateState(state);if(!check.valid)fail('importInvalid');
   return `${JSON.stringify({format:EXPORT_FORMAT,version:1,exportedAt:new Date(now).toISOString(),state},null,1)}\n`;
 }
-export function exportName(now=new Date()){const pad=n=>String(n).padStart(2,'0');return `Delo-${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}.json`;}
+export function exportName(now=new Date()){const pad=n=>String(n).padStart(2,'0');return `myDelo-${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}.json`;}
 
 // Accepts this module's export, the widget's own data file ({format:1,revision,state}) such
 // as a copied tasks.json or its .bak, and a bare state. Throws importTooLarge, importInvalid
