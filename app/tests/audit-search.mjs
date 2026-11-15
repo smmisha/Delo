@@ -11,7 +11,7 @@ const key=(k,mods={})=>main.evaluate((k,mods)=>{const t=document.activeElement||
 const rows=()=>main.evaluate(()=>[...document.querySelectorAll('.task[data-task]')].map(n=>n.dataset.task));
 const type=value=>main.evaluate(value=>{const i=document.querySelector('#main-search');i.value=value;i.dispatchEvent(new Event('input',{bubbles:true}));},value);
 try{
- const identity=await main.host('osSurfaceDiagnostics');if(!/test-output.sessions./.test(identity.profile))throw Error('Dedicated profile required');
+ const identity=await main.host('osSurfaceDiagnostics');if(!/test-output[\\/]sessions[\\/]search-/i.test(identity.profile))throw Error('Dedicated search- profile required');
  await main.host('show');
  await quick.evaluate(async()=>{
   const {createState,applyCommand}=await import('../core/model.mjs'),{HostBridge}=await import('./bridge.mjs'),host=new HostBridge();
@@ -44,6 +44,9 @@ try{
  check('first Escape clears the query, search stays',await main.evaluate(()=>document.querySelector('#main-search').value===''&&!document.querySelector('#main-search-box').hidden)&&(await rows()).length===4);
  await main.evaluate(()=>document.querySelector('#main-search').focus());await key('Escape');await wait(100);
  check('second Escape closes the search',await main.evaluate(()=>document.querySelector('#main-search-box').hidden));
+ await main.evaluate(()=>document.querySelector('[data-task="b"] [data-action="edit"]').focus());await key('f',{ctrlKey:true});await wait(150);await type('zzz');await wait(100);
+ await key('Escape');await wait(100);await key('Escape');await wait(150);
+ check('focus returns to the re-rendered row control',await main.evaluate(()=>{const a=document.activeElement;return document.querySelector('#main-search-box').hidden&&a?.dataset.action==='edit'&&a.closest('[data-task]')?.dataset.task==='b';}));
  await main.evaluate(()=>document.querySelector('#settings-open').click());await wait(250);await main.evaluate(()=>document.querySelector('#open-find').click());await wait(150);
  check('menu "Find" opens the search',await main.evaluate(()=>document.activeElement?.id==='main-search'));
  await type('мол');
