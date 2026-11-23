@@ -1,6 +1,6 @@
 /* Task controls share the established glass geometry and semantic theme tokens. */
-:root{--work:#785007;--work-surface:#d7971720;--menu-surface:#edf4fbeb;--archive:#8a5a12}
-body.dark{--work:#ffdb80;--work-surface:#ffc34d16;--menu-surface:#203348ed;--archive:#f0c07a}
+:root{--work:#785007;--work-surface:#d7971720;--pause:#4a4399;--pause-surface:#6a62d01a;--menu-surface:#edf4fbeb;--archive:#8a5a12}
+body.dark{--work:#ffdb80;--work-surface:#ffc34d16;--pause:#c0bbfa;--pause-surface:#a9a2f51c;--menu-surface:#203348ed;--archive:#f0c07a}
 [hidden]{display:none!important}
 /* Lockup: vector mark + wordmark in the interface face. Mark is optically 14% over
    cap height and 8% under the baseline; gap is 0.32 of cap height. */
@@ -31,6 +31,11 @@ body.dark .add.send:enabled{color:#112e4f}
 .in-work .task-title{color:var(--work)}.in-work .circle{border-color:var(--work);box-shadow:0 0 0 3px var(--work-surface)}
 .work-strip{grid-column:2/-1;display:flex;align-items:center;gap:8px;min-height:32px;padding:3px 6px 3px 10px;margin:0 2px 8px 0;border-radius:14px;color:var(--muted);background:#6c88a00b}
 .in-work .work-strip{background:var(--work-surface);color:var(--work)}
+/* A paused task (timer paused, or "in work" paused without the timer) keeps the in-work layout but takes its own cooler tint,
+   so it no longer looks identical to one that is being worked on. Every in-work rule reads var(--work), so one override recolours
+   the title, ring, strip and stop button. A row with the away question keeps the amber: that is the one that needs an answer. */
+.task.on-pause{--work:var(--pause);--work-surface:var(--pause-surface)}
+.on-pause .stop-work:hover{background:color-mix(in srgb,var(--pause) 18%,transparent)}
 .work-status{font-size:12px;line-height:1.4;margin-right:auto}.elapsed{font-size:12px;letter-spacing:.1px;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* Visual stays 36px so the work strip keeps its height; the tap area is 44. */
 .stop-work{position:relative;display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;padding:0;background:transparent;color:inherit;border-radius:12px}
